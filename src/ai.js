@@ -1,12 +1,46 @@
 // Responde perguntas livres usando a IA gratuita do Google Gemini,
 // ancorada nos dados atuais do negócio (lidos ao vivo do config.json).
-// Mantém histórico curto por contato.
+//
+// Function calling: quando o cliente informa um ENDEREÇO para entrega/táxi dog,
+// a IA chama a função `consultar_taxa_entrega`, que geolocaliza o endereço,
+// mede a distância de carro e calcula as taxas (cálculo determinístico no geo/config).
 
 const { GoogleGenAI } = require("@google/genai");
 const config = require("./config");
+const geo = require("./geo");
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const MODELO = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
+// Ferramenta exposta ao modelo.
+const TOOLS = [
+  {
+    functionDeclarations: [
+      {
+        name: "consultar_taxa_entrega",
+        description:
+          "Calcula a distância de carro da loja até o endereço do cliente e retorna as taxas de entrega e de táxi dog para essa distância. Use SEMPRE que o cliente informar um endereço (rua, número, bairro) querendo saber o valor da entrega ou do táxi dog. Não calcule distância por conta própria.",
+        parameters: {
+          type: "object",
+          properties: {
+            endereco: {
+              type: "string",
+              description: "Endereço completo informado pelo cliente, ex.: 'Rua das Carnaúbas, 777, Passaré'.",
+            },
+          },
+          required: ["endereco"],
+        },
+      },
+    ],
+  },
+];
+
+async function executarFuncao(nome, args) {
+  if (nome === "consultar_taxa_entrega") {
+    return await geo.consultarTaxaPorEndereco((args && args.endereco) || "");
+  }
+  return { erro: "funcao_desconhecida" };
+}
 
 // Monta a "system instruction" com o contexto do negócio. Reconstruída a cada
 // chamada para refletir edições feitas no painel sem reiniciar o bot.
@@ -39,17 +73,17 @@ function montarContexto() {
     "- Nunca dê diagnóstico ou orientação médica veterinária; em emergências, oriente a ligar para o telefone do negócio.",
     "- Se o cliente quiser agendar, peça os dados que faltam (nome do pet, porte/espécie, dia e horário).",
     "",
-    "CÁLCULO DE TAXA DE ENTREGA / TÁXI DOG:",
-    "- Há 3 serviços: Entrega (moto), Táxi Dog moto e Táxi Dog carro. Os valores estão na seção acima, por faixa de distância (até X km).",
-    "- Para calcular: identifique o SERVIÇO e a DISTÂNCIA em km. Escolha a faixa cujo limite 'até X km' seja o MENOR valor que ainda seja maior ou igual à distância. Ex.: 2,5 km cai na faixa 'até 3 km'.",
+    "TAXA DE ENTREGA / TÁXI DOG:",
+    "- Se o cliente informar um ENDEREÇO, use a função consultar_taxa_entrega (não calcule distância sozinho). Depois apresente os valores retornados.",
+    "- Se o cliente informar direto a DISTÂNCIA em km (sem endereço), use a tabela acima: escolha a faixa 'até X km' cujo limite seja o menor valor >= à distância (ex.: 2,5 km → 'até 3 km').",
     "- Táxi Dog é sempre ida e volta. Entrega (moto) é valor único.",
-    "- Se faltar a distância OU o serviço, pergunte antes de dar o valor (não chute).",
-    "- Se a distância passar da maior faixa do serviço (ou for um local não listado), diga que vai confirmar o valor exato com um atendente.",
-    "- Responda o valor de forma direta, ex.: \"Táxi Dog de carro até 3 km fica R$ 15,00 (ida e volta).\"",
+    "- Se faltar o endereço/distância OU o serviço, pergunte antes de dar o valor (não chute).",
+    "- Se a função não encontrar o endereço, ou a distância passar da área de cobertura, diga que um atendente confirma o valor exato.",
   ].join("\n");
 }
 
 // Histórico em memória no formato do Gemini: contactId -> [{role, parts:[{text}]}]
+// Guardamos só as mensagens de texto (não as chamadas de função intermediárias).
 const historicos = new Map();
 const MAX_TURNOS = 6;
 
@@ -60,29 +94,45 @@ function getHistorico(contactId) {
 
 async function responder(contactId, mensagem) {
   const historico = getHistorico(contactId);
-  historico.push({ role: "user", parts: [{ text: mensagem }] });
+  // Array de trabalho: histórico + nova mensagem (recebe as chamadas de função).
+  const working = [...historico, { role: "user", parts: [{ text: mensagem }] }];
 
   const cfg = {
     systemInstruction: montarContexto(),
-    maxOutputTokens: 500,
-    temperature: 0.4,
+    maxOutputTokens: 600,
+    temperature: 0.3,
+    tools: TOOLS,
   };
   if (MODELO.includes("2.5")) cfg.thinkingConfig = { thinkingBudget: 0 };
 
-  const resposta = await ai.models.generateContent({
-    model: MODELO,
-    contents: historico,
-    config: cfg,
-  });
+  let resp = await ai.models.generateContent({ model: MODELO, contents: working, config: cfg });
 
-  const texto = (resposta.text || "").trim();
-  const final =
-    texto || "Desculpe, não entendi. Pode reformular? Ou digite *atendente* para falar com uma pessoa.";
+  // Loop de function calling (até 3 rodadas).
+  for (let i = 0; i < 3; i++) {
+    const chamadas = resp.functionCalls;
+    if (!chamadas || chamadas.length === 0) break;
 
-  historico.push({ role: "model", parts: [{ text: final }] });
+    working.push({ role: "model", parts: resp.candidates[0].content.parts });
+    const partesResposta = [];
+    for (const chamada of chamadas) {
+      const resultado = await executarFuncao(chamada.name, chamada.args);
+      partesResposta.push({ functionResponse: { name: chamada.name, response: resultado } });
+    }
+    working.push({ role: "user", parts: partesResposta });
+
+    resp = await ai.models.generateContent({ model: MODELO, contents: working, config: cfg });
+  }
+
+  const texto =
+    (resp.text || "").trim() ||
+    "Desculpe, não entendi. Pode reformular? Ou digite *atendente* para falar com uma pessoa.";
+
+  // Persiste só a mensagem do cliente e a resposta final (texto), mantendo o histórico limpo.
+  historico.push({ role: "user", parts: [{ text: mensagem }] });
+  historico.push({ role: "model", parts: [{ text: texto }] });
   if (historico.length > MAX_TURNOS) historico.splice(0, historico.length - MAX_TURNOS);
 
-  return final;
+  return texto;
 }
 
 function limparHistorico(contactId) {

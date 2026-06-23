@@ -60,7 +60,8 @@
     "titulo": "Entrega / Táxi Dog",
     "gatilhos": ["entrega", "delivery", "frete", "taxa", "entregam", "taxa de entrega", "taxi dog", "taxidog", "leva e traz", "buscar", "buscam"],
     "intro": "🛵 *Taxas de entrega e Táxi Dog*\n(Táxi Dog é ida e volta)",
-    "rodape": "Me diga a *distância em km* (ou seu bairro) e qual serviço — *entrega moto*, *táxi dog moto* ou *táxi dog carro* — que eu calculo o valor. 🐾",
+    "rodape": "Me diga seu *endereço completo* (ou a distância em km) e qual serviço — *entrega moto*, *táxi dog moto* ou *táxi dog carro* — que eu calculo o valor. 🐾",
+    "origem": { "endereco": "Rua dos Animais, 123, Centro, Fortaleza - CE" },
     "taxas": [
       { "servico": "Entrega (moto)", "ate_km": 2, "valor": "5,00", "obs": "Sumaré" },
       { "servico": "Entrega (moto)", "ate_km": 3, "valor": "8,00", "obs": "Dias Macedo, Pq Dois Irmãos" },

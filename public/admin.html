@@ -84,6 +84,9 @@
       <label>Palavras-chave (separadas por vírgula)</label><input type="text" id="e_gatilhos" />
       <label>Texto de introdução</label><textarea id="e_intro"></textarea>
       <label>Rodapé (opcional)</label><textarea id="e_rodape"></textarea>
+      <label>📍 Endereço de partida (a loja)</label>
+      <p class="dica">Usado para medir a distância até o endereço do cliente. Coloque o endereço completo e real da loja (rua, número, bairro, cidade - UF).</p>
+      <input type="text" id="e_origem" />
       <label>Tabela de taxas (serviço · até km · valor · observação)</label>
       <p class="dica">O bot calcula sozinho: pelo serviço + distância, escolhe a faixa "até X km". Deixe o <b>km vazio</b> para um local fixo (ex.: Caucaia). A <b>observação</b> é opcional (bairro/referência).</p>
       <datalist id="servicos_entrega">
@@ -199,6 +202,7 @@
       el("e_gatilhos").value = listaParaTexto(e.gatilhos);
       el("e_intro").value = e.intro || "";
       el("e_rodape").value = e.rodape || "";
+      el("e_origem").value = (e.origem && e.origem.endereco) || "";
       (e.taxas || []).forEach(t => el("lista_taxas").appendChild(taxaHtml(t)));
       el("g_atendente").value = listaParaTexto(cfg.gatilhosAtendente);
       el("g_saudacao").value = listaParaTexto(cfg.gatilhosSaudacao);
@@ -217,6 +221,7 @@
           gatilhos: textoParaLista(el("e_gatilhos").value),
           intro: el("e_intro").value,
           rodape: el("e_rodape").value,
+          origem: { endereco: el("e_origem").value.trim() },
           taxas: coletarTaxas(),
         },
         gatilhosAtendente: textoParaLista(el("g_atendente").value),

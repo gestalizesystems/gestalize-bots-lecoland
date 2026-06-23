@@ -74,6 +74,23 @@ function respostaEntrega() {
   return preencher(texto);
 }
 
+// Dada uma distância em km, devolve a taxa de cada serviço (faixa cujo "até X km"
+// é o menor valor >= km). valor null = acima da maior faixa daquele serviço.
+function calcularTaxas(km) {
+  const porServico = {};
+  for (const t of (dados.entrega && dados.entrega.taxas) || []) {
+    if (t.ate_km === "" || t.ate_km === null || t.ate_km === undefined) continue; // ignora locais fixos
+    (porServico[t.servico] = porServico[t.servico] || []).push(t);
+  }
+  const res = [];
+  for (const servico of Object.keys(porServico)) {
+    const tiers = porServico[servico].slice().sort((a, b) => a.ate_km - b.ate_km);
+    const tier = tiers.find((t) => km <= t.ate_km);
+    res.push({ servico, valor: tier ? tier.valor : null, ate_km: tier ? tier.ate_km : null });
+  }
+  return res;
+}
+
 // Lista unificada de "intenções" para o menu numerado e a busca por palavra-chave.
 // Ordem: serviços, FAQ rápido e (se ativa) a entrega. O número no menu = posição aqui.
 function intents() {
@@ -95,4 +112,4 @@ function intents() {
   return lista;
 }
 
-module.exports = { get, reload, salvar, preencher, respostaEntrega, intents, CAMINHO };
+module.exports = { get, reload, salvar, preencher, respostaEntrega, intents, calcularTaxas, CAMINHO };
