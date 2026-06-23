@@ -2,7 +2,7 @@
   "negocio": {
     "nome": "Lecoland",
     "tipo": "Pet Shop e Clínica Veterinária",
-    "logo": "",
+    "logo": "/uploads/logo.png",
     "endereco": "R. Dois, 190 - Passaré, Fortaleza - CE, 60744-320",
     "telefone": "(85) 98225-8020",
     "horarioSemana": "Segunda a sexta, das 8h às 19h",

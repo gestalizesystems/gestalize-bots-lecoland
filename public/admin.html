@@ -6,8 +6,8 @@
   <title>Lecoland — Painel do Bot</title>
   <style>
     :root {
-      --amarelo: #f6c945;        /* amarelo da marca (sidebar) */
-      --amarelo-escuro: #ecbb2c;
+      --amarelo: #f9c72c;        /* amarelo da marca (sidebar) */
+      --amarelo-escuro: #edb81b;
       --navy: #1f3a5f;           /* azul-marinho da marca */
       --navy-escuro: #16294a;
       --vermelho: #e0392b;       /* vermelho da marca */
@@ -78,6 +78,10 @@
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
     @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } .sidebar { position: static; width: 100%; height: auto; } .main { margin-left: 0; } .layout { flex-direction: column; } }
 
+    /* Cada menu abre uma tela própria */
+    .page { display: none; }
+    .page.ativa { display: block; }
+
     .card { background: var(--card); border: 1px solid var(--borda); border-radius: 14px; padding: 20px; margin-bottom: 18px; }
     .card h2 { margin: 0 0 4px; font-size: 16px; color: var(--navy); display: flex; align-items: center; gap: 8px; }
     .card .dica { font-size: 12px; color: var(--suave); margin: 4px 0 14px; }
@@ -125,12 +129,12 @@
       </div>
 
       <nav class="nav" id="nav">
-        <a class="nav-item active" data-target="sec-negocio"><span class="ic">🏪</span> Dados do negócio</a>
-        <a class="nav-item" data-target="sec-mensagens"><span class="ic">💬</span> Mensagens</a>
-        <a class="nav-item" data-target="sec-opcoes"><span class="ic">🔢</span> Opções do Menu</a>
-        <a class="nav-item" data-target="sec-faq"><span class="ic">❓</span> Respostas Rápidas</a>
-        <a class="nav-item" data-target="sec-entrega"><span class="ic">🛵</span> Taxas e Serviços</a>
-        <a class="nav-item" data-target="sec-gatilhos"><span class="ic">⚙️</span> Palavras-chave</a>
+        <a class="nav-item active" data-target="page-negocio" data-titulo="Dados do negócio" data-sub="Informações que aparecem nas respostas do bot."><span class="ic">🏪</span> Dados do negócio</a>
+        <a class="nav-item" data-target="page-mensagens" data-titulo="Mensagens" data-sub="Personalize as mensagens que o bot envia."><span class="ic">💬</span> Mensagens</a>
+        <a class="nav-item" data-target="page-opcoes" data-titulo="Opções do Menu" data-sub="Itens numerados do menu (banho, veterinário, vacina...)."><span class="ic">🔢</span> Opções do Menu</a>
+        <a class="nav-item" data-target="page-faq" data-titulo="Respostas Rápidas (FAQ)" data-sub="Respostas para dúvidas comuns dos clientes."><span class="ic">❓</span> Respostas Rápidas</a>
+        <a class="nav-item" data-target="page-entrega" data-titulo="Taxas e Serviços" data-sub="Entrega e Táxi Dog, com cálculo por distância."><span class="ic">🛵</span> Taxas e Serviços</a>
+        <a class="nav-item" data-target="page-gatilhos" data-titulo="Palavras-chave gerais" data-sub="Atalhos para o bot entender comandos importantes."><span class="ic">⚙️</span> Palavras-chave</a>
       </nav>
 
       <div class="side-foot">
@@ -143,8 +147,8 @@
     <div class="main">
       <header class="topbar">
         <div>
-          <h1>Configurações do Bot</h1>
-          <p>Gerencie as informações e o conteúdo do seu atendimento automático.</p>
+          <h1 id="topTitulo">Dados do negócio</h1>
+          <p id="topSub">Informações que aparecem nas respostas do bot.</p>
         </div>
         <div class="topbar-actions">
           <span id="status"></span>
@@ -153,7 +157,7 @@
       </header>
 
       <main class="content">
-        <section class="card" id="sec-negocio">
+        <section class="card page ativa" id="page-negocio">
           <h2>🏪 Dados do negócio</h2>
           <p class="dica">Esses dados aparecem nas respostas. Você pode usar variáveis em qualquer texto:
             <span class="pill">{nome}</span> <span class="pill">{telefone}</span> <span class="pill">{endereco}</span>
@@ -170,8 +174,7 @@
           </div>
         </section>
 
-        <div class="grid-2">
-          <section class="card" id="sec-mensagens">
+        <section class="card page" id="page-mensagens">
             <h2>💬 Mensagens</h2>
             <p class="dica">Use <code>*texto*</code> para <b>negrito</b> no WhatsApp e Enter para pular linha.</p>
             <label>Saudação — linha 1</label><textarea id="m_saudacaoIntro"></textarea>
@@ -180,22 +183,21 @@
             <label>Resposta ao pedir atendente humano</label><textarea id="m_atendente"></textarea>
           </section>
 
-          <section class="card" id="sec-opcoes">
+          <section class="card page" id="page-opcoes">
             <div class="card-head"><h2>🔢 Opções do Menu</h2></div>
             <p class="dica">Cada item vira uma opção numerada no menu (1, 2, 3...). <b>Palavras-chave</b> separadas por vírgula.</p>
             <div id="lista_servicos"></div>
             <button class="add" onclick="addServico()">+ Adicionar opção</button>
           </section>
-        </div>
 
-        <section class="card" id="sec-faq">
+        <section class="card page" id="page-faq">
           <div class="card-head"><h2>❓ Respostas Rápidas (FAQ)</h2></div>
           <p class="dica">Respostas para dúvidas comuns dos clientes (horário, endereço, pagamento...).</p>
           <div id="lista_faq"></div>
           <button class="add" onclick="addFaq()">+ Adicionar FAQ</button>
         </section>
 
-        <section class="card" id="sec-entrega">
+        <section class="card page" id="page-entrega">
           <h2>🛵 Taxas e Serviços (Entrega / Táxi Dog)</h2>
           <p class="dica">O bot calcula o valor pela distância. Edite serviços, faixas de km e o endereço de partida.</p>
           <label class="switch"><input type="checkbox" id="e_ativo" /> Mostrar opção de entrega no menu</label>
@@ -219,7 +221,7 @@
           <button class="add" onclick="addTaxa()">+ Adicionar taxa</button>
         </section>
 
-        <section class="card" id="sec-gatilhos">
+        <section class="card page" id="page-gatilhos">
           <h2>⚙️ Palavras-chave gerais</h2>
           <p class="dica">Atalhos para o bot entender comandos importantes.</p>
           <label>Pedir atendente humano (vírgula)</label><input type="text" id="g_atendente" />
@@ -281,22 +283,19 @@
       });
     }
 
-    // ===== Navegação (scroll para seção) =====
+    // ===== Navegação por telas (cada menu abre uma página própria) =====
+    function mostrarPagina(id, navEl) {
+      document.querySelectorAll(".page").forEach(p => p.classList.toggle("ativa", p.id === id));
+      document.querySelectorAll(".nav-item").forEach(n => n.classList.toggle("active", n.dataset.target === id));
+      if (navEl) {
+        el("topTitulo").textContent = navEl.dataset.titulo || "Configurações do Bot";
+        el("topSub").textContent = navEl.dataset.sub || "";
+      }
+      window.scrollTo(0, 0);
+    }
     document.querySelectorAll(".nav-item").forEach(it => {
-      it.addEventListener("click", () => {
-        const sec = el(it.dataset.target);
-        if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      it.addEventListener("click", () => mostrarPagina(it.dataset.target, it));
     });
-    const secs = [...document.querySelectorAll("section.card")];
-    const obs = new IntersectionObserver((entries) => {
-      entries.forEach(en => {
-        if (en.isIntersecting) {
-          document.querySelectorAll(".nav-item").forEach(n => n.classList.toggle("active", n.dataset.target === en.target.id));
-        }
-      });
-    }, { rootMargin: "-45% 0px -50% 0px" });
-    secs.forEach(s => obs.observe(s));
 
     // ===== Opções / FAQ =====
     function itemHtml(prefixo, o) {
