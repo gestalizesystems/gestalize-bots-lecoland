@@ -9,7 +9,7 @@ const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 
 const { triar } = require("./triage");
-const { responder, limparHistorico } = require("./ai");
+const { responder } = require("./ai");
 const { iniciarAdmin } = require("./admin");
 
 const ADMIN_PORT = process.env.ADMIN_PORT || 3000;
@@ -59,7 +59,6 @@ client.on("message", async (msg) => {
 
     if (resultado.tipo === "atendente") {
       emAtendimentoHumano.add(contactId);
-      limparHistorico(contactId);
       setTimeout(() => emAtendimentoHumano.delete(contactId), PAUSA_HUMANO_MS);
       await msg.reply(resultado.resposta);
       console.log(`[atendente] ${contactId} → repassado para humano`);
@@ -79,9 +78,9 @@ client.on("message", async (msg) => {
     await msg.reply(r.texto);
 
     // A IA decidiu que precisa de um atendente humano → pausa o bot de verdade.
+    // (Não limpamos o histórico: a conversa fica preservada para o atendente.)
     if (r.encaminhar) {
       emAtendimentoHumano.add(contactId);
-      limparHistorico(contactId);
       setTimeout(() => emAtendimentoHumano.delete(contactId), PAUSA_HUMANO_MS);
       console.log(`[ia→atendente] ${contactId}: ${r.motivo || "(sem motivo)"}`);
     } else {
