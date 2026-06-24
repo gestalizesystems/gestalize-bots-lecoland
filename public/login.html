@@ -266,25 +266,19 @@
       if (!svg) return;
       // Baixa e ondulada no rodapé até a metade; depois sobe até o canto superior direito.
       function onda(dy) {
-        // Tendência (forma geral, como o traçado): baixa na esquerda, elevação antes do
-        // card, descida atrás dele e subida íngreme até o canto superior direito.
-        const anc = [[0, 730], [250, 742], [480, 600], [720, 648], [940, 642], [1090, 486], [1240, 306], [1380, 152], [1440, 92]];
-        function trend(x) {
-          for (let i = 0; i < anc.length - 1; i++) {
-            const a = anc[i], b = anc[i + 1];
-            if (x <= b[0]) { let t = (x - a[0]) / (b[0] - a[0]); t = t * t * (3 - 2 * t); return a[1] + (b[1] - a[1]) * t; }
-          }
-          return anc[anc.length - 1][1];
+        // Pontos do traçado: colinas suaves na esquerda, vale largo atrás do card,
+        // e subida suave e íngreme até o canto superior direito.
+        const pts = [[0, 718], [250, 658], [430, 700], [585, 626], [800, 692], [1000, 664], [1120, 612], [1220, 486], [1320, 308], [1400, 166], [1440, 84]]
+          .map((p) => [p[0], p[1] + dy]);
+        // Spline suave (Catmull-Rom convertido para curvas de Bézier).
+        let d = `M${pts[0][0]} ${pts[0][1]}`;
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+          const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+          const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+          d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2[0]} ${p2[1]}`;
         }
-        // Ondulação uniforme (mesma amplitude/frequência) do começo ao fim.
-        let d = "";
-        const N = 160;
-        for (let i = 0; i <= N; i++) {
-          const x = (i / N) * 1440;
-          const y = trend(x) + Math.sin(x / 25) * 11 + dy;
-          d += (i === 0 ? "M" : "L") + x.toFixed(1) + " " + y.toFixed(1) + " ";
-        }
-        return d.trim();
+        return d;
       }
       const cores = ["#b6cbef", "#bfd2f1", "#c8d8f3", "#d1ddf5", "#dae5f7", "#e4ecfa"];
       let html = '<defs><filter id="ondaSombra" x="-5%" y="-12%" width="115%" height="132%">'
