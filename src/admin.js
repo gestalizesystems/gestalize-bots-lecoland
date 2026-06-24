@@ -44,6 +44,7 @@ function validar(c) {
   }
   if (typeof c.negocio !== "object") throw new Error('"negocio" deve ser um objeto.');
   if (!Array.isArray(c.mensagensExtras)) c.mensagensExtras = [];
+  if (typeof c.infoIA !== "string") c.infoIA = "";
   if (!Array.isArray(c.servicos)) throw new Error('"servicos" deve ser uma lista.');
   if (!Array.isArray(c.faqRapido)) throw new Error('"faqRapido" deve ser uma lista.');
   if (!Array.isArray(c.entrega.taxas)) throw new Error('"entrega.taxas" deve ser uma lista.');

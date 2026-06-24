@@ -269,6 +269,9 @@
             <div><label>Horário (domingo/feriados)</label><input type="text" id="n_horarioDomingo" /></div>
             <div><label>Formas de pagamento</label><input type="text" id="n_pagamento" /></div>
           </div>
+          <label style="margin-top:18px;">🧠 Sobre o negócio (para a IA responder melhor)</label>
+          <p class="dica">Tudo que você escrever aqui o bot usa para responder perguntas livres (políticas, filial, vacinas, regras, diferenciais...). Quanto mais detalhado, melhor.</p>
+          <textarea id="n_infoIA" style="min-height:220px;"></textarea>
         </section>
 
         <section class="card page" id="page-mensagens">
@@ -502,6 +505,7 @@
       logoAtual = n.logo || ""; setLogo(logoAtual);
       ["nome","tipo","endereco","telefone","horarioSemana","horarioSabado","horarioDomingo","pagamento"]
         .forEach(k => el("n_" + k).value = n[k] || "");
+      el("n_infoIA").value = cfg.infoIA || "";
       ["saudacaoIntro","saudacaoChamada","saudacaoRodape","atendente"].forEach(k => el("m_" + k).value = m[k] || "");
       (cfg.mensagensExtras || []).forEach(x => el("lista_msgs").appendChild(itemHtml("mx", x)));
       cfg.servicos.forEach(s => el("lista_servicos").appendChild(itemHtml("sv", s)));
@@ -538,6 +542,7 @@
         },
         gatilhosAtendente: textoParaLista(el("g_atendente").value),
         gatilhosSaudacao: textoParaLista(el("g_saudacao").value),
+        infoIA: el("n_infoIA").value,
       };
       ["nome","tipo","endereco","telefone","horarioSemana","horarioSabado","horarioDomingo","pagamento"]
         .forEach(k => novo.negocio[k] = el("n_" + k).value.trim());

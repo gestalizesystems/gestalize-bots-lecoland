@@ -29,7 +29,7 @@
         "higiene",
         "hidratacao"
       ],
-      "resposta": "🛁 *Banho e Tosa*\n\nAtendemos cães e gatos de todos os portes.\n• Banho a partir de R$ 45\n• Tosa higiênica a partir de R$ 40\n• Tosa completa a partir de R$ 70\n\nPara agendar, me diga o *nome do pet*, o *porte* (pequeno/médio/grande) e o *melhor dia e horário*. Um atendente confirma a disponibilidade. 🐾"
+      "resposta": "🛁 *Banho e Tosa*\n\nAtendemos cães e gatos. Horário: segunda a sábado, das 8h às 17h.\n• *Gato:* banho R$ 50 · tosa R$ 50\n• *Cachorro:* o valor é avaliado quando o pet chega — não passamos valor exato por mensagem.\n\nJá *incluso* no banho: corte de unha e limpeza de ouvido.\nÀ parte (pagos): hidratação, retirada de nó, remoção de subpelo, tosa na máquina e na tesoura.\n\n⚠️ É por *ordem de chegada* (sem horário marcado de início/fim). O pet precisa estar com *vacinas e anticarrapato em dia*. 🐾"
     },
     {
       "chave": "veterinario",
@@ -42,7 +42,7 @@
         "emergencia",
         "exame"
       ],
-      "resposta": "🩺 *Consulta Veterinária*\n\nO atendimento é por *ordem de chegada* — não precisa agendar! É só vir dentro do horário do veterinário:\n• Segunda a sexta: 8h às 17h\n• Sábado: 8h às 12h\n\n• Consulta: R$ 120\n• Retorno (até 15 dias): gratuito\n\nEm caso de *emergência*, ligue para {telefone}."
+      "resposta": "🩺 *Consulta Veterinária*\n\nAtendimento por *ordem de chegada* (não agenda), no horário do veterinário:\n• Segunda a sexta: 8h às 17h\n• Sábado: 8h às 12h\n\nTemos clínico geral, oftalmologia, dermatologia e exames (alguns por agendamento).\n• Consulta: R$ 120 · Retorno (até 15 dias): gratuito\n\n⚠️ *Não* atendemos emergências nem internamentos. Para *silvestres, répteis e roedores*, é por agendamento com vet especializado — me avise que passo para um atendente."
     }
   ],
   "faqRapido": [
@@ -71,7 +71,7 @@
         "como chegar",
         "mapa"
       ],
-      "resposta": "📍 *Onde estamos*\n\n{nome} — {endereco}\nTelefone: {telefone}"
+      "resposta": "📍 *Onde estamos*\n\n{nome} — {endereco}\n(em frente ao restaurante Fogo & Brasa Passaré; há vagas na rua em frente)\nTelefone: {telefone}\nInstagram: @lecolandpet\n\n📌 Temos uma *filial* (vacinas, medicamentos, rações e acessórios — sem banho/tosa): Av. da Saudade, 3072, Passaré · WhatsApp (85) 98591-6238 · seg a sex 7h30–17h30."
     },
     {
       "chave": "pagamento",
@@ -205,5 +205,6 @@
     "opcoes",
     "quero",
     "pedir"
-  ]
+  ],
+  "infoIA": "PONTO DE REFERÊNCIA: a loja fica em frente ao restaurante Fogo & Brasa Passaré. Há algumas vagas para estacionar na rua, em frente à loja. Instagram: @lecolandpet.\n\nFILIAL: temos uma filial que vende vacinas, medicamentos, rações e acessórios (a filial NÃO faz banho e tosa nem táxi dog). Endereço da filial: Av. da Saudade, 3072, Passaré. WhatsApp da filial: (85) 98591-6238. Horário da filial: segunda a sexta, das 7h30 às 17h30.\n\nFUNCIONAMENTO: não abrimos aos domingos e feriados. Durante a Copa do Mundo 2026, nos dias de jogo do Brasil pode haver ajuste de horário.\n\nBANHO E TOSA: horário de segunda a sábado, das 8h às 17h. É por ORDEM DE CHEGADA — não há horário marcado para iniciar/terminar e não há tempo médio definido; a reserva de um dia não garante vaga nem horário. Preço do banho de GATO: R$ 50,00 (banho) e R$ 50,00 (tosa). Para CACHORRO, NUNCA passe valor exato por mensagem — o tamanho é avaliado quando o pet chega; oriente o cliente a trazer o pet para avaliação. No banho simples já estão INCLUSOS o corte de unha e a limpeza de ouvido. Serviços PAGOS à parte: hidratação, retirada de nó, remoção de subpelo, tosa na máquina e tosa na tesoura. Para tomar banho, o pet precisa estar com VACINAS e ANTICARRAPATO em dia. Se o cliente quiser trazer e esperar, recomende que mande mensagem antes pedindo para deixarmos o pet 'na gaiola' (como se estivesse em loja); quando chegar a vez dele, avisamos por mensagem para trazer.\n\nVETERINÁRIO: clínico geral, oftalmologia, dermatologia e exames em geral (alguns exames são por agendamento). Atendimento por ORDEM DE CHEGADA (não agenda consulta), no horário do veterinário: segunda a sexta das 8h às 17h e sábado das 8h às 12h. NÃO temos atendimento de emergência nem internamento. Atendemos cães e gatos normalmente. Para SILVESTRES, RÉPTEIS e ROEDORES há atendimento veterinário, mas SOMENTE por agendamento com veterinário especializado — nesses casos, ENCAMINHE o cliente para um atendente humano.\n\nVACINAS — CÃES (importadas, com garantia):\n- V10 (viral): R$ 70,00/dose. A partir de 6-8 semanas, 4 doses com 21 dias de intervalo. Previne cinomose, hepatite infecciosa, adenovírus tipo 2, coronavírus, parainfluenza, parvovírus e leptospirose.\n- Gripe canina: R$ 80,00/dose. A partir de 12 semanas, 2 doses com 21 dias de intervalo. Previne parainfluenza e Bordetella.\n- Giardíase: R$ 70,00/dose. A partir de 12 semanas, 2 doses com 21 dias de intervalo.\n- Antirrábica: R$ 50,00/dose. A partir de 16 semanas.\n\nVACINAS — GATOS: V4 R$ 90,00 | V5 R$ 60,00 | Antirrábica R$ 50,00. Para indicar o protocolo certo, peça a idade do gato e se ele já tomou alguma vacina.\n\nREGRAS PARA A IA: nunca informe valor exato de banho de cachorro (diga que é avaliado na chegada). Não prometa emergência nem internamento (não temos). Para silvestres/répteis/roedores, encaminhe para um atendente humano. Se não souber algo, diga que vai confirmar com um atendente."
 }

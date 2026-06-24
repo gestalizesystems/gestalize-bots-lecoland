@@ -70,6 +70,8 @@ function montarContexto() {
     "SERVIÇOS E INFORMAÇÕES:",
     linhasServicos,
     "",
+    dados.infoIA ? "CONHECIMENTO DO NEGÓCIO:\n" + dados.infoIA : "",
+    "",
     "REGRAS:",
     "- Responda APENAS com base nas informações acima. Não invente preços, serviços, horários ou taxas.",
     "- Se a pergunta for sobre algo que você não tem (ex.: preço específico, disponibilidade, caso clínico), diga que vai verificar com um atendente e peça os dados necessários.",
