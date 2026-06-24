@@ -251,11 +251,17 @@
       if (!svg) return;
       // Baixa e ondulada no rodapé até a metade; depois sobe até o canto superior direito.
       function onda(dy) {
-        return `M0 ${792 + dy} C 120 ${762 + dy}, 240 ${822 + dy}, 360 ${788 + dy}`
-          + ` C 480 ${756 + dy}, 600 ${808 + dy}, 720 ${772 + dy}`
-          + ` C 850 ${740 + dy}, 928 ${648 + dy}, 1024 ${566 + dy}`
-          + ` C 1118 ${486 + dy}, 1162 ${392 + dy}, 1256 ${312 + dy}`
-          + ` C 1336 ${244 + dy}, 1402 ${122 + dy}, 1440 ${66 + dy}`;
+        return `M0 ${748 + dy}`
+          + ` C 70 ${720 + dy}, 100 ${700 + dy}, 130 ${705 + dy}`     // pequena crista (esquerda)
+          + ` C 175 ${712 + dy}, 210 ${762 + dy}, 248 ${759 + dy}`     // vale baixo
+          + ` C 330 ${752 + dy}, 405 ${598 + dy}, 478 ${562 + dy}`     // elevação arredondada (antes do card)
+          + ` C 560 ${524 + dy}, 642 ${592 + dy}, 722 ${606 + dy}`     // descida suave atrás do card
+          + ` C 786 ${617 + dy}, 818 ${642 + dy}, 852 ${636 + dy}`     // valezinho
+          + ` C 898 ${628 + dy}, 918 ${612 + dy}, 940 ${604 + dy}`
+          + ` C 1014 ${580 + dy}, 1046 ${430 + dy}, 1088 ${340 + dy}`  // início da subida íngreme
+          + ` C 1132 ${244 + dy}, 1164 ${214 + dy}, 1198 ${180 + dy}`
+          + ` C 1252 ${126 + dy}, 1278 ${132 + dy}, 1312 ${108 + dy}`
+          + ` C 1374 ${64 + dy}, 1414 ${38 + dy}, 1440 ${22 + dy}`;    // canto superior direito
       }
       const cores = ["#b6cbef", "#bfd2f1", "#c8d8f3", "#d1ddf5", "#dae5f7", "#e4ecfa"];
       let html = '<defs><filter id="ondaSombra" x="-5%" y="-12%" width="115%" height="132%">'
@@ -263,7 +269,7 @@
       html += `<path d="${onda(0)} L1440 900 L0 900 Z" fill="#e6edfa" opacity="0.4"/>`;
       html += '<g filter="url(#ondaSombra)">';
       for (let i = 0; i < cores.length; i++)
-        html += `<path d="${onda(i * 20)}" stroke="${cores[i]}" stroke-width="1.8" fill="none"/>`;
+        html += `<path d="${onda(i * 15)}" stroke="${cores[i]}" stroke-width="1.8" fill="none"/>`;
       html += "</g>";
       svg.innerHTML = html;
     })();
