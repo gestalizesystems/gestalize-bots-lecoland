@@ -54,8 +54,9 @@ function iniciarAdmin(porta) {
   const app = express();
   app.use(express.json({ limit: "8mb" }));
 
-  // A logo é pública (aparece também na tela de login).
+  // A logo e a imagem do robô são públicas (aparecem na tela de login).
   app.use("/uploads", express.static(UPLOAD_DIR));
+  app.get("/robot.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "robot.png")));
 
   // ---- Rotas públicas (login) ----
   app.get("/login", (req, res) => {
