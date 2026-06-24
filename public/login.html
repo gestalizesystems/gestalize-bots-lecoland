@@ -268,7 +268,7 @@
       function onda(dy) {
         // Pontos do traçado: colinas suaves na esquerda, vale largo atrás do card,
         // e subida suave e íngreme até o canto superior direito.
-        const pts = [[0, 718], [250, 658], [430, 700], [585, 626], [800, 692], [1000, 664], [1075, 652], [1118, 598], [1148, 528], [1192, 500], [1262, 472], [1308, 410], [1348, 322], [1382, 268], [1414, 132], [1440, 64]]
+        const pts = [[0, 718], [250, 658], [430, 700], [585, 626], [800, 692], [1000, 664], [1090, 656], [1150, 602], [1205, 522], [1262, 478], [1318, 372], [1372, 268], [1414, 198], [1440, 182]]
           .map((p) => [p[0], p[1] + dy]);
         // Spline suave (Catmull-Rom convertido para curvas de Bézier).
         let d = `M${pts[0][0]} ${pts[0][1]}`;
