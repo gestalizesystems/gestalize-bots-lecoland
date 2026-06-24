@@ -42,7 +42,7 @@
         "emergencia",
         "exame"
       ],
-      "resposta": "🩺 *Consulta Veterinária*\n\nTemos clínico geral e atendimento para emergências no horário de funcionamento.\n• Consulta: R$ 120\n• Retorno (até 15 dias): gratuito\n\nMe informe o *nome e a espécie do pet*, um *resumo do que está acontecendo* e o *dia/horário* que prefere. Em caso de *emergência*, ligue para {telefone}."
+      "resposta": "🩺 *Consulta Veterinária*\n\nO atendimento é por *ordem de chegada* — não precisa agendar! É só vir dentro do horário do veterinário:\n• Segunda a sexta: 8h às 17h\n• Sábado: 8h às 12h\n\n• Consulta: R$ 120\n• Retorno (até 15 dias): gratuito\n\nEm caso de *emergência*, ligue para {telefone}."
     }
   ],
   "faqRapido": [
