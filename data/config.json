@@ -2,13 +2,13 @@
   "negocio": {
     "nome": "Lecoland",
     "tipo": "Pet Shop e Clínica Veterinária",
-    "logo": "/uploads/logo.png",
     "endereco": "R. Dois, 190 - Passaré, Fortaleza - CE, 60744-320",
     "telefone": "(85) 98225-8020",
     "horarioSemana": "Segunda a sexta, das 8h às 19h",
-    "horarioSabado": "Sábado, das 8h às 14h",
+    "horarioSabado": "Sábado, das 8h às 18h",
     "horarioDomingo": "Domingo e feriados: fechado",
-    "pagamento": "Dinheiro, Pix, débito e crédito (até 3x sem juros)."
+    "pagamento": "Dinheiro, Pix, débito e crédito (até 6x sem juros).",
+    "logo": "/uploads/logo.png"
   },
   "mensagens": {
     "saudacaoIntro": "Olá! 🐾 Aqui é o atendimento da *{nome}* ({tipo}).",
@@ -16,6 +16,7 @@
     "saudacaoRodape": "Para falar com um atendente humano, digite *atendente*.",
     "atendente": "Combinado! 🙋 Vou chamar um atendente humano. Aguarde um momento que já te respondemos por aqui. (Enquanto isso, o atendimento automático está pausado para você.)"
   },
+  "mensagensExtras": [],
   "servicos": [
     {
       "chave": "banho_tosa",
@@ -28,7 +29,7 @@
         "higiene",
         "hidratacao"
       ],
-      "resposta": "🛁 *Banho e Tosa*\n\nAtendemos cães e gatos de todos os portes.\n• Banho a partir de R$ 50\n• Tosa higiênica a partir de R$ 40\n• Tosa completa a partir de R$ 70\n\nPara agendar, me diga o *nome do pet*, o *porte* (pequeno/médio/grande) e o *melhor dia e horário*. Um atendente confirma a disponibilidade. 🐾"
+      "resposta": "🛁 *Banho e Tosa*\n\nAtendemos cães e gatos de todos os portes.\n• Banho a partir de R$ 45\n• Tosa higiênica a partir de R$ 40\n• Tosa completa a partir de R$ 70\n\nPara agendar, me diga o *nome do pet*, o *porte* (pequeno/médio/grande) e o *melhor dia e horário*. Um atendente confirma a disponibilidade. 🐾"
     },
     {
       "chave": "veterinario",
@@ -42,19 +43,6 @@
         "exame"
       ],
       "resposta": "🩺 *Consulta Veterinária*\n\nTemos clínico geral e atendimento para emergências no horário de funcionamento.\n• Consulta: R$ 120\n• Retorno (até 15 dias): gratuito\n\nMe informe o *nome e a espécie do pet*, um *resumo do que está acontecendo* e o *dia/horário* que prefere. Em caso de *emergência*, ligue para {telefone}."
-    },
-    {
-      "chave": "vacina",
-      "titulo": "Vacinação",
-      "gatilhos": [
-        "vacina",
-        "vacinacao",
-        "v8",
-        "v10",
-        "antirrabica",
-        "raiva"
-      ],
-      "resposta": "💉 *Vacinação*\n\nTrabalhamos com as principais vacinas para cães e gatos (V8, V10, antirrábica, etc.).\nOs valores variam conforme a vacina. Me diga a *espécie*, a *idade do pet* e *qual vacina* precisa que eu verifico o preço e a disponibilidade."
     }
   ],
   "faqRapido": [
@@ -214,6 +202,8 @@
     "ajuda",
     "inicio",
     "comecar",
-    "opcoes"
+    "opcoes",
+    "quero",
+    "pedir"
   ]
 }

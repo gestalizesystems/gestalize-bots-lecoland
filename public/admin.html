@@ -186,6 +186,11 @@
             <label>Saudação — chamada (acima do menu)</label><textarea id="m_saudacaoChamada"></textarea>
             <label>Saudação — rodapé</label><textarea id="m_saudacaoRodape"></textarea>
             <label>Resposta ao pedir atendente humano</label><textarea id="m_atendente"></textarea>
+
+            <h3 style="margin:22px 0 4px; font-size:14px; color:var(--navy);">✨ Mensagens personalizadas</h3>
+            <p class="dica">Mensagens extras que o bot envia quando o cliente usa as palavras-chave indicadas (não aparecem no menu numerado).</p>
+            <div id="lista_msgs"></div>
+            <button class="add" onclick="addMsg()">+ Adicionar mensagem</button>
           </section>
 
           <section class="card page" id="page-opcoes">
@@ -320,6 +325,7 @@
     }
     function addServico() { el("lista_servicos").appendChild(itemHtml("sv", { titulo: "", gatilhos: [], resposta: "" })); }
     function addFaq() { el("lista_faq").appendChild(itemHtml("fq", { titulo: "", gatilhos: [], resposta: "" })); }
+    function addMsg() { el("lista_msgs").appendChild(itemHtml("mx", { titulo: "", gatilhos: [], resposta: "" })); }
     function coletarItens(containerId, prefixo) {
       const out = [];
       el(containerId).querySelectorAll(".item").forEach(item => {
@@ -373,6 +379,7 @@
       ["nome","tipo","endereco","telefone","horarioSemana","horarioSabado","horarioDomingo","pagamento"]
         .forEach(k => el("n_" + k).value = n[k] || "");
       ["saudacaoIntro","saudacaoChamada","saudacaoRodape","atendente"].forEach(k => el("m_" + k).value = m[k] || "");
+      (cfg.mensagensExtras || []).forEach(x => el("lista_msgs").appendChild(itemHtml("mx", x)));
       cfg.servicos.forEach(s => el("lista_servicos").appendChild(itemHtml("sv", s)));
       cfg.faqRapido.forEach(f => el("lista_faq").appendChild(itemHtml("fq", f)));
       el("e_ativo").checked = !!e.ativo;
@@ -393,6 +400,7 @@
       const novo = {
         negocio: {},
         mensagens: {},
+        mensagensExtras: coletarItens("lista_msgs", "mx"),
         servicos: coletarItens("lista_servicos", "sv"),
         faqRapido: coletarItens("lista_faq", "fq"),
         entrega: {

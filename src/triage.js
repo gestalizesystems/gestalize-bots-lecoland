@@ -81,6 +81,13 @@ function triar(textoBruto) {
     }
   }
 
+  // Mensagens personalizadas (não entram no menu numerado; só por palavra-chave).
+  for (const ex of dados.mensagensExtras || []) {
+    if (casaAlgumGatilho(texto, ex.gatilhos)) {
+      return { tipo: "mensagem", chave: ex.chave, resposta: config.preencher(ex.resposta) };
+    }
+  }
+
   // Sem palavra-chave reconhecida → deixa a IA (Gemini) responder a pergunta livre.
   return { tipo: "ia" };
 }

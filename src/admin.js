@@ -18,6 +18,7 @@ function validar(c) {
     if (!(k in c)) throw new Error(`Faltou a seção "${k}".`);
   }
   if (typeof c.negocio !== "object") throw new Error('"negocio" deve ser um objeto.');
+  if (!Array.isArray(c.mensagensExtras)) c.mensagensExtras = [];
   if (!Array.isArray(c.servicos)) throw new Error('"servicos" deve ser uma lista.');
   if (!Array.isArray(c.faqRapido)) throw new Error('"faqRapido" deve ser uma lista.');
   if (!Array.isArray(c.entrega.taxas)) throw new Error('"entrega.taxas" deve ser uma lista.');
