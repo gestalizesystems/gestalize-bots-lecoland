@@ -25,7 +25,7 @@
       background: radial-gradient(circle at 58% 42%, rgba(202,210,228,.6), transparent 62%); }
     .deco-blob3 { bottom: -60px; left: -40px; width: 520px; height: 380px; border-radius: 50%;
       background: radial-gradient(circle at 42% 60%, rgba(206,214,232,.5), transparent 62%); }
-    .deco-wave { bottom: 0; left: 0; width: 100%; opacity: .9; }
+    .deco-wave { top: 0; left: 0; width: 100%; height: 100%; opacity: .95; }
     .deco-right { top: 0; right: 0; height: 100%; opacity: .9; }
 
     /* ===== Layout ===== */
@@ -103,26 +103,14 @@
   <div class="deco deco-blob2"></div>
   <div class="deco deco-blob3"></div>
   <canvas class="deco deco-canvas" id="dotsCanvas"></canvas>
-  <svg class="deco deco-wave" width="100%" height="340" viewBox="0 0 860 340" fill="none" preserveAspectRatio="none">
-    <path d="M0 150 C 210 92, 440 200, 860 130 L860 340 L0 340 Z" fill="#e7eefb" opacity=".55"/>
-    <path d="M0 130 C 200 80, 430 188, 860 118" stroke="#c7d6f3" stroke-width="1.5"/>
-    <path d="M0 152 C 205 100, 435 208, 860 140" stroke="#cedcf5" stroke-width="1.5"/>
-    <path d="M0 174 C 210 122, 440 228, 860 162" stroke="#d5e1f7" stroke-width="1.5"/>
-    <path d="M0 196 C 215 144, 445 248, 860 184" stroke="#dce7f9" stroke-width="1.5"/>
-    <path d="M0 218 C 220 166, 450 268, 860 206" stroke="#e3edfb" stroke-width="1.5"/>
-    <path d="M0 240 C 225 188, 455 288, 860 228" stroke="#eaf1fc" stroke-width="1.5"/>
-    <path d="M0 262 C 230 210, 460 306, 860 250" stroke="#f0f5fe" stroke-width="1.5"/>
-  </svg>
-  <svg class="deco deco-right" width="480" height="1000" viewBox="0 0 480 1000" preserveAspectRatio="none" fill="none">
-    <path d="M480 120 C 300 320, 300 700, 480 900" stroke="#c4d4f2" stroke-width="1.5"/>
-    <path d="M480 100 C 282 308, 282 712, 480 920" stroke="#cad8f3" stroke-width="1.5"/>
-    <path d="M480 80  C 264 296, 264 724, 480 940" stroke="#d0ddf5" stroke-width="1.5"/>
-    <path d="M480 60  C 246 284, 246 736, 480 960" stroke="#d6e1f6" stroke-width="1.5"/>
-    <path d="M480 40  C 228 272, 228 748, 480 980" stroke="#dce6f8" stroke-width="1.5"/>
-    <path d="M480 20  C 210 260, 210 760, 480 1000" stroke="#e2ebfa" stroke-width="1.5"/>
-    <path d="M480 0   C 192 248, 192 772, 480 1020" stroke="#e8effb" stroke-width="1.5"/>
-    <path d="M480 -20 C 174 236, 174 784, 480 1040" stroke="#edf2fc" stroke-width="1.5"/>
-    <path d="M480 -40 C 156 224, 156 796, 480 1060" stroke="#f1f5fd" stroke-width="1.5"/>
+  <svg class="deco deco-wave" width="100%" height="100%" viewBox="0 0 1440 900" fill="none" preserveAspectRatio="none">
+    <path d="M0 720 C 360 660, 560 540, 800 430 C 1040 322, 1220 170, 1440 70 L1440 900 L0 900 Z" fill="#eaf1fc" opacity=".4"/>
+    <path d="M0 700 C 360 640, 560 520, 800 410 C 1040 302, 1220 150, 1440 50" stroke="#c4d4f2" stroke-width="1.6"/>
+    <path d="M0 724 C 360 664, 560 544, 800 434 C 1040 326, 1220 174, 1440 74" stroke="#ccdaf4" stroke-width="1.6"/>
+    <path d="M0 748 C 360 688, 560 568, 800 458 C 1040 350, 1220 198, 1440 98" stroke="#d4e0f6" stroke-width="1.6"/>
+    <path d="M0 772 C 360 712, 560 592, 800 482 C 1040 374, 1220 222, 1440 122" stroke="#dce7f8" stroke-width="1.6"/>
+    <path d="M0 796 C 360 736, 560 616, 800 506 C 1040 398, 1220 246, 1440 146" stroke="#e4edfa" stroke-width="1.6"/>
+    <path d="M0 820 C 360 760, 560 640, 800 530 C 1040 422, 1220 270, 1440 170" stroke="#ecf2fc" stroke-width="1.6"/>
   </svg>
 
   <div class="wrap">
