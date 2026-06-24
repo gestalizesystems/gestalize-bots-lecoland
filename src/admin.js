@@ -45,6 +45,10 @@ function validar(c) {
   if (typeof c.negocio !== "object") throw new Error('"negocio" deve ser um objeto.');
   if (!Array.isArray(c.mensagensExtras)) c.mensagensExtras = [];
   if (typeof c.infoIA !== "string") c.infoIA = "";
+  // Preserva o catálogo quando o "Salvar tudo" não o envia (ele tem endpoint próprio).
+  if (!c.catalogo || typeof c.catalogo !== "object") {
+    c.catalogo = config.get().catalogo || { grupos: [], subgrupos: [], especificacoes: [], produtos: [] };
+  }
   if (!Array.isArray(c.servicos)) throw new Error('"servicos" deve ser uma lista.');
   if (!Array.isArray(c.faqRapido)) throw new Error('"faqRapido" deve ser uma lista.');
   if (!Array.isArray(c.entrega.taxas)) throw new Error('"entrega.taxas" deve ser uma lista.');
@@ -125,6 +129,42 @@ function iniciarAdmin(porta) {
       c.negocio.logo = rel;
       config.salvar(c);
       res.json({ ok: true, path: rel });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
+  });
+
+  // Catálogo (tem endpoint próprio para salvar só essa seção, sem mexer no resto).
+  app.post("/api/catalogo", (req, res) => {
+    try {
+      const cat = req.body || {};
+      const c = config.get();
+      c.catalogo = {
+        grupos: Array.isArray(cat.grupos) ? cat.grupos : [],
+        subgrupos: Array.isArray(cat.subgrupos) ? cat.subgrupos : [],
+        especificacoes: Array.isArray(cat.especificacoes) ? cat.especificacoes : [],
+        produtos: Array.isArray(cat.produtos) ? cat.produtos : [],
+      };
+      config.salvar(c);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
+  });
+
+  // Imagem de produto (data URL base64 -> arquivo em /uploads).
+  app.post("/api/catalogo/imagem", (req, res) => {
+    try {
+      const dataUrl = (req.body && req.body.dataUrl) || "";
+      const m = /^data:image\/(png|jpe?g|webp|gif);base64,(.+)$/.exec(dataUrl);
+      if (!m) throw new Error("Imagem inválida.");
+      const ext = m[1] === "jpeg" ? "jpg" : m[1];
+      const buf = Buffer.from(m[2], "base64");
+      if (buf.length > 5 * 1024 * 1024) throw new Error("Imagem muito grande (máx 5MB).");
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+      const nome = `prod-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+      fs.writeFileSync(path.join(UPLOAD_DIR, nome), buf);
+      res.json({ ok: true, path: `/uploads/${nome}` });
     } catch (e) {
       res.status(400).json({ ok: false, erro: e.message });
     }
