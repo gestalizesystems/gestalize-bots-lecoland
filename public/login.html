@@ -226,6 +226,12 @@
         grade(42, 40, 12, 9, e);                            // superior esquerdo
         grade(42, H - 8 * e - 40, 11, 8, e);                // inferior esquerdo
         grade(W - 11 * e - 40, H - 8 * e - 40, 11, 8, e);   // inferior direito
+        // grupo ao lado do título "Gestalize Bots"
+        const wm = document.querySelector(".wordmark");
+        if (wm) {
+          const r = wm.getBoundingClientRect();
+          if (r.width > 0) grade(r.right + 26, r.top + 6, 5, 4, 16);
+        }
       }
       function dimensoes() {
         const dpr = window.devicePixelRatio || 1;
