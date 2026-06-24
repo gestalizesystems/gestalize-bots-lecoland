@@ -102,15 +102,7 @@
   <div class="deco deco-blob2"></div>
   <div class="deco deco-blob3"></div>
   <canvas class="deco deco-canvas" id="dotsCanvas"></canvas>
-  <svg class="deco deco-wave" width="100%" height="100%" viewBox="0 0 1440 900" fill="none" preserveAspectRatio="none">
-    <path d="M0 720 C 360 660, 560 540, 800 430 C 1040 322, 1220 170, 1440 70 L1440 900 L0 900 Z" fill="#eaf1fc" opacity=".4"/>
-    <path d="M0 700 C 360 640, 560 520, 800 410 C 1040 302, 1220 150, 1440 50" stroke="#c4d4f2" stroke-width="1.6"/>
-    <path d="M0 724 C 360 664, 560 544, 800 434 C 1040 326, 1220 174, 1440 74" stroke="#ccdaf4" stroke-width="1.6"/>
-    <path d="M0 748 C 360 688, 560 568, 800 458 C 1040 350, 1220 198, 1440 98" stroke="#d4e0f6" stroke-width="1.6"/>
-    <path d="M0 772 C 360 712, 560 592, 800 482 C 1040 374, 1220 222, 1440 122" stroke="#dce7f8" stroke-width="1.6"/>
-    <path d="M0 796 C 360 736, 560 616, 800 506 C 1040 398, 1220 246, 1440 146" stroke="#e4edfa" stroke-width="1.6"/>
-    <path d="M0 820 C 360 760, 560 640, 800 530 C 1040 422, 1220 270, 1440 170" stroke="#ecf2fc" stroke-width="1.6"/>
-  </svg>
+  <svg class="deco deco-wave" id="waveSvg" width="100%" height="100%" viewBox="0 0 1440 900" preserveAspectRatio="none" fill="none"></svg>
 
   <div class="wrap">
     <!-- Esquerda -->
@@ -251,6 +243,29 @@
         requestAnimationFrame(loop);
       }
       dimensoes(); loop();
+    })();
+
+    // ===== Onda de fundo (sobe na diagonal, com sombra/profundidade) =====
+    (function () {
+      const svg = document.getElementById("waveSvg");
+      if (!svg) return;
+      // Baixa e ondulada no rodapé até a metade; depois sobe até o canto superior direito.
+      function onda(dy) {
+        return `M0 ${792 + dy} C 120 ${762 + dy}, 240 ${822 + dy}, 360 ${788 + dy}`
+          + ` C 480 ${756 + dy}, 600 ${808 + dy}, 720 ${772 + dy}`
+          + ` C 850 ${740 + dy}, 928 ${648 + dy}, 1024 ${566 + dy}`
+          + ` C 1118 ${486 + dy}, 1162 ${392 + dy}, 1256 ${312 + dy}`
+          + ` C 1336 ${244 + dy}, 1402 ${122 + dy}, 1440 ${66 + dy}`;
+      }
+      const cores = ["#b6cbef", "#bfd2f1", "#c8d8f3", "#d1ddf5", "#dae5f7", "#e4ecfa"];
+      let html = '<defs><filter id="ondaSombra" x="-5%" y="-12%" width="115%" height="132%">'
+        + '<feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#6f8cc7" flood-opacity="0.32"/></filter></defs>';
+      html += `<path d="${onda(0)} L1440 900 L0 900 Z" fill="#e6edfa" opacity="0.4"/>`;
+      html += '<g filter="url(#ondaSombra)">';
+      for (let i = 0; i < cores.length; i++)
+        html += `<path d="${onda(i * 20)}" stroke="${cores[i]}" stroke-width="1.8" fill="none"/>`;
+      html += "</g>";
+      svg.innerHTML = html;
     })();
 
     const $ = (id) => document.getElementById(id);
