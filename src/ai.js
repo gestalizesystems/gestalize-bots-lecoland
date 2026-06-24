@@ -31,6 +31,21 @@ const TOOLS = [
           required: ["endereco"],
         },
       },
+      {
+        name: "encaminhar_para_atendente",
+        description:
+          "Use quando o atendimento precisar de um ATENDENTE HUMANO. Exemplos: exames (precisa da guia do veterinário), pedido de remédio com nome/receita/foto, fechar valor de pacote de banho de cliente frequente, venda de aves/animais (ex.: calopsita), reclamações, ou qualquer caso fora do seu conhecimento. Ao chamar esta função, escreva TAMBÉM uma mensagem curta e simpática avisando o cliente que você já vai chamar um atendente.",
+        parameters: {
+          type: "object",
+          properties: {
+            motivo: {
+              type: "string",
+              description: "Motivo breve do encaminhamento (ex.: 'exame - aguardando guia', 'venda de calopsita', 'pacote cliente frequente').",
+            },
+          },
+          required: ["motivo"],
+        },
+      },
     ],
   },
 ];
@@ -38,6 +53,9 @@ const TOOLS = [
 async function executarFuncao(nome, args) {
   if (nome === "consultar_taxa_entrega") {
     return await geo.consultarTaxaPorEndereco((args && args.endereco) || "");
+  }
+  if (nome === "encaminhar_para_atendente") {
+    return { ok: true, instrucao: "Escreva uma mensagem curta e simpática avisando o cliente que você já vai chamar um atendente humano para continuar o atendimento por aqui." };
   }
   return { erro: "funcao_desconhecida" };
 }
@@ -78,6 +96,7 @@ function montarContexto() {
     "- Nunca dê diagnóstico ou orientação médica veterinária; em emergências, oriente a ligar para o telefone do negócio.",
     "- Banho e tosa PODEM ser agendados: peça os dados que faltam (nome do pet, porte, dia e horário).",
     "- A CONSULTA VETERINÁRIA NÃO é agendada — é por ORDEM DE CHEGADA, dentro do horário do veterinário (segunda a sexta das 8h às 17h, sábado das 8h às 12h). Não peça dia/horário para a consulta; oriente o cliente a comparecer dentro desse horário.",
+    "- Quando precisar de um atendente humano (exames com guia, remédio com nome/receita/foto, fechar valor de pacote de cliente frequente, venda de aves/animais, reclamações, ou algo fora do seu conhecimento), CHAME a função encaminhar_para_atendente e avise o cliente que vai chamar alguém. Não invente que já resolveu.",
     "",
     "TAXA DE ENTREGA / TÁXI DOG:",
     "- Se o cliente informar um ENDEREÇO, use a função consultar_taxa_entrega (não calcule distância sozinho). Depois apresente os valores retornados.",
@@ -113,6 +132,9 @@ async function responder(contactId, mensagem) {
 
   let resp = await ai.models.generateContent({ model: MODELO, contents: working, config: cfg });
 
+  let encaminhar = false;
+  let motivo = "";
+
   // Loop de function calling (até 3 rodadas).
   for (let i = 0; i < 3; i++) {
     const chamadas = resp.functionCalls;
@@ -121,6 +143,10 @@ async function responder(contactId, mensagem) {
     working.push({ role: "model", parts: resp.candidates[0].content.parts });
     const partesResposta = [];
     for (const chamada of chamadas) {
+      if (chamada.name === "encaminhar_para_atendente") {
+        encaminhar = true;
+        motivo = (chamada.args && chamada.args.motivo) || "";
+      }
       const resultado = await executarFuncao(chamada.name, chamada.args);
       partesResposta.push({ functionResponse: { name: chamada.name, response: resultado } });
     }
@@ -131,14 +157,16 @@ async function responder(contactId, mensagem) {
 
   const texto =
     (resp.text || "").trim() ||
-    "Desculpe, não entendi. Pode reformular? Ou digite *atendente* para falar com uma pessoa.";
+    (encaminhar
+      ? "Vou te encaminhar para um atendente, só um instante! 🙋"
+      : "Desculpe, não entendi. Pode reformular? Ou digite *atendente* para falar com uma pessoa.");
 
   // Persiste só a mensagem do cliente e a resposta final (texto), mantendo o histórico limpo.
   historico.push({ role: "user", parts: [{ text: mensagem }] });
   historico.push({ role: "model", parts: [{ text: texto }] });
   if (historico.length > MAX_TURNOS) historico.splice(0, historico.length - MAX_TURNOS);
 
-  return texto;
+  return { texto, encaminhar, motivo };
 }
 
 function limparHistorico(contactId) {

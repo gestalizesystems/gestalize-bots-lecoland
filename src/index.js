@@ -75,9 +75,18 @@ client.on("message", async (msg) => {
     // tipo === "ia": pergunta livre.
     const chat = await msg.getChat();
     await chat.sendStateTyping();
-    const texto = await responder(contactId, msg.body);
-    await msg.reply(texto);
-    console.log(`[ia] ${contactId}: "${msg.body.slice(0, 60)}"`);
+    const r = await responder(contactId, msg.body);
+    await msg.reply(r.texto);
+
+    // A IA decidiu que precisa de um atendente humano → pausa o bot de verdade.
+    if (r.encaminhar) {
+      emAtendimentoHumano.add(contactId);
+      limparHistorico(contactId);
+      setTimeout(() => emAtendimentoHumano.delete(contactId), PAUSA_HUMANO_MS);
+      console.log(`[ia→atendente] ${contactId}: ${r.motivo || "(sem motivo)"}`);
+    } else {
+      console.log(`[ia] ${contactId}: "${msg.body.slice(0, 60)}"`);
+    }
   } catch (err) {
     console.error("Erro ao processar mensagem:", err);
     try {
