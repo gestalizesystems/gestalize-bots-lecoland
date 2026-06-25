@@ -95,7 +95,44 @@
     .rodape { padding: 18px 26px; color: var(--suave); font-size: 12px; border-top: 1px solid var(--borda); }
 
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-    @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } .sidebar { position: static; width: 100%; height: auto; } .main { margin-left: 0; } .layout { flex-direction: column; } }
+    /* ===== Responsivo (mobile/tablet) — afeta só telas pequenas; o desktop fica intacto ===== */
+    .menu-hamb { display: none; background: #fff; border: 1px solid var(--borda); border-radius: 9px; width: 40px; height: 40px; cursor: pointer; font-size: 19px; align-items: center; justify-content: center; flex: 0 0 auto; color: var(--navy); }
+    .backdrop { display: none; }
+    @media (max-width: 900px) {
+      .sidebar { transform: translateX(-100%); transition: transform .25s ease; z-index: 100; width: 264px; box-shadow: 2px 0 22px rgba(0,0,0,.28); }
+      .sidebar.aberto { transform: translateX(0); }
+      .main { margin-left: 0; }
+      .backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 90; }
+      .backdrop.aberto { display: block; }
+      .menu-hamb { display: inline-flex; }
+      .topbar { padding: 12px 16px; gap: 10px; flex-wrap: wrap; }
+      .topbar h1 { font-size: 19px; }
+      .topbar p { font-size: 12.5px; }
+      .topbar-actions { gap: 8px; flex-wrap: wrap; }
+      .content { padding: 16px; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .dash-2, .dash-2b { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      .topbar h1 { font-size: 17px; }
+      .topbar p { display: none; }
+      .topbar-actions { width: 100%; justify-content: flex-end; }
+      .content { padding: 12px; }
+      .dash-kpis, .cat-stats { grid-template-columns: 1fr; }
+      .conta-nome { max-width: 84px; }
+      .conta-pop { width: calc(100vw - 24px); right: -4px; }
+      .data-pop { right: -4px; }
+      .prod { flex-wrap: wrap; }
+      .prod .pinfo { flex: 1 1 100%; order: 3; }
+      .prod .ppreco { order: 2; }
+      .prod .pacoes { order: 4; width: 100%; justify-content: flex-end; }
+      .taxa-linha { flex-wrap: wrap; }
+      .taxa-linha input { min-width: 0; }
+      .exp-linha { flex-wrap: wrap; }
+      .opcao-linha { flex-wrap: wrap; }
+      .modal { padding: 18px; }
+      .cat-tabs { overflow-x: auto; }
+    }
 
     /* Cada menu abre uma tela própria */
     .page { display: none; }
@@ -298,13 +335,17 @@
         <small><span class="dot">●</span> Painel local</small>
       </div>
     </aside>
+    <div class="backdrop" id="backdrop" onclick="toggleMenu()"></div>
 
     <!-- ===== Main ===== -->
     <div class="main">
       <header class="topbar">
-        <div>
-          <h1 id="topTitulo">Dados do negócio</h1>
-          <p id="topSub">Informações que aparecem nas respostas do bot.</p>
+        <div style="display:flex; align-items:center; gap:12px; min-width:0">
+          <button class="menu-hamb" onclick="toggleMenu()" aria-label="Abrir menu">☰</button>
+          <div style="min-width:0">
+            <h1 id="topTitulo">Dados do negócio</h1>
+            <p id="topSub">Informações que aparecem nas respostas do bot.</p>
+          </div>
         </div>
         <div class="topbar-actions">
           <span id="status"></span>
@@ -644,6 +685,16 @@
         el("topSub").textContent = navEl.dataset.sub || "";
       }
       window.scrollTo(0, 0);
+      fecharMenu(); // fecha a gaveta no mobile ao trocar de página
+    }
+    // ===== Menu lateral retrátil (mobile) =====
+    function toggleMenu() {
+      document.querySelector(".sidebar").classList.toggle("aberto");
+      el("backdrop").classList.toggle("aberto");
+    }
+    function fecharMenu() {
+      document.querySelector(".sidebar").classList.remove("aberto");
+      el("backdrop").classList.remove("aberto");
     }
     document.querySelectorAll(".nav-item").forEach(it => {
       it.addEventListener("click", () => mostrarPagina(it.dataset.target, it));
