@@ -228,6 +228,27 @@
     .opcao-linha .op-campos input, .opcao-linha .op-campos textarea { width: 100%; }
     .opcao-linha .op-campos input { margin-bottom: 6px; }
     .opcao-linha textarea { min-height: 46px; }
+
+    /* Seletor de contas (topo direito) */
+    .conta-wrap { position: relative; }
+    .conta-btn { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--borda); border-radius: 10px; padding: 5px 10px 5px 5px; cursor: pointer; font-family: inherit; }
+    .conta-btn:hover { background: #f8fafc; }
+    .conta-av { width: 30px; height: 30px; border-radius: 8px; background: var(--amarelo); color: var(--navy); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex: 0 0 auto; }
+    .conta-nome { font-size: 13px; font-weight: 600; color: var(--navy); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .conta-seta { color: var(--suave); display: flex; }
+    .conta-pop { position: absolute; top: calc(100% + 8px); right: 0; background: #fff; border: 1px solid var(--borda); border-radius: 14px; box-shadow: 0 12px 34px rgba(0,0,0,.14); width: 272px; padding: 8px; display: none; z-index: 60; }
+    .conta-pop.aberto { display: block; }
+    .cp-titulo { font-size: 11px; font-weight: 700; color: var(--suave); text-transform: uppercase; padding: 8px 10px 4px; letter-spacing: .03em; }
+    .cp-perfil { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; }
+    .cp-perfil .av { width: 34px; height: 34px; border-radius: 9px; background: var(--amarelo); color: var(--navy); display: flex; align-items: center; justify-content: center; font-weight: 700; flex: 0 0 auto; }
+    .cp-perfil .info { flex: 1; min-width: 0; }
+    .cp-perfil .n { font-size: 13.5px; font-weight: 600; color: var(--navy); display: block; }
+    .cp-perfil .s { font-size: 11.5px; color: var(--suave); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cp-perfil .chk { color: #16a34a; font-weight: 800; }
+    .cp-item { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--texto); border-radius: 10px; }
+    .cp-item:hover { background: #f8fafc; }
+    .cp-sep { height: 1px; background: var(--borda); margin: 6px 4px; }
+    .cp-sair { color: #dc2626; }
   </style>
 </head>
 <body>
@@ -289,6 +310,20 @@
             <div style="margin-top:12px;"><button class="btn-primary" style="width:100%" onclick="aplicarData()">Aplicar</button></div>
           </div>
           <button class="btn-primary" id="btnSalvar" onclick="salvar()">💾 Salvar tudo</button>
+          <div class="conta-wrap">
+            <button class="conta-btn" id="contaBtn" onclick="toggleContas(event)">
+              <span class="conta-av" id="contaAv">L</span>
+              <span class="conta-nome" id="contaNomeTop">Lecoland</span>
+              <span class="conta-seta"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+            </button>
+            <div class="conta-pop" id="contaPop">
+              <div class="cp-titulo">Perfis conectados</div>
+              <div id="cpLista"></div>
+              <button class="cp-item" onclick="adicionarConta()"><span>➕</span> Adicionar conta</button>
+              <div class="cp-sep"></div>
+              <button class="cp-item cp-sair" onclick="iniciarLogout()"><span>↪</span> Logout</button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -503,6 +538,15 @@
       </main>
 
       <footer class="rodape">© <span id="ano"></span> Lecoland — Painel do Bot</footer>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="modalLogout">
+    <div class="modal" style="max-width:420px">
+      <h3>Sair de qual conta?</h3>
+      <p class="dica" style="margin-top:4px">Você tem mais de uma conta conectada. Escolha de qual deseja sair.</p>
+      <div id="logoutLista"></div>
+      <div class="modal-acoes"><button class="btn-sec" onclick="fecharModalLogout()">Cancelar</button></div>
     </div>
   </div>
 
@@ -774,6 +818,7 @@
         el("ct_nomeUsuario").value = c.nomeUsuario || "";
         el("ct_telefone").value = c.telefone || "";
         el("ct_email").value = c.email || "";
+        contaInfo = c; montarContas();
       } catch (_) {}
     }
     async function salvarConta() {
@@ -801,6 +846,45 @@
       try { await fetch("/api/logout", { method: "POST" }); } catch (_) {}
       window.location.href = "/login";
     }
+
+    // ===== Seletor de contas / perfis =====
+    let contaInfo = null;
+    let contas = [];
+    function montarContas() {
+      const nome = (cfg && cfg.negocio && cfg.negocio.nome) || (contaInfo && contaInfo.nomeUsuario) || "Conta";
+      const sub = (contaInfo && contaInfo.email) || "Bot do WhatsApp";
+      contas = [{ id: "principal", nome, sub, ativo: true }];
+      el("contaAv").textContent = (nome[0] || "L").toUpperCase();
+      el("contaNomeTop").textContent = nome;
+      el("cpLista").innerHTML = contas.map(c => `
+        <div class="cp-perfil">
+          <span class="av">${esc((c.nome[0] || "?").toUpperCase())}</span>
+          <span class="info"><span class="n">${esc(c.nome)}</span><span class="s">${esc(c.sub)}</span></span>
+          ${c.ativo ? '<span class="chk">✓</span>' : ''}
+        </div>`).join("");
+    }
+    function toggleContas(e) { if (e) e.stopPropagation(); el("contaPop").classList.toggle("aberto"); }
+    document.addEventListener("click", (e) => { if (!e.target.closest(".conta-wrap")) { const p = el("contaPop"); if (p) p.classList.remove("aberto"); } });
+    function adicionarConta() {
+      el("contaPop").classList.remove("aberto");
+      alert("Em breve! 🐾 Aqui você poderá conectar mais de um bot/perfil na mesma conta (quando tiver mais de um bot na Gestalize).");
+    }
+    function iniciarLogout() {
+      el("contaPop").classList.remove("aberto");
+      if (contas.length > 1) { abrirModalLogout(); return; }
+      if (confirm("Deseja sair da sua conta?")) sair();
+    }
+    function abrirModalLogout() {
+      el("logoutLista").innerHTML = contas.map((c, i) => `
+        <div class="cp-perfil" style="border:1px solid var(--borda);border-radius:10px;margin-bottom:8px">
+          <span class="av">${esc((c.nome[0] || "?").toUpperCase())}</span>
+          <span class="info"><span class="n">${esc(c.nome)}</span><span class="s">${esc(c.sub)}</span></span>
+          <button class="btn-sec" style="padding:7px 14px" onclick="confirmarLogout(${i})">Sair</button>
+        </div>`).join("");
+      el("modalLogout").classList.add("aberto");
+    }
+    function fecharModalLogout() { el("modalLogout").classList.remove("aberto"); }
+    function confirmarLogout(i) { const c = contas[i]; if (c && confirm('Sair da conta "' + c.nome + '"?')) sair(); }
 
     // ===== Dashboard =====
     function serieDemo(n, base, amp, seed) {
@@ -1067,6 +1151,7 @@
       renderCatalogo();
       mostrarPagina("page-dashboard", document.querySelector('.nav-item[data-target="page-dashboard"]'));
       renderDashboard();
+      montarContas();
     });
     carregarConta();
     carregarBot();
