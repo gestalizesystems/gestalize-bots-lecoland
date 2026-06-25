@@ -62,6 +62,21 @@
     .side-foot small { color: var(--navy); opacity: .7; }
     .dot { color: #1a7f37; }
 
+    /* Liga/desliga do bot */
+    .bot-toggle { margin: 8px 4px 0; background: var(--navy); color: #fff; border-radius: 12px; padding: 12px 14px; }
+    .bt-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .bt-title { font-size: 13px; font-weight: 700; }
+    .bt-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; margin-top: 10px; }
+    .bt-badge.on { background: rgba(34,197,94,.22); color: #4ade80; }
+    .bt-badge.off { background: rgba(255,255,255,.16); color: #cbd5e1; }
+    .bt-conn { font-size: 12px; opacity: .85; margin-top: 9px; display: flex; align-items: center; gap: 6px; }
+    .switch { position: relative; width: 44px; height: 24px; flex: 0 0 auto; cursor: pointer; display: inline-block; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch .sl { position: absolute; inset: 0; background: rgba(255,255,255,.3); border-radius: 24px; transition: .2s; }
+    .switch .sl::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+    .switch input:checked + .sl { background: #22c55e; }
+    .switch input:checked + .sl::before { transform: translateX(20px); }
+
     /* ===== Main ===== */
     .main { margin-left: 250px; flex: 1; min-width: 0; display: flex; flex-direction: column; }
     .topbar {
@@ -242,6 +257,15 @@
         <a class="nav-item" data-target="page-gatilhos" data-titulo="Palavras-chave gerais" data-sub="Atalhos para o bot entender comandos importantes."><span class="ic">⚙️</span> Palavras-chave</a>
         <a class="nav-item" data-target="page-conta" data-titulo="Configurações da conta" data-sub="Gerencie seus dados de acesso ao painel."><span class="ic">👤</span> Configurações da conta</a>
       </nav>
+
+      <div class="bot-toggle">
+        <div class="bt-head">
+          <span class="bt-title">Bot do WhatsApp</span>
+          <label class="switch"><input type="checkbox" id="botChk" onchange="toggleBot()" /><span class="sl"></span></label>
+        </div>
+        <span class="bt-badge off" id="botBadge">○ Inativo</span>
+        <div class="bt-conn" id="botConn">⚪ Bot desligado</div>
+      </div>
 
       <div class="side-foot">
         <div class="nome" id="botNome">Lecoland Pet Shop</div>
@@ -1014,6 +1038,29 @@
       } catch (e) { alert("Erro ao salvar o catálogo: " + e.message); }
     }
 
+    // ===== Liga/desliga do bot =====
+    async function carregarBot() {
+      try { const d = await (await fetch("/api/bot")).json(); pintarBot(d.ativo, d.conectado); } catch (_) {}
+    }
+    function pintarBot(ativo, conectado) {
+      el("botChk").checked = !!ativo;
+      const badge = el("botBadge");
+      badge.className = "bt-badge " + (ativo ? "on" : "off");
+      badge.textContent = ativo ? "● Ativo" : "○ Inativo";
+      el("botConn").textContent = !ativo ? "⚪ Bot desligado" : (conectado ? "🟢 Bot conectado" : "🟡 Aguardando conexão");
+    }
+    async function toggleBot() {
+      const ativar = el("botChk").checked;
+      if (ativar && !confirm("Ativar o bot? Ele vai começar a responder os clientes no WhatsApp.")) {
+        el("botChk").checked = false; return;
+      }
+      try {
+        const res = await fetch("/api/bot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ativo: ativar }) });
+        const d = await res.json(); if (!d.ok) throw new Error(d.erro || "falha");
+        pintarBot(d.ativo, d.conectado);
+      } catch (e) { alert("Erro ao mudar o bot: " + e.message); carregarBot(); }
+    }
+
     carregar().then(() => {
       initDashData();
       catalogo = cfg.catalogo || { grupos: [], subgrupos: [], especificacoes: [], produtos: [] };
@@ -1022,6 +1069,8 @@
       renderDashboard();
     });
     carregarConta();
+    carregarBot();
+    setInterval(carregarBot, 15000); // mantém o status de conexão atualizado
   </script>
 </body>
 </html>

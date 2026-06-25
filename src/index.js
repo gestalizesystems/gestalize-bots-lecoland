@@ -11,6 +11,8 @@ const qrcode = require("qrcode-terminal");
 const { triar } = require("./triage");
 const { responder, limparHistorico } = require("./ai");
 const { iniciarAdmin } = require("./admin");
+const config = require("./config");
+const estado = require("./estado");
 
 const ADMIN_PORT = process.env.PORT || process.env.ADMIN_PORT || 4500;
 
@@ -94,15 +96,18 @@ client.on("qr", (qr) => {
 });
 
 client.on("authenticated", () => console.log("🔐 Autenticado."));
-client.on("ready", () => console.log("✅ Bot da Lecoland conectado e pronto!"));
-client.on("auth_failure", (msg) => console.error("❌ Falha de autenticação:", msg));
-client.on("disconnected", (reason) => console.warn("⚠️  Desconectado:", reason));
+client.on("ready", () => { estado.whatsappConectado = true; console.log("✅ Bot da Lecoland conectado e pronto!"); });
+client.on("auth_failure", (msg) => { estado.whatsappConectado = false; console.error("❌ Falha de autenticação:", msg); });
+client.on("disconnected", (reason) => { estado.whatsappConectado = false; console.warn("⚠️  Desconectado:", reason); });
 
 client.on("message", async (msg) => {
   try {
     // Ignora grupos, status e mensagens sem texto (áudio/imagem/etc.).
     if (msg.from.endsWith("@g.us") || msg.isStatus) return;
     if (msg.type !== "chat" || !msg.body) return;
+
+    // Bot desligado no painel → não responde nada (continua conectado, só em silêncio).
+    if (!config.get().botAtivo) return;
 
     const contactId = msg.from;
 

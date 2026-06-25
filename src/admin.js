@@ -7,6 +7,7 @@ const fs = require("fs");
 const crypto = require("crypto");
 const config = require("./config");
 const conta = require("./conta");
+const estado = require("./estado");
 
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const UPLOAD_DIR = path.join(PUBLIC_DIR, "uploads");
@@ -54,6 +55,7 @@ function validar(c) {
   if (!Array.isArray(c.mensagensExtras)) c.mensagensExtras = [];
   if (!Array.isArray(c.menus)) c.menus = [];
   if (typeof c.infoIA !== "string") c.infoIA = "";
+  if (typeof c.botAtivo !== "boolean") c.botAtivo = config.get().botAtivo === true; // preserva o liga/desliga
   // Preserva o catálogo quando o "Salvar tudo" não o envia (ele tem endpoint próprio).
   if (!c.catalogo || typeof c.catalogo !== "object") {
     c.catalogo = config.get().catalogo || { grupos: [], subgrupos: [], especificacoes: [], produtos: [] };
@@ -187,6 +189,22 @@ function iniciarAdmin(porta) {
       const nome = `prod-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
       fs.writeFileSync(path.join(UPLOAD_DIR, nome), buf);
       res.json({ ok: true, path: `/uploads/${nome}` });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
+  });
+
+  // Liga/desliga do bot no WhatsApp + status de conexão.
+  app.get("/api/bot", (req, res) => {
+    res.json({ ativo: config.get().botAtivo === true, conectado: estado.whatsappConectado === true });
+  });
+  app.post("/api/bot", (req, res) => {
+    try {
+      const ativo = !!(req.body && req.body.ativo);
+      const c = config.get();
+      c.botAtivo = ativo;
+      config.salvar(c);
+      res.json({ ok: true, ativo, conectado: estado.whatsappConectado === true });
     } catch (e) {
       res.status(400).json({ ok: false, erro: e.message });
     }
