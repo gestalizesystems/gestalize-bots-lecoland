@@ -293,6 +293,28 @@
     .exp-linha { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
     .exp-linha > span:first-child { width: 84px; font-weight: 600; font-size: 14px; }
     .exp-linha input[type=time] { padding: 8px 10px; border: 1px solid var(--borda); border-radius: 9px; font-size: 14px; font-family: inherit; }
+
+    /* ===== Overrides finais do responsivo (ficam por último p/ vencer as media queries acima) ===== */
+    @media (max-width: 1000px) {
+      .dash-grafico svg { height: 200px; }
+    }
+    @media (max-width: 600px) {
+      .dash-kpis, .cat-stats, .dash-2, .dash-2b { grid-template-columns: 1fr; gap: 14px; }
+      .kpi { padding: 16px; }
+      .kpi .ico { width: 40px; height: 40px; font-size: 20px; }
+      .kpi .valor { font-size: 30px; }
+      .bloco { padding: 16px; }
+      .dash-aviso { font-size: 13px; }
+      .data-pop { position: fixed; top: 64px; left: 12px; right: 12px; width: auto; }
+      .exp-linha > span:first-child { width: 100%; }
+      .exp-linha input[type=time] { flex: 1; }
+      .card, .bloco { border-radius: 16px; }
+      h2 { font-size: 19px; }
+    }
+    @media (max-width: 380px) {
+      .topbar h1 { font-size: 15px; }
+      .kpi .valor { font-size: 26px; }
+    }
   </style>
 </head>
 <body>
@@ -966,6 +988,9 @@
     document.addEventListener("click", (e) => {
       if (!e.target.closest("#contaBtn") && !e.target.closest("#contaPop")) {
         const p = el("contaPop"); if (p) p.classList.remove("aberto");
+      }
+      if (!e.target.closest("#btnData") && !e.target.closest("#dataPop")) {
+        const d = el("dataPop"); if (d) d.style.display = "none";
       }
     });
     function adicionarConta() {
