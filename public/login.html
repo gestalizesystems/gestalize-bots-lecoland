@@ -92,15 +92,55 @@
     .rodape { text-align: center; color: var(--suave); font-size: 13px; margin-top: 22px;
       display: flex; align-items: center; justify-content: center; gap: 7px; }
 
+    /* blocos exclusivos do mobile (escondidos no desktop) */
+    .marca-mob, .primeiro-mob, .plat-mob { display: none; }
+
     @media (max-width: 900px) {
+      body { background: #fff; }
+      .deco { display: none; }
       .esq { display: none; }
-      .wrap { grid-template-columns: 1fr; max-width: 460px; }
-      .deco-canvas, .deco-wave { display: none; }
+      .wrap { grid-template-columns: 1fr; max-width: 440px; padding: 26px 22px 40px; align-items: start; }
+
+      /* marca no topo */
+      .marca-mob { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 24px; }
+      .marca-mob img { width: 78px; height: 78px; object-fit: contain; }
+      .marca-mob .wm { font-size: 30px; font-weight: 800; letter-spacing: -1px; }
+      .marca-mob .wm .g { color: var(--escuro); }
+      .marca-mob .wm .b { color: var(--azul); }
+
+      /* card vira plano (formulário direto na página) */
+      .card { box-shadow: none; border: none; background: transparent; padding: 0; }
+      .escudo { display: none; }
+      .card h2 { font-size: 25px; }
+      .card .sub { margin-bottom: 26px; }
+
+      /* esconde o "primeiro acesso" do desktop (vira card abaixo) */
+      .divisor, .btn-criar, .aviso { display: none; }
+
+      /* card cinza "Primeiro acesso?" */
+      .primeiro-mob { display: block; margin-top: 22px; }
+      .ou-mob { text-align: center; color: var(--suave); font-size: 14px; position: relative; margin-bottom: 18px; }
+      .ou-mob::before, .ou-mob::after { content: ""; position: absolute; top: 50%; width: 42%; height: 1px; background: var(--borda); }
+      .ou-mob::before { left: 0; } .ou-mob::after { right: 0; }
+      .pcard { display: flex; align-items: center; gap: 14px; background: #f6f8fc; border: 1px solid #eef2f9; border-radius: 16px; padding: 16px; }
+      .picon { width: 46px; height: 46px; border-radius: 50%; background: var(--azul-claro); color: var(--azul); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+      .ptxt { flex: 1; min-width: 0; }
+      .ptxt strong { display: block; color: var(--escuro); font-size: 15px; font-weight: 700; }
+      .ptxt span { color: var(--suave); font-size: 13px; }
+      .pbtn { flex: 0 0 auto; background: #fff; color: var(--azul); border: 1.5px solid #cfdcf3; border-radius: 11px; padding: 10px 14px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+      .pbtn:hover { border-color: var(--azul); }
+
+      /* rodapé: descrição da plataforma + copyright */
+      .plat-mob { display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; margin-top: 36px; color: var(--suave); }
+      .plat-mob .psic { color: var(--azul); }
+      .plat-mob p { margin: 0; font-size: 13.5px; line-height: 1.5; max-width: 330px; }
+      .rodape { margin-top: 16px; }
     }
-    @media (max-width: 480px) {
-      .wrap { padding: 20px 14px; }
-      .card { padding: 30px 22px; border-radius: 20px; }
-      .card h2 { font-size: 23px; }
+    @media (max-width: 380px) {
+      .marca-mob img { width: 66px; height: 66px; }
+      .marca-mob .wm { font-size: 26px; }
+      .pcard { flex-wrap: wrap; }
+      .pbtn { width: 100%; justify-content: center; }
     }
   </style>
 </head>
@@ -151,6 +191,10 @@
 
     <!-- Direita -->
     <div class="col-dir">
+    <div class="marca-mob">
+      <img src="/robot.png" alt="Gestalize Bots" />
+      <div class="wm"><span class="g">Gestalize</span> <span class="b">Bots</span></div>
+    </div>
     <div class="card">
       <div class="escudo"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 14-4-4 1.4-1.4L11 12.2l4.6-4.6L17 9l-6 6z"/></svg></div>
       <h2>Bem-vindo de volta!</h2>
@@ -183,6 +227,20 @@
         Criar minha senha
       </button>
       <p class="aviso">Recebeu um convite da Gestalize Bots?<br/>Clique acima para configurar sua senha.</p>
+    </div>
+
+    <div class="primeiro-mob">
+      <div class="ou-mob"><span>ou</span></div>
+      <div class="pcard">
+        <span class="picon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+        <div class="ptxt"><strong>Primeiro acesso?</strong><span>Recebeu um convite da Gestalize Bots?</span></div>
+        <button type="button" class="pbtn" id="criar2">Criar minha senha <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+      </div>
+    </div>
+
+    <div class="plat-mob">
+      <span class="psic"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 14-4-4 1.4-1.4L11 12.2l4.6-4.6L17 9l-6 6z"/></svg></span>
+      <p>Plataforma profissional para gerenciamento de bots de atendimento e automações WhatsApp.</p>
     </div>
 
     <div class="rodape">
@@ -320,6 +378,7 @@
     }
     $("esqueci").addEventListener("click", emBreve);
     $("criar").addEventListener("click", emBreve);
+    if ($("criar2")) $("criar2").addEventListener("click", emBreve);
 
     $("formLogin").addEventListener("submit", async (e) => {
       e.preventDefault();
