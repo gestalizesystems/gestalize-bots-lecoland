@@ -95,6 +95,8 @@ function iniciarAdmin(porta) {
   // A logo e a imagem do robô são públicas (aparecem na tela de login).
   app.use("/uploads", express.static(UPLOAD_DIR));
   app.get("/robot.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "robot.png")));
+  app.get("/favicon.ico", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "robot.png")));
+  app.get("/og-gestalize.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "og-gestalize.png")));
 
   // ---- Rotas públicas (login) ----
   app.get("/login", (req, res) => {

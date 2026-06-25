@@ -4,6 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Entrar — Gestalize Bots</title>
+  <link rel="icon" type="image/png" href="/robot.png" />
+  <link rel="apple-touch-icon" href="/robot.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Gestalize Bots" />
+  <meta property="og:description" content="Plataforma profissional para gerenciamento de bots de atendimento e automações WhatsApp." />
+  <meta property="og:image" content="https://lecoland-production.up.railway.app/og-gestalize.png" />
+  <meta property="og:url" content="https://lecoland-production.up.railway.app/" />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -122,13 +130,13 @@
       .ou-mob { text-align: center; color: var(--suave); font-size: 14px; position: relative; margin-bottom: 18px; }
       .ou-mob::before, .ou-mob::after { content: ""; position: absolute; top: 50%; width: 42%; height: 1px; background: var(--borda); }
       .ou-mob::before { left: 0; } .ou-mob::after { right: 0; }
-      .pcard { display: flex; align-items: center; gap: 14px; background: #f6f8fc; border: 1px solid #eef2f9; border-radius: 16px; padding: 16px; }
+      .pcard { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 14px; background: #f6f8fc; border: 1px solid #eef2f9; border-radius: 16px; padding: 18px; }
       .picon { width: 46px; height: 46px; border-radius: 50%; background: var(--azul-claro); color: var(--azul); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
-      .ptxt { flex: 1; min-width: 0; }
-      .ptxt strong { display: block; color: var(--escuro); font-size: 15px; font-weight: 700; }
-      .ptxt span { color: var(--suave); font-size: 13px; }
-      .pbtn { flex: 0 0 auto; background: #fff; color: var(--azul); border: 1.5px solid #cfdcf3; border-radius: 11px; padding: 10px 14px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-      .pbtn:hover { border-color: var(--azul); }
+      .ptxt { flex: 1 1 0; min-width: 150px; }
+      .ptxt strong { display: block; color: var(--escuro); font-size: 15.5px; font-weight: 700; }
+      .ptxt span { color: var(--suave); font-size: 13px; line-height: 1.4; }
+      .pbtn { flex: 1 1 100%; background: #fff; color: var(--azul); border: 1.5px solid #cfdcf3; border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 2px; }
+      .pbtn:hover { border-color: var(--azul); background: var(--azul-claro); }
 
       /* rodapé: descrição da plataforma + copyright */
       .plat-mob { display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; margin-top: 36px; color: var(--suave); }
@@ -139,8 +147,6 @@
     @media (max-width: 380px) {
       .marca-mob img { width: 66px; height: 66px; }
       .marca-mob .wm { font-size: 26px; }
-      .pcard { flex-wrap: wrap; }
-      .pbtn { width: 100%; justify-content: center; }
     }
   </style>
 </head>

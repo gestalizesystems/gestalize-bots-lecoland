@@ -36,7 +36,7 @@ function normalizarNumero(numero) {
 }
 
 async function enviarTexto(para, texto) {
-  return enviar({ to: normalizarNumero(para), type: "text", text: { preview_url: false, body: String(texto).slice(0, 4096) } });
+  return enviar({ to: normalizarNumero(para), type: "text", text: { preview_url: true, body: String(texto).slice(0, 4096) } });
 }
 
 async function enviarImagem(para, link, legenda) {
