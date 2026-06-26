@@ -300,6 +300,12 @@
     @media (max-width: 1000px) {
       .dash-grafico svg { height: 200px; }
     }
+    @media (max-width: 900px) {
+      html, body { overflow-x: clip; }   /* impede vazamento horizontal no mobile (alinha a lateral direita) */
+      .main, .content { max-width: 100%; overflow-x: clip; }
+      .rt .info { min-width: 0; }         /* deixa o texto da lista encolher em vez de empurrar a largura */
+      .dash-grafico svg, .kpi svg { max-width: 100%; }
+    }
     @media (max-width: 600px) {
       .dash-kpis, .cat-stats, .dash-2, .dash-2b { grid-template-columns: 1fr; gap: 14px; }
       .kpi { padding: 16px; }

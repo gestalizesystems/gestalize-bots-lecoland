@@ -43,6 +43,15 @@ function migrar(d) {
     }
     d._entregaSubmenu = true; mudou = true;
   }
+  // Remove gatilhos de saudação amplos demais que sequestravam pedidos reais
+  // (ex.: "queria pedir uma ração" batia em "pedir" e mandava o menu).
+  if (!d._gatilhosLimpos) {
+    if (Array.isArray(d.gatilhosSaudacao)) {
+      const remover = ["quero", "pedir", "queria"];
+      d.gatilhosSaudacao = d.gatilhosSaudacao.filter((g) => !remover.includes(String(g).toLowerCase().trim()));
+    }
+    d._gatilhosLimpos = true; mudou = true;
+  }
   return mudou;
 }
 
