@@ -26,6 +26,21 @@ Bot de atendimento para pet shop / clínica veterinária, integrado à **WhatsAp
    Se trouxer algo novo → começa um atendimento novo.
 A conversa **não é apagada** — o atendente lê todo o histórico no WhatsApp.
 
+## Stack
+
+| Camada | Tecnologia |
+|---|---|
+| **Runtime** | Node.js ≥ 18 |
+| **Servidor** | Express 4 — painel web + webhook do WhatsApp (serviço único) |
+| **Frontend (painel)** | HTML + CSS + JavaScript puro, sem framework · fonte Poppins |
+| **Dados** | Arquivos **JSON** (sem banco SQL): `config`, `conta`, `clientes`, `sessoes` |
+| **WhatsApp** | WhatsApp Cloud API (oficial da Meta) — webhook + Graph API |
+| **IA** | Google Gemini (`@google/genai`) · `gemini-2.5-flash` · function calling |
+| **Geolocalização** | OpenRouteService — distância de carro p/ a taxa de entrega |
+| **Auth (painel)** | Sessão por cookie + senha com hash **scrypt** (módulo `crypto` do Node) |
+| **Persistência** | Volume do Railway (`DATA_DIR`) — config, contas, clientes, sessões, uploads |
+| **Deploy** | Railway — Node, serviço único, auto-deploy no `git push` |
+
 ## Requisitos
 - **Node.js 18+**.
 - **Chave da API do Google Gemini** — gratuita: https://aistudio.google.com/apikey
@@ -33,6 +48,27 @@ A conversa **não é apagada** — o atendente lê todo o histórico no WhatsApp
 - **Credenciais da WhatsApp Cloud API** (Phone Number ID + token) — ver "Configurar o WhatsApp" abaixo.
 - *(Opcional)* Chave gratuita do **OpenRouteService** — só para calcular a taxa pelo **endereço**
   do cliente. Sem ela, o bot ainda calcula pela **distância (km)** informada.
+
+## Variáveis de ambiente
+
+Defina no `.env` (local) ou nas **Variables** do serviço no **Railway** (produção):
+
+| Variável | Valor / origem | Obrigatória? |
+|---|---|---|
+| `GEMINI_API_KEY` | Chave do Google AI Studio (Gemini) | ✅ (p/ a IA) |
+| `GEMINI_MODEL` | Modelo da IA — padrão `gemini-2.5-flash` | opcional |
+| `WHATSAPP_TOKEN` | Token permanente (Usuário do Sistema) do app na Meta | ✅ produção |
+| `WHATSAPP_PHONE_ID` | Phone Number ID do número (WhatsApp Manager) | ✅ produção |
+| `WHATSAPP_VERIFY_TOKEN` | Senha que **você inventa** (verificação do webhook) | ✅ produção |
+| `WHATSAPP_API_VERSION` | Versão da Graph API — padrão `v21.0` | opcional |
+| `ORS_API_KEY` | Chave do OpenRouteService (taxa de entrega por endereço) | opcional |
+| `ADMIN_EMAIL` / `ADMIN_SENHA` | Login do painel (semeia `data/conta.json` na 1ª vez) | ✅ |
+| `PUBLIC_URL` | URL pública (ex.: `https://bots.gestalizesystems.com.br`) — link das fotos do catálogo | opcional |
+| `DATA_DIR` | Pasta persistente (Volume do Railway, ex.: `/data`) | ✅ no Railway |
+| `PORT` | Porta do servidor — **definida automaticamente pelo Railway** | auto |
+| `ADMIN_PORT` | Porta local do painel — padrão `4500` | opcional (local) |
+
+> ⚠️ As variáveis sensíveis (`GEMINI_API_KEY`, `WHATSAPP_TOKEN`, senhas) ficam **só no `.env`** (local, no `.gitignore`) e nas **Variables** do Railway — **nunca** vão pro Git.
 
 ## Como rodar (local)
 ```bash
