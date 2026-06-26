@@ -146,7 +146,9 @@ async function processar(from, texto) {
 
   if (r.resposta) {
     await enviar(from, r.resposta);
-    registrarTurno(from, texto, r.resposta); // memória: a IA passa a "lembrar" do que veio do menu
+    // Memória: grava só ESCOLHAS com significado (opção/comando), nunca o texto de menus
+    // — senão a IA pode "repetir" o menu que ficou no histórico.
+    if (r.tipo === "opcao" || r.tipo === "mensagem") registrarTurno(from, texto, r.resposta);
     return;
   }
 
