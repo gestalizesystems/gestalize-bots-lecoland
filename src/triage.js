@@ -89,7 +89,7 @@ function triar(textoBruto, contexto) {
       const opcao = lista[indice];
       let resp = config.preencher(opcao.resposta);
       if (contexto && contexto.sub) resp += "\n\n↩️ Digite *0* para voltar ao menu.";
-      return { tipo: "opcao", chave: opcao.chave, resposta: resp };
+      return { tipo: "opcao", chave: opcao.chave, titulo: opcao.titulo, resposta: resp };
     }
     return { tipo: "menu", resposta: menuPrincipal(), novoContexto: ctxPrincipal };
   }
@@ -105,7 +105,7 @@ function triar(textoBruto, contexto) {
   // Palavra-chave de serviço/FAQ (menu principal).
   for (const opcao of principais) {
     if (casaAlgumGatilho(texto, opcao.gatilhos)) {
-      return { tipo: "opcao", chave: opcao.chave, resposta: config.preencher(opcao.resposta), novoContexto: ctxPrincipal };
+      return { tipo: "opcao", chave: opcao.chave, titulo: opcao.titulo, resposta: config.preencher(opcao.resposta), novoContexto: ctxPrincipal };
     }
   }
 

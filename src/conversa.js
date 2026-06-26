@@ -147,8 +147,12 @@ async function processar(from, texto) {
   if (r.resposta) {
     await enviar(from, r.resposta);
     // Memória: grava só ESCOLHAS com significado (opção/comando), nunca o texto de menus
-    // — senão a IA pode "repetir" o menu que ficou no histórico.
-    if (r.tipo === "opcao" || r.tipo === "mensagem") registrarTurno(from, texto, r.resposta);
+    // — senão a IA pode "repetir" o menu. Registra a escolha POR EXTENSO (ex.: "Entrega (moto)")
+    // pra a IA não reperguntar o que o cliente já escolheu.
+    if (r.tipo === "opcao" || r.tipo === "mensagem") {
+      const nota = r.titulo ? `(O cliente escolheu: ${r.titulo}.) ` : "";
+      registrarTurno(from, texto, nota + r.resposta);
+    }
     return;
   }
 
