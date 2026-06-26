@@ -62,15 +62,19 @@ function triar(textoBruto, contexto) {
   const ctxPrincipal = { opcoes: principais, texto: menuPrincipal(), sub: false };
 
   if (!texto) {
-    return { tipo: "menu", resposta: menuPrincipal(), novoContexto: ctxPrincipal };
+    return { tipo: "menu", saudacao: true, resposta: menuPrincipal(), novoContexto: ctxPrincipal };
   }
 
   if (casaAlgumGatilho(texto, dados.gatilhosAtendente)) {
     return { tipo: "atendente", resposta: config.preencher(dados.mensagens.atendente) };
   }
 
-  if (casaAlgumGatilho(texto, dados.gatilhosSaudacao) || dados.gatilhosSaudacao.includes(texto)) {
-    return { tipo: "menu", resposta: menuPrincipal(), novoContexto: ctxPrincipal };
+  // Saudação só abre o menu em mensagens CURTAS (saudações são curtas). Assim uma
+  // pergunta longa que por acaso contenha uma palavra de saudação vai para a IA.
+  // `saudacao: true` deixa o conversa.js mostrar o menu só UMA vez por conversa.
+  const numPalavras = texto.split(/\s+/).filter(Boolean).length;
+  if (dados.gatilhosSaudacao.includes(texto) || (numPalavras <= 5 && casaAlgumGatilho(texto, dados.gatilhosSaudacao))) {
+    return { tipo: "menu", saudacao: true, resposta: menuPrincipal(), novoContexto: ctxPrincipal };
   }
 
   // "0" ou "voltar" → volta ao menu atual (sub-menu) ou, se não houver, ao principal.

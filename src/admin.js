@@ -30,9 +30,24 @@ function semearUploads() {
   }
 }
 
-// Sessões em memória: token -> instante de expiração (ms). Some ao reiniciar.
+// Sessões persistidas em arquivo (sobrevivem a redeploys do Railway): token -> expiração (ms).
+const SESSOES_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
+const SESSOES_FILE = path.join(SESSOES_DIR, "sessoes.json");
 const sessoes = new Map();
 const SESSAO_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
+(function carregarSessoes() {
+  try {
+    const obj = JSON.parse(fs.readFileSync(SESSOES_FILE, "utf8"));
+    const agora = Date.now();
+    for (const [sid, exp] of Object.entries(obj)) if (exp > agora) sessoes.set(sid, exp);
+  } catch (_) { /* ainda não há arquivo de sessões */ }
+})();
+function salvarSessoes() {
+  try {
+    fs.mkdirSync(SESSOES_DIR, { recursive: true });
+    fs.writeFileSync(SESSOES_FILE, JSON.stringify(Object.fromEntries(sessoes)), "utf8");
+  } catch (e) { console.error("Falha ao salvar sessões:", e.message); }
+}
 
 // Proteção contra força-bruta no login: tentativas por IP.
 const tentativas = new Map(); // ip -> { fails, lockUntil }
@@ -117,6 +132,7 @@ function iniciarAdmin(porta) {
       tentativas.delete(ip);
       const sid = crypto.randomBytes(24).toString("hex");
       sessoes.set(sid, Date.now() + SESSAO_MS);
+      salvarSessoes();
       const secure = req.secure ? "; Secure" : ""; // só em HTTPS (Railway); não quebra o localhost
       res.setHeader("Set-Cookie", `sid=${sid}; HttpOnly; Path=/; SameSite=Lax${secure}; Max-Age=${SESSAO_MS / 1000}`);
       return res.json({ ok: true });
@@ -163,7 +179,7 @@ function iniciarAdmin(porta) {
 
   app.post("/api/logout", (req, res) => {
     const sid = parseCookies(req).sid;
-    if (sid) sessoes.delete(sid);
+    if (sid) { sessoes.delete(sid); salvarSessoes(); }
     res.setHeader("Set-Cookie", "sid=; HttpOnly; Path=/; Max-Age=0");
     res.json({ ok: true });
   });

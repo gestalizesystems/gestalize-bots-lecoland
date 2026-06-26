@@ -14,6 +14,7 @@ function configurar(fn) {
 const pausados = new Map(); // contactId -> { timer, ultimaMsg }
 const aguardandoFecho = new Map(); // contactId -> { timer }
 const menuContexto = new Map(); // contactId -> opções do menu atual
+const jaSaudou = new Set(); // contatos que já receberam o menu de saudação nesta conversa
 const ausenciaEnviada = new Map(); // contactId -> instante do último aviso de ausência
 const AUSENCIA_THROTTLE_MS = 60 * 60 * 1000; // não repete a ausência mais de 1x/h por contato
 
@@ -85,6 +86,7 @@ async function finalizar(contactId, enviarDespedida) {
   if (f && f.timer) clearTimeout(f.timer);
   aguardandoFecho.delete(contactId);
   menuContexto.delete(contactId);
+  jaSaudou.delete(contactId); // conversa nova → pode saudar de novo
   limparHistorico(contactId);
   if (enviarDespedida) {
     try {
@@ -136,6 +138,12 @@ async function processar(from, texto) {
   if ("novoContexto" in r) {
     if (r.novoContexto) menuContexto.set(from, r.novoContexto);
     else menuContexto.delete(from);
+  }
+
+  // Menu de saudação aparece só UMA vez por conversa (no início). Depois disso, IA.
+  if (r.saudacao) {
+    if (jaSaudou.has(from)) { r.tipo = "ia"; r.resposta = null; }
+    else jaSaudou.add(from);
   }
 
   if (r.tipo === "atendente") {

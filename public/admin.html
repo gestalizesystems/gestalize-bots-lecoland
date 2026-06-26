@@ -1268,20 +1268,17 @@
     }
     function fecharProduto() { el("modalProduto").classList.remove("aberto"); }
     function coletarChecks(id) { return [...el(id).querySelectorAll("input:checked")].map(c => c.value); }
-    function enviarImgProduto(input) {
+    async function enviarImgProduto(input) {
       const f = input.files[0]; if (!f) return;
       el("prodImgStatus").textContent = "Enviando...";
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const res = await fetch("/api/catalogo/imagem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dataUrl: reader.result }) });
-          const d = await res.json(); if (!d.ok) throw new Error(d.erro || "falha");
-          prodImagem = d.path;
-          el("prodPrev").innerHTML = `<img src="${esc(prodImagem)}" style="width:100%;height:100%;object-fit:cover;border-radius:10px" />`;
-          el("prodImgStatus").textContent = "Imagem enviada ✓";
-        } catch (e) { el("prodImgStatus").textContent = "Erro: " + e.message; }
-      };
-      reader.readAsDataURL(f);
+      try {
+        const dataUrl = await downscale(f, 800); // redimensiona antes (evita upload gigante do celular)
+        const res = await fetch("/api/catalogo/imagem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dataUrl }) });
+        const d = await res.json(); if (!d.ok) throw new Error(d.erro || "falha");
+        prodImagem = d.path;
+        el("prodPrev").innerHTML = `<img src="${esc(prodImagem)}" style="width:100%;height:100%;object-fit:cover;border-radius:10px" />`;
+        el("prodImgStatus").textContent = "Imagem enviada ✓";
+      } catch (e) { el("prodImgStatus").textContent = "Erro: " + e.message; }
     }
     async function salvarProduto() {
       const nome = el("prodNome").value.trim();
