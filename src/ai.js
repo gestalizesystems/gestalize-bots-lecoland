@@ -95,6 +95,7 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto } = {}) {
       grupo: p.grupo,
       subgrupos: p.subgrupos || [],
       especificacoes: p.especificacoes || [],
+      imagem: p.imagem || "",
     })),
   };
 }
@@ -163,7 +164,7 @@ function montarContexto() {
     "- Se o cliente JÁ deu detalhes (ex.: 'tem urinária pra gato?', 'ração premium pra cão filhote', cita uma marca), busque DIRETO com buscar_produtos usando o que ele disse — não fique perguntando à toa.",
     "- Só faça o mini-questionário (UMA pergunta por vez: 'É para cão ou gato?', 'Filhote ou adulto?', 'Qual o porte?') quando FALTAR informação para a busca.",
     "- Use só as opções que existem no CATÁLOGO acima (grupos/subgrupos/especificações). Quando tiver as respostas, CHAME a função buscar_produtos com grupo/subgrupo/especificacao.",
-    "- Apresente os produtos retornados de forma curta — nome e preço (ex.: '• Ração X Adulto — R$ 90'). Liste no máximo uns 5; se houver mais, diga que tem outras opções.",
+    "- Quando buscar_produtos retornar produtos, dê uma resposta CURTA de introdução (ex.: 'Achei essas opções pra você 🐾'). NÃO liste os produtos em texto: as FOTOS de cada produto (com nome e preço) são enviadas automaticamente logo depois da sua mensagem.",
     "- Se buscar_produtos retornar 0 produtos, NÃO invente: diga que vai confirmar a disponibilidade com um atendente e CHAME encaminhar_para_atendente.",
     "- Nunca invente produtos, marcas ou preços — use exclusivamente o que a função retornar.",
     "",
@@ -220,6 +221,7 @@ async function responder(contactId, mensagem) {
 
   let encaminhar = false;
   let motivo = "";
+  let produtos = []; // produtos achados na última busca (pra enviar com foto)
 
   // Loop de function calling (até 3 rodadas).
   for (let i = 0; i < 3; i++) {
@@ -234,6 +236,7 @@ async function responder(contactId, mensagem) {
         motivo = (chamada.args && chamada.args.motivo) || "";
       }
       const resultado = await executarFuncao(chamada.name, chamada.args);
+      if (chamada.name === "buscar_produtos" && resultado && Array.isArray(resultado.produtos)) produtos = resultado.produtos;
       partesResposta.push({ functionResponse: { name: chamada.name, response: resultado } });
     }
     working.push({ role: "user", parts: partesResposta });
@@ -252,7 +255,7 @@ async function responder(contactId, mensagem) {
   historico.push({ role: "model", parts: [{ text: texto }] });
   if (historico.length > MAX_TURNOS) historico.splice(0, historico.length - MAX_TURNOS);
 
-  return { texto, encaminhar, motivo };
+  return { texto, encaminhar, motivo, produtos };
 }
 
 function limparHistorico(contactId) {

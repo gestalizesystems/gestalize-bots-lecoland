@@ -5,9 +5,33 @@ const { triar } = require("./triage");
 const { responder, limparHistorico, registrarTurno } = require("./ai");
 const config = require("./config");
 
-let enviar = async () => {}; // definido pelo ponto de entrada (Cloud API ou web.js)
-function configurar(fn) {
-  enviar = fn;
+let enviar = async () => {}; // texto — definido pelo ponto de entrada (Cloud API)
+let enviarImagem = async () => {}; // imagem (link + legenda)
+function configurar(fnTexto, fnImagem) {
+  enviar = fnTexto;
+  if (fnImagem) enviarImagem = fnImagem;
+}
+
+// URL pública do painel (pra montar o link das fotos do catálogo no WhatsApp).
+const PUBLIC_URL = (process.env.PUBLIC_URL || "https://lecoland-production.up.railway.app").replace(/\/$/, "");
+
+// Envia até 5 produtos achados como foto + nome + preço (formato de catálogo).
+async function enviarProdutos(from, produtos) {
+  for (const p of (produtos || []).slice(0, 5)) {
+    const preco = String(p.preco || "").trim();
+    const precoFmt = preco && preco !== "(sob consulta)"
+      ? (!/r\$/i.test(preco) && /^[\d.,\s]+$/.test(preco) ? "R$ " + preco : preco)
+      : "Sob consulta";
+    const legenda = `*${p.nome}*\n💰 ${precoFmt}`;
+    try {
+      if (p.imagem && /^\/uploads\//.test(p.imagem)) await enviarImagem(from, PUBLIC_URL + p.imagem, legenda);
+      else if (p.imagem && /^https?:\/\//i.test(p.imagem)) await enviarImagem(from, p.imagem, legenda);
+      else await enviar(from, legenda); // produto sem foto → só texto
+    } catch (e) {
+      console.error("Falha ao enviar produto:", e.message);
+      try { await enviar(from, legenda); } catch (_) {}
+    }
+  }
 }
 
 // ===== Estado por contato (em memória) =====
@@ -168,6 +192,7 @@ async function processar(from, texto) {
   const resp = await responder(from, texto);
   await enviar(from, resp.texto);
   if (resp.encaminhar) pausar(from); // a IA pediu um atendente humano
+  if (resp.produtos && resp.produtos.length) await enviarProdutos(from, resp.produtos); // catálogo com foto
 }
 
 module.exports = { configurar, processar };
