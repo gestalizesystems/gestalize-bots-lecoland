@@ -12,6 +12,7 @@ data/clientes.json
 data/sessoes.json
 data/nps.json
 data/atendimentos.json
+data/metricas.json
 
 # Arquivos do macOS
 .DS_Store

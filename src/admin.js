@@ -12,6 +12,7 @@ const conversa = require("./conversa");
 const clientes = require("./clientes");
 const nps = require("./nps");
 const atendimentos = require("./atendimentos");
+const metricas = require("./metricas");
 const wa = require("./wa");
 const ai = require("./ai");
 
@@ -353,6 +354,11 @@ function iniciarAdmin(porta) {
   app.post("/api/atendimentos/resolver", (req, res) => {
     atendimentos.resolver((req.body && req.body.id) || "");
     res.json({ ok: true, pendentes: atendimentos.pendentes() });
+  });
+
+  // ---- Métricas reais (dashboard) ----
+  app.get("/api/metricas", (req, res) => {
+    res.json({ ok: true, ...metricas.resumo(req.query.dias) });
   });
 
   app.post("/api/clientes/remover", (req, res) => {

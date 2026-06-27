@@ -1131,29 +1131,33 @@
     function confirmarLogout(i) { const c = contas[i]; if (c && confirm('Sair da conta "' + c.nome + '"?')) sair(); }
 
     // ===== Dashboard =====
-    async function renderKpis() {
-      let nClientes = 0, npsTotal = 0, npsScore = null;
-      try { const c = await (await fetch("/api/clientes")).json(); nClientes = (c.clientes || []).length; } catch (_) {}
-      try { const n = await (await fetch("/api/nps?dias=0")).json(); npsTotal = n.resumo.total || 0; npsScore = n.resumo.score; } catch (_) {}
-      const nProdutos = ((cfg.catalogo && cfg.catalogo.produtos) || []).length;
+    function fmtNum(n) { return Number(n || 0).toLocaleString("pt-BR"); }
+    function renderKpis(m) {
+      const t = (m && m.totais) || { recebidas: 0, enviadas: 0, handoffs: 0, atendimentos: 0 };
       const cards = [
-        { rot: "Clientes cadastrados", cor: "#2563eb", bg: "#dbeafe", ico: "👥", v: nClientes.toLocaleString("pt-BR") },
-        { rot: "Produtos no catálogo", cor: "#16a34a", bg: "#dcfce7", ico: "📦", v: nProdutos.toLocaleString("pt-BR") },
-        { rot: "Avaliações (NPS)", cor: "#ea580c", bg: "#ffedd5", ico: "⭐", v: npsTotal.toLocaleString("pt-BR") },
-        { rot: "Score NPS", cor: "#7c3aed", bg: "#ede9fe", ico: "📊", v: npsScore == null ? "—" : npsScore },
+        { rot: "Atendimentos", cor: "#16a34a", bg: "#dcfce7", ico: "💬", v: fmtNum(t.atendimentos) },
+        { rot: "Mensagens recebidas", cor: "#2563eb", bg: "#dbeafe", ico: "📥", v: fmtNum(t.recebidas) },
+        { rot: "Mensagens enviadas", cor: "#ea580c", bg: "#ffedd5", ico: "📤", v: fmtNum(t.enviadas) },
+        { rot: "Transferências p/ humano", cor: "#7c3aed", bg: "#ede9fe", ico: "🎧", v: fmtNum(t.handoffs) },
       ];
       el("dashKpis").innerHTML = cards.map(c => `
         <div class="kpi">
           <div class="top"><div class="rotulo" style="color:${c.cor}">${c.rot}</div><div class="ico" style="background:${c.bg}">${c.ico}</div></div>
           <div class="valor">${c.v}</div>
-          <div class="vs">no total</div>
+          <div class="vs">no período</div>
         </div>`).join("");
     }
     function renderTempoReal() {
       el("dashTempoReal").innerHTML = '<p class="dica" style="padding:10px 2px">As conversas acontecem direto no WhatsApp — o histórico completo de cada cliente fica lá. 🐾</p>';
     }
-    function renderServicos() {
-      el("dashServicos").innerHTML = '<p class="dica" style="padding:10px 2px">As estatísticas de uso vão aparecer aqui conforme os clientes forem usando o bot.</p>';
+    function renderServicos(m) {
+      const top = (m && m.topServicos) || [];
+      if (!top.length) { el("dashServicos").innerHTML = '<p class="dica" style="padding:10px 2px">Os serviços mais procurados aparecem aqui conforme os clientes usam os menus.</p>'; return; }
+      const max = top[0].qtd || 1;
+      el("dashServicos").innerHTML = top.map((s, i) => `
+        <div class="sv"><div class="num">${i + 1}</div>
+          <div class="info"><div class="tit">${esc(s.titulo)}</div><div class="sub">${s.qtd} ${s.qtd === 1 ? "vez" : "vezes"}</div></div>
+          <div class="pct" style="color:#16a34a">${Math.round((s.qtd / max) * 100)}%</div></div>`).join("");
     }
     async function renderStatus() {
       let st = { gemini: false, ors: false };
@@ -1173,8 +1177,26 @@
         </div>` +
         itens.map(i => `<div class="status-item">${i.nome}<span class="est ${i.ok ? "ativo" : "reparo"}"><span class="pt"></span>${i.ok ? "Ativo" : "Aguardando reparo"}</span></div>`).join("");
     }
-    function renderGrafico() {
-      el("dashGrafico").innerHTML = '<p class="dica" style="padding:48px 2px;text-align:center">📊 O gráfico de movimento vai aparecer aqui conforme o bot for atendendo.</p>';
+    function renderGrafico(m) {
+      const serie = (m && m.serie) || [];
+      const recebidas = serie.map(d => d.recebidas || 0), enviadas = serie.map(d => d.enviadas || 0), handoffs = serie.map(d => d.handoffs || 0);
+      const totalMov = recebidas.reduce((a, b) => a + b, 0) + enviadas.reduce((a, b) => a + b, 0);
+      if (!totalMov) { el("dashGrafico").innerHTML = '<p class="dica" style="padding:48px 2px;text-align:center">📊 Sem movimento no período ainda — o gráfico aparece conforme o bot for atendendo.</p>'; return; }
+      const n = serie.length, max = Math.max(1, ...recebidas, ...enviadas) * 1.15;
+      const w = 720, h = 250, padL = 36, padT = 8, padB = 26, padR = 8, iw = w - padL - padR, ih = h - padT - padB;
+      const X = (i) => padL + (i / (n - 1 || 1)) * iw, Y = (v) => padT + ih - (v / max) * ih;
+      const path = (arr) => arr.map((v, i) => (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1)).join(" ");
+      let grid = "";
+      for (let g = 0; g <= 4; g++) { const yy = padT + ih - (g / 4) * ih, val = Math.round((g / 4) * max); grid += `<line x1="${padL}" y1="${yy.toFixed(0)}" x2="${w - padR}" y2="${yy.toFixed(0)}" stroke="#f1f5f9"/><text x="${padL - 6}" y="${(yy + 3).toFixed(0)}" text-anchor="end" font-size="10" fill="#94a3b8">${val}</text>`; }
+      let xl = "", passo = Math.max(1, Math.ceil(n / 7));
+      for (let i = 0; i < n; i += passo) { const p = (serie[i].dia || "").split("-"); xl += `<text x="${X(i).toFixed(0)}" y="${h - 6}" text-anchor="middle" font-size="10" fill="#94a3b8">${p[2]}/${p[1]}</text>`; }
+      el("dashGrafico").innerHTML = `
+        <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--suave);margin-bottom:6px"><span>🟢 Recebidas</span><span>🔵 Enviadas</span><span>🟣 Transferências</span></div>
+        <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:260px">${grid}
+        <path d="${path(recebidas)} L${X(n - 1).toFixed(1)} ${padT + ih} L${padL} ${padT + ih} Z" fill="rgba(22,163,74,.07)"/>
+        <path d="${path(recebidas)}" fill="none" stroke="#16a34a" stroke-width="2.2"/>
+        <path d="${path(enviadas)}" fill="none" stroke="#2563eb" stroke-width="2.2"/>
+        <path d="${path(handoffs)}" fill="none" stroke="#7c3aed" stroke-width="2.2"/>${xl}</svg>`;
     }
     async function renderNps() {
       let d = { resumo: { total: 0 } };
@@ -1198,7 +1220,18 @@
         ${barra("😐 Neutros (7–8)", r.neutros, "#ea580c")}
         ${barra("😞 Detratores (0–6)", r.detratores, "#dc2626")}`;
     }
-    function renderDashboard() { if (!cfg) return; renderKpis(); renderTempoReal(); renderServicos(); renderStatus(); renderGrafico(); renderNps(); }
+    function diasDoFiltro() {
+      const ini = el("dataIni") && el("dataIni").value, fim = el("dataFim") && el("dataFim").value;
+      if (ini && fim) { const d = Math.round((new Date(fim) - new Date(ini)) / 86400000) + 1; return Math.max(1, Math.min(365, d)); }
+      return 30;
+    }
+    async function renderDashboard() {
+      if (!cfg) return;
+      renderTempoReal(); renderStatus(); renderNps();
+      let m = { totais: {}, serie: [], topServicos: [] };
+      try { m = await (await fetch("/api/metricas?dias=" + diasDoFiltro())).json(); } catch (_) {}
+      renderKpis(m); renderServicos(m); renderGrafico(m);
+    }
     function toggleData() { const p = el("dataPop"); p.style.display = p.style.display === "block" ? "none" : "block"; }
     function fmtData(s) { const p = s.split("-"); return p[2] + "/" + p[1] + "/" + p[0]; }
     function fmtCurta(s) { const p = s.split("-"); return p[2] + "/" + p[1]; }
@@ -1208,7 +1241,7 @@
     }
     function aplicarData() {
       const ini = el("dataIni").value, fim = el("dataFim").value;
-      if (ini && fim) { window.__dashFim = fim; setDataLabels(ini, fim); renderGrafico(); }
+      if (ini && fim) { window.__dashFim = fim; setDataLabels(ini, fim); renderDashboard(); }
       el("dataPop").style.display = "none";
     }
     function initDashData() {

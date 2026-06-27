@@ -7,13 +7,17 @@ const config = require("./config");
 const clientes = require("./clientes");
 const nps = require("./nps");
 const atendimentos = require("./atendimentos");
+const metricas = require("./metricas");
 
-let enviar = async () => {}; // texto — definido pelo ponto de entrada (Cloud API)
-let enviarImagem = async () => {}; // imagem (link + legenda)
+let _enviarTexto = async () => {}; // texto — definido pelo ponto de entrada (Cloud API)
+let _enviarImagem = async () => {}; // imagem (link + legenda)
 function configurar(fnTexto, fnImagem) {
-  enviar = fnTexto;
-  if (fnImagem) enviarImagem = fnImagem;
+  if (fnTexto) _enviarTexto = fnTexto;
+  if (fnImagem) _enviarImagem = fnImagem;
 }
+// Wrappers que contam as mensagens enviadas (métricas do dashboard).
+async function enviar(para, texto) { metricas.inc("enviada"); return _enviarTexto(para, texto); }
+async function enviarImagem(para, link, legenda) { metricas.inc("enviada"); return _enviarImagem(para, link, legenda); }
 
 // URL pública do painel (pra montar o link das fotos do catálogo no WhatsApp).
 const PUBLIC_URL = (process.env.PUBLIC_URL || "https://bots.gestalizesystems.com.br").replace(/\/$/, "");
@@ -104,6 +108,7 @@ async function encerrarComNps(from, msgPadrao) {
 
 // Abre um atendimento na fila do painel com um RESUMO da conversa feito pela IA (handoff).
 async function abrirHandoff(from, motivo) {
+  metricas.inc("handoff"); // métrica: transferência para humano
   try {
     const msgs = (historicoConversa.get(from) || []).slice(-15);
     const cli = clientes.get(from);
@@ -189,6 +194,8 @@ async function processar(from, texto, nomeWpp) {
   const dados = config.get();
   // Bot desligado no painel → não responde nada.
   if (!dados.botAtivo) return;
+
+  metricas.inc("recebida"); // métrica: mensagem recebida
 
   // Guarda as últimas mensagens do cliente (em memória) pra montar o resumo no handoff.
   if (texto && String(texto).trim()) {
@@ -295,6 +302,7 @@ async function processar(from, texto, nomeWpp) {
       r.tipo = "ia"; r.resposta = null;
     } else {
       jaSaudou.add(from);
+      metricas.inc("atendimento"); // métrica: nova conversa/atendimento iniciado
       const cli = clientes.get(from);
       if (cli && cli.nome) {
         r.resposta = menuPrincipal(cli.nome); // já conhece → "Olá, Ana!" personalizado
@@ -328,6 +336,7 @@ async function processar(from, texto, nomeWpp) {
     if (r.tipo === "opcao" || r.tipo === "mensagem") {
       const nota = r.titulo ? `(O cliente escolheu: ${r.titulo}.) ` : "";
       registrarTurno(from, texto, nota + r.resposta);
+      if (r.titulo) metricas.registrarServico(r.titulo); // métrica: serviço mais procurado
     }
     return;
   }
