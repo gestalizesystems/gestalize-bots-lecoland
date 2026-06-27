@@ -13,6 +13,7 @@ const clientes = require("./clientes");
 const nps = require("./nps");
 const atendimentos = require("./atendimentos");
 const metricas = require("./metricas");
+const campanhas = require("./campanhas");
 const wa = require("./wa");
 const ai = require("./ai");
 
@@ -359,6 +360,24 @@ function iniciarAdmin(porta) {
   // ---- Métricas reais (dashboard) ----
   app.get("/api/metricas", (req, res) => {
     res.json({ ok: true, ...metricas.resumo(req.query.dias) });
+  });
+
+  // ---- Campanhas (mensagens ativas) ----
+  app.get("/api/campanhas", (req, res) => res.json({ ok: true, campanhas: campanhas.listar() }));
+  app.post("/api/campanhas/contar", (req, res) => {
+    res.json({ ok: true, total: campanhas.audiencia((req.body && req.body.audiencia) || {}).length });
+  });
+  app.post("/api/campanhas/enviar", (req, res) => {
+    try {
+      const { modo, mensagem, template, idioma, audiencia } = req.body || {};
+      if (!wa.configurado()) throw new Error("WhatsApp Cloud API não configurado.");
+      if (modo === "template") { if (!String(template || "").trim()) throw new Error("Informe o nome do template aprovado."); }
+      else if (!String(mensagem || "").trim()) throw new Error("Escreva a mensagem da campanha.");
+      const camp = campanhas.enviar({ modo, mensagem, template, idioma, audiencia });
+      res.json({ ok: true, campanha: camp });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
   });
 
   app.post("/api/clientes/remover", (req, res) => {

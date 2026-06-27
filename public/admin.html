@@ -392,6 +392,7 @@
         <a class="nav-item" data-target="page-catalogo" data-titulo="Catálogo" data-sub="Produtos, grupos e subgrupos que o bot envia aos clientes."><span class="ic">🛍️</span> Catálogo</a>
         <a class="nav-item" data-target="page-clientes" data-titulo="Clientes" data-sub="Memória do bot: nome, telefone e endereço de cada cliente."><span class="ic">👥</span> Clientes</a>
         <a class="nav-item" data-target="page-satisfacao" data-titulo="Satisfação (NPS)" data-sub="Avaliações dos clientes e comentários."><span class="ic">⭐</span> Satisfação</a>
+        <a class="nav-item" data-target="page-campanhas" data-titulo="Campanhas" data-sub="Mensagens ativas para grupos de clientes."><span class="ic">📢</span> Campanhas</a>
         <a class="nav-item" data-target="page-gatilhos" data-titulo="Palavras-chave gerais" data-sub="Atalhos para o bot entender comandos importantes."><span class="ic">⚙️</span> Palavras-chave</a>
         <a class="nav-item" data-target="page-conta" data-titulo="Configurações gerais" data-sub="Gerencie seus dados de acesso ao painel."><span class="ic">👤</span> Configurações gerais</a>
       </nav>
@@ -704,6 +705,52 @@
           <div id="npsPager" class="catpager"></div>
         </section>
 
+        <section class="card page" id="page-campanhas">
+          <h2>📢 Campanhas</h2>
+          <p class="dica">Envie uma mensagem para um grupo de clientes (ex.: promoção, lembrete de vacina). O envio é feito aos poucos (~1 por segundo).</p>
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;font-size:13px;color:#92400e;margin-bottom:16px">
+            ⚠️ <b>Regra do WhatsApp:</b> mensagem de <b>texto livre</b> só chega a quem te mandou mensagem nas <b>últimas 24h</b>. Para alcançar todos a qualquer hora, use um <b>template aprovado</b> na Meta.
+          </div>
+          <div class="grid-2">
+            <div>
+              <label>Tipo de envio</label>
+              <select id="campModo" onchange="campToggleModo()">
+                <option value="texto">Texto livre (janela de 24h)</option>
+                <option value="template">Template aprovado (qualquer hora)</option>
+              </select>
+            </div>
+            <div>
+              <label>Audiência</label>
+              <select id="campAudTipo" onchange="campRenderAudValor();campContar()">
+                <option value="todos">Todos os clientes</option>
+                <option value="etapa">Por etapa do funil</option>
+                <option value="tag">Por tag</option>
+              </select>
+            </div>
+          </div>
+          <div id="campAudValorBox" style="display:none;margin-top:8px"></div>
+
+          <div id="campTextoBox" style="margin-top:12px">
+            <label>Mensagem</label>
+            <textarea id="campMensagem" placeholder="Ex.: 🐾 Promoção de banho essa semana! Agende já." oninput="campContar()"></textarea>
+          </div>
+          <div id="campTemplateBox" style="display:none;margin-top:12px">
+            <div class="grid-2">
+              <div><label>Nome do template (aprovado na Meta)</label><input type="text" id="campTemplate" placeholder="ex.: promo_banho" /></div>
+              <div><label>Idioma</label><input type="text" id="campIdioma" value="pt_BR" /></div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:14px;margin-top:16px;flex-wrap:wrap">
+            <button class="btn-primary" onclick="enviarCampanha()">📤 Enviar campanha</button>
+            <span id="campContador" class="dica" style="margin:0"></span>
+          </div>
+          <div id="campMsg" style="margin-top:10px;font-size:13px;font-weight:600"></div>
+
+          <h3 style="margin:22px 0 8px;font-size:15px;color:var(--navy)">📜 Histórico</h3>
+          <div id="listaCampanhas"></div>
+        </section>
+
         <section class="card page" id="page-gatilhos">
           <h2>⚙️ Palavras-chave gerais</h2>
           <p class="dica">Atalhos para o bot entender comandos importantes. Digite e clique em <b>Adicionar</b> (ou Enter).</p>
@@ -822,6 +869,7 @@
       if (id === "page-clientes") carregarClientes();
       if (id === "page-satisfacao") carregarSatisfacao();
       if (id === "page-atendimentos") carregarAtendimentos();
+      if (id === "page-campanhas") { campRenderAudValor(); campToggleModo(); carregarCampanhas(); campContar(); }
       window.scrollTo(0, 0);
       fecharMenu(); // fecha a gaveta no mobile ao trocar de página
     }
@@ -1501,6 +1549,68 @@
       try { const d = await (await fetch("/api/atendimentos/resolver", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })).json(); atendimentosPend = d.pendentes || []; }
       catch (_) {}
       pintarBadgeAtendimentos(); renderAtendimentos();
+    }
+
+    // ===== Campanhas (mensagens ativas) =====
+    function campToggleModo() {
+      const t = el("campModo").value;
+      el("campTextoBox").style.display = t === "template" ? "none" : "block";
+      el("campTemplateBox").style.display = t === "template" ? "block" : "none";
+    }
+    function campRenderAudValor() {
+      const tipo = el("campAudTipo").value, box = el("campAudValorBox");
+      if (tipo === "etapa") {
+        box.style.display = "block";
+        box.innerHTML = `<label>Etapa</label><select id="campAudValor" onchange="campContar()"><option value="lead">🆕 Lead</option><option value="negociando">💬 Em atendimento</option><option value="cliente">✅ Cliente</option><option value="perdido">❌ Perdido</option></select>`;
+      } else if (tipo === "tag") {
+        box.style.display = "block";
+        box.innerHTML = `<label>Tag</label><input type="text" id="campAudValor" placeholder="ex.: vip" oninput="campContar()" />`;
+      } else { box.style.display = "none"; box.innerHTML = ""; }
+    }
+    function campAudiencia() {
+      const tipo = el("campAudTipo").value;
+      if (tipo === "todos") return { tipo: "todos" };
+      return { tipo, valor: el("campAudValor") ? el("campAudValor").value : "" };
+    }
+    async function campContar() {
+      try {
+        const d = await (await fetch("/api/campanhas/contar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ audiencia: campAudiencia() }) })).json();
+        el("campContador").textContent = "👥 " + (d.total || 0) + " destinatário(s)";
+      } catch (_) { el("campContador").textContent = ""; }
+    }
+    async function enviarCampanha() {
+      const modo = el("campModo").value;
+      const body = { modo, audiencia: campAudiencia(), mensagem: el("campMensagem").value.trim(), template: el("campTemplate").value.trim(), idioma: el("campIdioma").value.trim() || "pt_BR" };
+      if (modo === "template" ? !body.template : !body.mensagem) { el("campMsg").innerHTML = '<span style="color:#dc2626">Preencha a mensagem/template.</span>'; return; }
+      const n = (el("campContador").textContent.match(/\d+/) || ["?"])[0];
+      if (!confirm("Enviar esta campanha para " + n + " cliente(s)?")) return;
+      el("campMsg").textContent = "Iniciando envio...";
+      try {
+        const d = await (await fetch("/api/campanhas/enviar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json();
+        if (!d.ok) throw new Error(d.erro || "falha");
+        el("campMsg").innerHTML = `<span style="color:#16a34a">✅ Campanha iniciada para ${d.campanha.total} cliente(s). Acompanhe no histórico abaixo.</span>`;
+        el("campMensagem").value = ""; carregarCampanhas();
+      } catch (e) { el("campMsg").innerHTML = `<span style="color:#dc2626">❌ ${e.message}</span>`; }
+    }
+    let campanhasTimer = null;
+    async function carregarCampanhas() {
+      try { const d = await (await fetch("/api/campanhas")).json(); renderCampanhas(d.campanhas || []); } catch (_) {}
+    }
+    function renderCampanhas(lista) {
+      const c = el("listaCampanhas"); if (!c) return;
+      if (!lista.length) { c.innerHTML = '<p class="dica">Nenhuma campanha ainda.</p>'; return; }
+      c.innerHTML = lista.map(x => {
+        const cor = x.status === "concluida" ? "#16a34a" : (x.status === "erro" ? "#dc2626" : "#ea580c");
+        const txt = x.modo === "template" ? "Template: " + esc(x.template) : esc(x.mensagem);
+        return `<div class="prod"><div class="semimg">📢</div>
+          <div class="pinfo">
+            <div class="pnome">${esc(x.audiencia)} <span style="font-size:11px;color:${cor};font-weight:700">● ${esc(x.status)}</span></div>
+            <div class="pdesc">${txt}</div>
+            <div class="pcod" style="font-size:12px;color:var(--suave)">✅ ${x.enviados} enviadas · ❌ ${x.falhas} falhas · de ${x.total}</div>
+          </div></div>`;
+      }).join("");
+      clearTimeout(campanhasTimer);
+      if (lista.some(x => x.status === "enviando")) campanhasTimer = setTimeout(carregarCampanhas, 3000);
     }
 
     function renderTaxLista(tipo, alvo) {

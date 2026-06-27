@@ -45,6 +45,13 @@ async function enviarImagem(para, link, legenda) {
   return enviar({ to: normalizarNumero(para), type: "image", image });
 }
 
+// Envia um TEMPLATE aprovado na Meta (chega a qualquer hora, fora da janela de 24h).
+async function enviarTemplate(para, nome, idioma, componentes) {
+  const template = { name: nome, language: { code: idioma || "pt_BR" } };
+  if (Array.isArray(componentes) && componentes.length) template.components = componentes;
+  return enviar({ to: normalizarNumero(para), type: "template", template });
+}
+
 // Baixa uma mídia recebida (áudio/imagem) pela Graph API. Retorna { buffer, mimeType }.
 async function baixarMidia(mediaId) {
   if (!configurado()) throw new Error("WhatsApp Cloud API não configurado.");
@@ -57,4 +64,4 @@ async function baixarMidia(mediaId) {
   return { buffer, mimeType: info.mime_type || "audio/ogg" };
 }
 
-module.exports = { configurado, enviarTexto, enviarImagem, baixarMidia };
+module.exports = { configurado, enviarTexto, enviarImagem, enviarTemplate, baixarMidia };
