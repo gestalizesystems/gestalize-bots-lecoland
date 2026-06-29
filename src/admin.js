@@ -155,6 +155,10 @@ function iniciarAdmin(porta) {
   app.get("/favicon.ico", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "robot.png")));
   app.get("/og-gestalize.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "og-gestalize.png")));
   app.get("/og-gestalize-wide.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "og-gestalize-wide.png")));
+  // Ícone de "adicionar à tela inicial" (PWA): manifest + ícones, públicos.
+  app.get("/manifest.webmanifest", (req, res) => { res.type("application/manifest+json"); res.sendFile(path.join(PUBLIC_DIR, "manifest.webmanifest")); });
+  app.get("/icon-192.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "icon-192.png")));
+  app.get("/icon-512.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "icon-512.png")));
 
   // ---- Rotas públicas (login) ----
   app.get("/login", (req, res) => {
