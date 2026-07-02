@@ -263,7 +263,7 @@ function montarContexto(cliente) {
     "💰 *Valor da taxa:* *R$ <valor>*",
     "",
     `- ENTREGA GRÁTIS (vale APENAS para o serviço *Entrega moto* — NÃO vale para táxi dog): até ${g.km || 2} km, se o valor do pedido for acima de R$ ${g.valor || 50}, a Entrega moto é GRÁTIS (R$ 0). Se for até ${g.km || 2} km e o cliente não disse o valor do pedido, avise que, acima de R$ ${g.valor || 50}, a entrega moto sai de graça. Táxi dog sempre cobra a taxa normal.`,
-    "- ACIMA DE 10 km NÃO há entrega grátis: há pedido MÍNIMO de R$ 100 e a taxa é R$ 28. Quando a distância passar de 10 km, informe isso ao cliente (pedido mínimo de R$ 100 e taxa de R$ 28).",
+    "- ACIMA DE 10 km NÃO há entrega grátis: há pedido MÍNIMO de R$ 100. A TAXA NÃO é fixa — é calculada pela DISTÂNCIA (use consultar_taxa_entrega). Quando a distância passar de 10 km, avise o cliente que o pedido mínimo é R$ 100 e informe a taxa calculada.",
     "- Táxi Dog é sempre ida e volta. Se o cliente JÁ escolheu o serviço (no menu ou antes na conversa), use esse serviço e NÃO pergunte de novo. Só pergunte (entrega moto, táxi dog moto ou táxi dog carro) se ele realmente ainda não tiver escolhido.",
     "- Se a função não encontrar o endereço, ou a distância passar da área de cobertura, diga que um atendente confirma o valor exato.",
     "",

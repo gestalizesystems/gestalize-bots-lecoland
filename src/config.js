@@ -132,6 +132,24 @@ function migrar(d) {
     if (!d.infoIA.includes(marca)) d.infoIA = (d.infoIA + bloco).trim();
     d._conhecimentoLecoland = true; mudou = true;
   }
+  // Conhecimento operacional — parte 2 (entrega/retirada/políticas).
+  if (!d._conhecimentoLecoland2) {
+    const marca2 = "=== Operação da Lecoland (parte 2) ===";
+    const bloco2 = [
+      "",
+      "",
+      marca2,
+      "ENTREGA — PRAZO: prazo médio de 1h30, podendo passar um pouco conforme a demanda e o horário de almoço.",
+      "ENTREGA — ACIMA DE 10 km: pedido mínimo de R$ 100. A taxa não é fixa — é calculada pela distância.",
+      "RETIRADA/RESERVA: liberamos retirada na loja. Reserva de produto só APÓS o pagamento.",
+      "FIDELIDADE: não temos programa de fidelidade, cashback nem clube de desconto.",
+      "FIADO: não vendemos fiado nem temos cliente mensalista.",
+      "VENDA DE ANIMAIS: damos garantia e orientação de cuidados na venda.",
+    ].join("\n");
+    if (typeof d.infoIA !== "string") d.infoIA = "";
+    if (!d.infoIA.includes(marca2)) d.infoIA = (d.infoIA + bloco2).trim();
+    d._conhecimentoLecoland2 = true; mudou = true;
+  }
   return mudou;
 }
 
