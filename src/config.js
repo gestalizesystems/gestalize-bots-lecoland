@@ -111,6 +111,27 @@ function migrar(d) {
       d._precosEstoque = true; mudou = true;
     } catch (_) { /* sem a tabela de preços/estoque — não altera */ }
   }
+  // Conhecimento operacional da Lecoland (respostas do dia a dia) → adiciona ao "Sobre o negócio" (infoIA).
+  if (!d._conhecimentoLecoland) {
+    const marca = "=== Operação da Lecoland (informações para o atendimento) ===";
+    const bloco = [
+      "",
+      "",
+      marca,
+      "ESTACIONAMENTO: há estacionamento na rua em frente à loja — só mencione se o cliente perguntar.",
+      "HORÁRIOS: não fechamos para almoço nem em dia de semana (só em feriados). Feriados: decidimos perto da data se abrimos.",
+      "BANHO E TOSA: temos leva-e-traz (táxi dog), com valor calculado pelo endereço (táxi dog moto; táxi dog carro para cães maiores). O tempo depende da demanda do dia — não damos hora marcada, pra não frustrar o cliente se atrasar. Fazemos hidratação, tosa de raça específica e tratamento de pele (valor só com avaliação do pet).",
+      "VETERINÁRIO: além de clínico geral e oftalmologia, fazemos outras especialidades (dermato, cardio, etc.) — valores e horários a consultar com a equipe (encaminhar). O RETORNO da consulta é GRÁTIS, marcado com o vet no dia da 1ª consulta. NÃO fazemos atendimento a domicílio. NÃO fazemos internação e NÃO temos hotel para pets. Fazemos aplicações (medicação/soro) — quando for aplicação com encaminhamento, encaminhar para atendente.",
+      "VACINAS: aplicamos V8, V10, antirrábica, gripe, giárdia e, para gato, quádrupla/quíntupla e FeLV. NÃO precisa de consulta nem jejum para vacinar. Fazemos carteirinha para pets que não têm. NÃO aplicamos vacinas/produtos comprados em outro lugar. Valores das vacinas: consultar com a equipe.",
+      "EXAMES: fazemos exames (sangue, ultrassom, raio-x, leishmaniose, etc.) COM AGENDAMENTO — encaminhar para atendente. Hemograma sem guia exige consulta antes e jejum (definido pelo vet).",
+      "CASTRAÇÃO/CIRURGIA: fazemos castração. O tutor passa por consulta com o clínico geral, que pede os exames necessários e passa o orçamento.",
+      "PRODUTOS: a maioria dos medicamentos NÃO precisa de receita. Fazemos encomenda de produto sem estoque (às vezes chega em 1 dia útil) — encaminhar para atendente verificar disponibilidade. Troca/devolução: trocamos produtos LACRADOS por crédito na loja ou estorno pelo mesmo meio de pagamento da compra.",
+      "RAÇÕES — marcas que trabalhamos: Cão = Premier, Golden, Fargo, Zuppy, GranPlus, Guabi Natural, ND, Dog Chow, VetLife, Blend. Gato = Golden, Fargo, Zuppy, Chanin, Friskies, Katbom, GranPlus, ND, VetLife. (Marcas SÓ de gato: Chanin, Friskies, Katbom, Matisse.)",
+    ].join("\n");
+    if (typeof d.infoIA !== "string") d.infoIA = "";
+    if (!d.infoIA.includes(marca)) d.infoIA = (d.infoIA + bloco).trim();
+    d._conhecimentoLecoland = true; mudou = true;
+  }
   return mudou;
 }
 
