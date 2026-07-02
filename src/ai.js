@@ -70,6 +70,7 @@ const TOOLS = [
             subgrupo: { type: "string", description: "Para qual animal/tipo (use um dos subgrupos do contexto, ex.: 'Cão', 'Gato')." },
             especificacao: { type: "string", description: "Detalhe de idade/porte/linha (use uma das especificações do contexto, ex.: 'Filhote', 'Adulto porte médio', 'Premium')." },
             texto: { type: "string", description: "Busca livre por nome/descrição, se o cliente citar marca ou termo específico." },
+            ordenarPor: { type: "string", enum: ["preco"], description: "Use 'preco' quando o cliente pedir o MAIS BARATO / mais em conta — ordena do menor para o maior preço." },
           },
           required: [],
         },
@@ -99,7 +100,13 @@ function norm(s) {
 }
 
 // Busca produtos ativos no catálogo por grupo / subgrupo / especificação / texto livre.
-function buscarProdutos({ grupo, subgrupo, especificacao, texto } = {}) {
+function precoNum(p) {
+  const s = String(p || "").replace(/[^\d,]/g, "").replace(",", ".");
+  const n = parseFloat(s);
+  return isNaN(n) || n <= 0 ? Infinity : n; // sem preço/sob consulta vai pro fim
+}
+
+function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = {}) {
   const cat = config.get().catalogo || {};
   const produtos = (cat.produtos || []).filter((p) => p && p.ativo !== false);
   const g = norm(grupo), sg = norm(subgrupo), esp = norm(especificacao), tx = norm(texto);
@@ -117,6 +124,8 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto } = {}) {
     }
     return true;
   });
+
+  if (ordenarPor === "preco") achados.sort((a, b) => precoNum(a.preco) - precoNum(b.preco)); // mais barato primeiro
 
   return {
     total: achados.length,
@@ -224,9 +233,13 @@ function montarContexto(cliente) {
     "- Quando precisar de um atendente humano (exames com guia, remédio com nome/receita/foto, fechar valor de pacote de cliente frequente, venda de aves/animais, reclamações, ou algo fora do seu conhecimento), CHAME a função encaminhar_para_atendente e avise o cliente que vai chamar alguém. Não invente que já resolveu.",
     "",
     "PRODUTOS / CATÁLOGO (vale para QUALQUER produto: ração, petisco, brinquedo, acessório, areia, cosmético...):",
-    "- IMPORTANTE: pergunta sobre produto NUNCA é respondida com o menu de saudação nem pedindo para o cliente escolher 1/2/3. SEMPRE use a função buscar_produtos.",
+    "- PEDIDO (LISTA DE ITENS): se o cliente JÁ manda uma LISTA de itens com quantidades (um pedido para fechar — ex.: '1kg de X, 2kg de Y, 1 fardo de areia'), NÃO fique buscando item por item. Diga que vai te encaminhar para um atendente FINALIZAR o pedido e CHAME encaminhar_para_atendente.",
+    "- IMPORTANTE: pergunta sobre UM produto NUNCA é respondida com o menu de saudação nem pedindo para o cliente escolher 1/2/3. SEMPRE use a função buscar_produtos.",
     "- RAÇÃO (e itens com variação, como vermífugo): ANTES de mandar o catálogo, você PRECISA saber (1) cão ou gato, (2) adulto ou filhote, (3) alguma necessidade especial (castrado, controle de peso/acima do peso, idoso, porte). Pergunte UMA coisa por vez, só o que faltar — comece por 'É para cão ou gato?'. NÃO pergunte o NOME nem a RAÇA do pet pra ração/produto (isso é só pra banho/tosa/consulta/vacina). SÓ depois de ter essas infos, CHAME buscar_produtos com o texto montado (ex.: 'racao gato castrado').",
-    "- A GRANEL: se o cliente pedir a granel (ex.: 'tem ração a granel de cachorro?'), colha as mesmas infos acima e busque incluindo a palavra 'granel' no texto (ex.: 'granel cachorro') — os produtos a granel começam com 'GRANEL' no nome.",
+    "- A GRANEL / POR KG / POR QUILO: quando o cliente pedir ração a granel, por KG ou por QUILO (ex.: 'tem ração a quilo?', '1kg de ração'), ele se refere aos produtos que começam com 'GRANEL' no catálogo. Busque incluindo a palavra 'granel' no texto (ex.: 'granel cachorro').",
+    "- MARCAS SÓ DE GATO: Matisse, Chanin, Katbom e Friskies são rações de GATO (não existem pra cão). Se o cliente citar uma dessas marcas, NÃO pergunte 'cão ou gato' — busque DIRETO (ex.: 'matisse castrado frango') e mande o valor.",
+    "- AREIA (FARDO): 1 fardo de areia = 5 unidades (vale pra todas as areias). Se o cliente falar em 'fardo', considere 5 unidades.",
+    "- MAIS BARATO / MAIS EM CONTA: se o cliente pedir o item mais barato ou 'mais em conta' (ex.: 'qual a areia mais em conta?'), CHAME buscar_produtos com ordenarPor='preco' e indique o de MENOR preço entre os resultados.",
     "- Se o cliente JÁ deu os detalhes necessários (ex.: 'ração premium pra cão filhote', cita uma marca), busque DIRETO — não fique perguntando à toa.",
     "- Quando buscar_produtos retornar produtos, dê uma resposta CURTA de introdução (ex.: 'Achei essas opções pra você 🐾'). NÃO liste os produtos em texto: as FOTOS de cada produto (com nome e preço) são enviadas automaticamente logo depois da sua mensagem.",
     "- Se NÃO TEMOS exatamente o que o cliente pediu (buscar_produtos voltou 0), NÃO encaminhe logo: diga 'Não temos essa(e) [ração/produto], mas vou te enviar algumas opções parecidas 🐾' e CHAME buscar_produtos DE NOVO com uma busca MAIS AMPLA (sem a marca — ex.: 'racao gato filhote') pra mandar alternativas. Vale pra qualquer produto (ração, vermífugo, etc.). Só se mesmo assim não achar nada, CHAME encaminhar_para_atendente.",
