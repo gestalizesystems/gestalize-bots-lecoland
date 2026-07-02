@@ -227,7 +227,11 @@ function montarContexto(cliente) {
     "- Nunca dê diagnóstico ou orientação médica veterinária; em emergências, oriente a ligar para o telefone do negócio.",
     "- BANHO E TOSA: NUNCA diga que 'não precisa agendar'. O banho/tosa PODE LOTAR e fecha às 17h. Quando o cliente perguntar de banho OU quiser AGENDAR/MARCAR/TRAZER o pet, PRIMEIRO pergunte se é *só banho* ou *banho e tosa*. Se for COM TOSA, peça pra ele DESCREVER como é a tosa do pet. Ex.: 'Certo! Você quer agendar o banho da Malu pra amanhã — ela vai precisar de tosa também? Se sim, me descreve como é a tosa dela 🐾'. SÓ DEPOIS que o cliente responder (só banho, ou banho+tosa com a descrição), CHAME encaminhar_para_atendente — é o ATENDENTE que confirma vaga e horário. Antes de encaminhar, se ainda não souber, pegue o NOME e a RAÇA do pet (salvar_pet).",
     "- CONSULTAS (NÃO são agendadas — por ORDEM DE CHEGADA, dentro do horário do veterinário: seg a sex 8h–17h, sáb 8h–12h): clínico geral (cães e gatos) = *R$ 80*; oftalmologia = *R$ 250*. Informe o valor e que é por ordem de chegada; não peça dia/horário.",
+    "- RETIRADA DE PONTOS: *R$ 20*, por ORDEM DE CHEGADA, no horário de atendimento do consultório (veterinário). Não precisa marcar.",
+    "- CORTE DE UNHA: *R$ 10*, por ORDEM DE CHEGADA, até as 17h. Não precisa marcar.",
+    "- CURATIVOS: *a partir de R$ 15*, no horário do consultório. Como o valor pode variar conforme o caso, informe o 'a partir de R$ 15' e, se o cliente quiser o valor exato do caso dele, encaminhe para um atendente.",
     "- EXAMES: se o cliente perguntar VALOR de exames ou informações sobre exames, NÃO responda com preço — CHAME encaminhar_para_atendente.",
+    "- DESCONTOS: NÃO fazemos desconto à vista. Já mantemos sempre o MENOR preço dos produtos para todos os clientes. Se pedirem desconto, explique isso com gentileza.",
     "- O QUE VENDEMOS — ANIMAIS: vendemos apenas calopsita, periquito australiano e hamster. NÃO vendemos cachorro, gato nem nenhum outro animal além desses três. Se perguntarem por outro animal, diga gentilmente que não trabalhamos com a venda dele. (Para preço/disponibilidade desses que vendemos, encaminhe para um atendente.)",
     "- O QUE VENDEMOS — PRODUTOS: vendemos artigos para animais aquáticos, répteis, roedores e aves (comida, comedouros, gaiolas, aquários, acessórios, etc.).",
     "- Quando precisar de um atendente humano (exames com guia, remédio com nome/receita/foto, fechar valor de pacote de cliente frequente, venda de aves/animais, reclamações, ou algo fora do seu conhecimento), CHAME a função encaminhar_para_atendente e avise o cliente que vai chamar alguém. Não invente que já resolveu.",
@@ -404,4 +408,22 @@ async function lerDocumento(base64, mimeType) {
   }
 }
 
-module.exports = { responder, limparHistorico, registrarTurno, buscarProdutos, resumirConversa, transcreverAudio, lerDocumento };
+// Identifica o produto/marca numa foto que o cliente enviou (ex.: print de anúncio do Instagram).
+async function identificarProdutoImagem(base64, mimeType, legenda) {
+  try {
+    const cfg = { maxOutputTokens: 200, temperature: 0 };
+    if (MODELO.includes("2.5")) cfg.thinkingConfig = { thinkingBudget: 0 };
+    const partes = [
+      { text: "Esta é uma foto enviada por um cliente de pet shop (provavelmente de um produto que ele viu num anúncio/publicação). Diga em poucas palavras QUAL produto e marca aparecem na imagem (ex.: 'Antipulgas NexGard', 'Ração Golden cães adultos', 'Areia Pipicat'). Responda só o nome do produto. Se não der pra identificar um produto, responda exatamente 'NENHUM'." },
+      { inlineData: { mimeType: String(mimeType || "image/jpeg").split(";")[0].trim(), data: base64 } },
+    ];
+    if (legenda) partes.push({ text: "Legenda escrita pelo cliente: " + legenda });
+    const resp = await ai.models.generateContent({ model: MODELO, contents: [{ role: "user", parts: partes }], config: cfg });
+    return (resp.text || "").trim();
+  } catch (e) {
+    console.error("Falha ao identificar imagem:", e.message);
+    return "";
+  }
+}
+
+module.exports = { responder, limparHistorico, registrarTurno, buscarProdutos, resumirConversa, transcreverAudio, lerDocumento, identificarProdutoImagem };

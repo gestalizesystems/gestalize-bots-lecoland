@@ -52,6 +52,33 @@ async function processarDocumento(from, mediaId, mimeType, nomeWpp) {
     console.error("Falha ao processar documento:", e.message);
   }
 }
+
+// Cliente mandou uma FOTO (ex.: print de anúncio do Instagram): identifica o produto e responde.
+async function processarImagem(from, mediaId, caption, nomeWpp) {
+  try {
+    const { buffer, mimeType } = await wa.baixarMidia(mediaId);
+    const produto = await ai.identificarProdutoImagem(buffer.toString("base64"), mimeType, caption);
+    let texto;
+    if (produto && produto.toUpperCase() !== "NENHUM") {
+      texto = `O cliente enviou uma FOTO de um produto: ${produto}.${caption ? ` Ele escreveu: "${caption}".` : ""} Busque no catálogo e passe as informações/valor. Se não tiver exatamente, mande opções parecidas.`;
+    } else if (caption && caption.trim()) {
+      texto = caption.trim();
+    } else {
+      texto = "O cliente mandou uma foto mas não deu pra identificar o produto. Pergunte gentilmente o que ele procura.";
+    }
+    await conversa.processar(from, texto, nomeWpp);
+  } catch (e) {
+    console.error("Falha ao processar imagem:", e.message);
+  }
+}
+
+// Monta um aviso de contexto quando a mensagem vem de um anúncio (Instagram/Facebook).
+function contextoAnuncio(ref) {
+  if (!ref) return "";
+  const ad = [ref.headline, ref.body].filter(Boolean).join(" — ");
+  if (!ad) return "";
+  return `(O cliente veio de um anúncio do Instagram/Facebook sobre: "${ad}". Reconheça o produto/serviço do anúncio e passe as informações.) `;
+}
 // Em produção (Railway) as imagens vão para o Volume persistente; local usa public/uploads.
 const UPLOAD_DIR = process.env.DATA_DIR ? path.join(process.env.DATA_DIR, "uploads") : path.join(PUBLIC_DIR, "uploads");
 
@@ -210,8 +237,11 @@ function iniciarAdmin(porta) {
           for (const ct of val.contacts || []) if (ct.wa_id) nomes[ct.wa_id] = ct.profile && ct.profile.name;
           for (const msg of val.messages || []) {
             const nomeWpp = nomes[msg.from] || Object.values(nomes)[0]; // nome do perfil do WhatsApp
+            const ctxAd = contextoAnuncio(msg.referral); // veio de anúncio do Instagram/Facebook?
             if (msg.type === "text" && msg.text) {
-              conversa.processar(msg.from, msg.text.body || "", nomeWpp).catch((e) => console.error("Erro ao processar mensagem:", e.message));
+              conversa.processar(msg.from, ctxAd + (msg.text.body || ""), nomeWpp).catch((e) => console.error("Erro ao processar mensagem:", e.message));
+            } else if (msg.type === "image" && msg.image && msg.image.id) {
+              processarImagem(msg.from, msg.image.id, (ctxAd + (msg.image.caption || "")).trim(), nomeWpp).catch((e) => console.error("Erro na imagem:", e.message));
             } else if (msg.type === "audio" && msg.audio && msg.audio.id) {
               processarAudio(msg.from, msg.audio.id, nomeWpp).catch((e) => console.error("Erro no áudio:", e.message));
             } else if (msg.type === "document" && msg.document && msg.document.id) {
