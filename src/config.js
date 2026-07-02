@@ -150,6 +150,21 @@ function migrar(d) {
     if (!d.infoIA.includes(marca2)) d.infoIA = (d.infoIA + bloco2).trim();
     d._conhecimentoLecoland2 = true; mudou = true;
   }
+  // Conhecimento operacional — parte 3 (regras na loja / emergência).
+  if (!d._conhecimentoLecoland3) {
+    const marca3 = "=== Operação da Lecoland (parte 3) ===";
+    const bloco3 = [
+      "",
+      "",
+      marca3,
+      "LEVAR O PET: não precisa de caixa de transporte. Mas se o pet vier para o BANHO, precisa vir de COLEIRA E GUIA.",
+      "PETS BRAVOS: recebemos pets bravos / que precisam de focinheira. Se não conseguirmos fazer o serviço com segurança, avisamos o tutor e o pet volta para casa.",
+      "EMERGÊNCIA FORA DO HORÁRIO: oriente o cliente a ligar para a clínica 24h mais próxima. Normalmente indicamos a JulyPet, na Av. Silas Munguba.",
+    ].join("\n");
+    if (typeof d.infoIA !== "string") d.infoIA = "";
+    if (!d.infoIA.includes(marca3)) d.infoIA = (d.infoIA + bloco3).trim();
+    d._conhecimentoLecoland3 = true; mudou = true;
+  }
   return mudou;
 }
 
