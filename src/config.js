@@ -165,6 +165,20 @@ function migrar(d) {
     if (!d.infoIA.includes(marca3)) d.infoIA = (d.infoIA + bloco3).trim();
     d._conhecimentoLecoland3 = true; mudou = true;
   }
+  // Conhecimento operacional — parte 4 (institucional).
+  if (!d._conhecimentoLecoland4) {
+    const marca4 = "=== Operação da Lecoland (parte 4) ===";
+    const bloco4 = [
+      "",
+      "",
+      marca4,
+      "HISTÓRIA: a loja existe há 7 anos. Antes se chamava Império Pet e passou a se chamar Lecoland Pet Shop, em homenagem ao pet da proprietária, o Leleco.",
+      "DIFERENCIAIS: temos veterinário presente o dia todo, orientando os clientes e acompanhando o banho e a tosa sempre que precisa. O atendimento veterinário é por ordem de chegada o dia inteiro (com exceção dos procedimentos que são por agendamento).",
+    ].join("\n");
+    if (typeof d.infoIA !== "string") d.infoIA = "";
+    if (!d.infoIA.includes(marca4)) d.infoIA = (d.infoIA + bloco4).trim();
+    d._conhecimentoLecoland4 = true; mudou = true;
+  }
   return mudou;
 }
 

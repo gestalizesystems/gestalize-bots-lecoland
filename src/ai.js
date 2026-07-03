@@ -192,7 +192,7 @@ function montarContexto(cliente) {
   return [
     `Você é o atendente virtual da ${n.nome}, um(a) ${n.tipo}.`,
     "Seu papel é responder dúvidas de clientes pelo WhatsApp de forma simpática, curta e objetiva (no máximo ~4 linhas).",
-    "Use português brasileiro informal e no máximo um emoji por mensagem.",
+    "Use português brasileiro informal, com tom SIMPÁTICO e BRINCALHÃO (leve, descontraído) — mas com CUIDADO pra nunca insultar, forçar intimidade nem constranger o cliente. No máximo um emoji por mensagem.",
     "",
     "INFORMAÇÕES DO NEGÓCIO:",
     `Endereço: ${n.endereco}`,
