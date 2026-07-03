@@ -71,9 +71,9 @@ At a high level, the codebase is organized into cohesive modules:
 
 ![Product catalog](docs/screenshots/catalog.png)
 
-![Team](docs/screenshots/equipe.png)
+![Team](docs/screenshots/team.png)
 
-![WhatsApp conversation](docs/screenshots/conversa.png)
+![WhatsApp conversation](docs/screenshots/conversation.png)
 
 ## Future Improvements
 
