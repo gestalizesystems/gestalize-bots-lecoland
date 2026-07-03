@@ -67,7 +67,13 @@ At a high level, the codebase is organized into cohesive modules:
 
 ## Screenshots
 
-Screenshots will be added here.
+![Administration dashboard](docs/screenshots/dashboard.png)
+
+![Product catalog](docs/screenshots/catalog.png)
+
+![Team](docs/screenshots/equipe.png)
+
+![WhatsApp conversation](docs/screenshots/conversa.png)
 
 ## Future Improvements
 
