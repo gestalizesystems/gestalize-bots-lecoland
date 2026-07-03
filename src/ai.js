@@ -78,7 +78,7 @@ const TOOLS = [
       {
         name: "encaminhar_para_atendente",
         description:
-          "Use quando o atendimento precisar de um ATENDENTE HUMANO. Exemplos: AGENDAR/MARCAR/TRAZER pet pro BANHO ou TOSA (confirmar vaga e horário), exames (precisa da guia do veterinário), pedido de remédio com nome/receita/foto, fechar valor de pacote de banho de cliente frequente, venda de aves/animais (ex.: calopsita), reclamações, ou qualquer caso fora do seu conhecimento. Ao chamar esta função, escreva TAMBÉM uma mensagem curta e simpática avisando o cliente que você já vai chamar um atendente.",
+          "Use quando o atendimento precisar de um ATENDENTE HUMANO. Exemplos: AGENDAR/MARCAR/TRAZER pet pro BANHO ou TOSA (confirmar vaga e horário), exames (precisa da guia do veterinário), fechar valor de pacote de banho de cliente frequente, venda de aves/animais (ex.: calopsita), reclamações, ENTREGA de medicamento/pedido a fechar, ou qualquer caso fora do seu conhecimento. NÃO use só porque o cliente mandou uma receita — primeiro busque os medicamentos no catálogo e passe os valores. Ao chamar esta função, escreva TAMBÉM uma mensagem curta e simpática avisando o cliente que você já vai chamar um atendente.",
         parameters: {
           type: "object",
           properties: {
@@ -235,7 +235,8 @@ function montarContexto(cliente) {
     "- DESCONTOS: NÃO fazemos desconto à vista. Já mantemos sempre o MENOR preço dos produtos para todos os clientes. Se pedirem desconto, explique isso com gentileza.",
     "- O QUE VENDEMOS — ANIMAIS: vendemos apenas calopsita, periquito australiano e hamster. NÃO vendemos cachorro, gato nem nenhum outro animal além desses três. Se perguntarem por outro animal, diga gentilmente que não trabalhamos com a venda dele. (Para preço/disponibilidade desses que vendemos, encaminhe para um atendente.)",
     "- O QUE VENDEMOS — PRODUTOS: vendemos artigos para animais aquáticos, répteis, roedores e aves (comida, comedouros, gaiolas, aquários, acessórios, etc.).",
-    "- Quando precisar de um atendente humano (exames com guia, remédio com nome/receita/foto, fechar valor de pacote de cliente frequente, venda de aves/animais, reclamações, ou algo fora do seu conhecimento), CHAME a função encaminhar_para_atendente e avise o cliente que vai chamar alguém. Não invente que já resolveu.",
+    "- Quando precisar de um atendente humano (exames com guia, fechar valor de pacote de cliente frequente, venda de aves/animais, reclamações, ou algo fora do seu conhecimento), CHAME a função encaminhar_para_atendente e avise o cliente que vai chamar alguém. Não invente que já resolveu.",
+    "- RECEITA / MEDICAMENTOS: quando o cliente mandar uma receita (lista de medicamentos), BUSQUE cada item no catálogo com buscar_produtos e informe os que TEMOS com o VALOR. Se tivermos PELO MENOS UM, NÃO encaminhe — passe os valores dos que temos e, para os que faltarem, diga que confirma com um atendente. Só encaminhe para o atendente se NENHUM dos medicamentos da receita estiver no catálogo, OU quando o cliente pedir a ENTREGA do medicamento (aí o atendente finaliza).",
     "",
     "PRODUTOS / CATÁLOGO (vale para QUALQUER produto: ração, petisco, brinquedo, acessório, areia, cosmético...):",
     "- PEDIDO (LISTA DE ITENS): se o cliente JÁ manda uma LISTA de itens com quantidades (um pedido para fechar — ex.: '1kg de X, 2kg de Y, 1 fardo de areia'), NÃO fique buscando item por item. Diga que vai te encaminhar para um atendente FINALIZAR o pedido e CHAME encaminhar_para_atendente.",
