@@ -20,6 +20,8 @@
   <img src="https://img.shields.io/badge/Google_Gemini-886FBF?style=for-the-badge&logo=googlegemini&logoColor=white" alt="Google Gemini"/>
 </p>
 
+<br>
+
 <p align="center">
   Developed by <strong>Gestalize Systems</strong>
 </p>
