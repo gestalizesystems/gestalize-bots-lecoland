@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lecoland — Painel do Bot</title>
+  <title>Painel — Gestalize Bots</title>
   <link rel="icon" type="image/png" href="/robot.png" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
   <link rel="manifest" href="/manifest.webmanifest" />
@@ -381,7 +381,7 @@
           </div>
           <span class="logo-edit" aria-hidden="true">✏️</span>
         </div>
-        <div class="brand-text"><strong id="hNome">Lecoland</strong><span>Painel do Bot</span></div>
+        <div class="brand-text"><strong id="hNome">Gestalize Bots</strong><span>Painel do Bot</span></div>
         <button class="brand-seta" id="contaBtn" onclick="toggleContas(event)" aria-label="Conta">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
@@ -423,7 +423,7 @@
       </div>
 
       <div class="side-foot">
-        <div class="nome" id="botNome">Lecoland Pet Shop</div>
+        <div class="nome" id="botNome">Meu Negócio</div>
         <small><span class="dot">●</span> Painel local</small>
       </div>
     </aside>
@@ -838,7 +838,7 @@
         </section>
       </main>
 
-      <footer class="rodape">© <span id="ano"></span> Lecoland — Painel do Bot</footer>
+      <footer class="rodape">© <span id="ano"></span> Gestalize Bots</footer>
     </div>
   </div>
 
@@ -942,7 +942,7 @@
       el("btnData").style.display = ehDash ? "flex" : "none";
       if (el("dataPop")) el("dataPop").style.display = "none";
       if (ehDash) {
-        const nome = (cfg && cfg.negocio && cfg.negocio.nome) || "Lecoland";
+        const nome = (cfg && cfg.negocio && cfg.negocio.nome) || "Meu Negócio";
         el("topTitulo").textContent = `Olá, ${nome}! 👋`;
         el("topSub").textContent = "Aqui está o resumo do seu atendimento automatizado.";
       } else if (navEl) {

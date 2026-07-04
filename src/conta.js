@@ -43,7 +43,7 @@ function carregar() {
   const senha = process.env.ADMIN_SENHA || "";
   const c = {
     email,
-    nomeUsuario: "Lecoland",
+    nomeUsuario: "Administrador",
     telefone: "",
     senhaHash: senha ? hashSenha(senha) : "",
   };

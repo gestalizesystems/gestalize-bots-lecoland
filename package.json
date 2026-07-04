@@ -1,7 +1,7 @@
 {
   "name": "lecoland-bot",
   "version": "1.0.0",
-  "description": "Bot de triagem de WhatsApp para pet shop / clínica veterinária (Lecoland). Reconhece intenções por palavra-chave (banho, veterinário, etc.) e responde perguntas livres com a IA gratuita do Google Gemini.",
+  "description": "Plataforma de atendimento automatizado no WhatsApp para pet shops e clínicas veterinárias. Triagem por palavra-chave, menus e respostas com IA (Google Gemini).",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
