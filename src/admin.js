@@ -193,6 +193,12 @@ function iniciarAdmin(porta) {
     res.sendFile(path.join(PUBLIC_DIR, "login.html"));
   });
 
+  // Home: landing pública para visitantes; painel para quem já está logado.
+  app.get("/", (req, res) => {
+    if (estaLogado(req)) return res.sendFile(path.join(PUBLIC_DIR, "admin.html"));
+    res.sendFile(path.join(PUBLIC_DIR, "landing.html"));
+  });
+
   app.post("/api/login", (req, res) => {
     const ip = ipDe(req);
     const reg = tentativas.get(ip);
@@ -270,7 +276,7 @@ function iniciarAdmin(porta) {
   });
 
   // Painel
-  app.get("/", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "admin.html")));
+  // (a rota "/" pública já foi definida acima — landing/painel conforme login)
 
   // Configuração do bot
   app.get("/api/config", (req, res) => res.json(config.get()));
