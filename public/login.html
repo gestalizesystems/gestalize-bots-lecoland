@@ -285,12 +285,13 @@
             const x = ox + c * esp, y = oy + r * esp;
             // transparência radial: centro mais forte, bordas mais suaves (mas visíveis)
             const nx = cx ? (c - cx) / cx : 0, ny = cy ? (r - cy) / cy : 0;
-            const t = Math.min(1, Math.hypot(nx, ny));
+            const t = Math.hypot(nx, ny);
+            if (t > 1) continue; // recorta a grade em CÍRCULO (grupos redondos)
             const a = 1 - t * 0.72; // centro ~1.0, borda ~0.28
             dots.push({ hx: x, hy: y, x, y, vx: 0, vy: 0, a });
           }
       }
-      const COLS = 26, ROWS = 15, ESP = 11; // dobro de pontos por grupo, mesmo efeito
+      const COLS = 18, ROWS = 18, ESP = 11; // grade quadrada → recortada em círculo
       function gerar() {
         dots = [];
         const W = innerWidth, H = innerHeight;
