@@ -99,6 +99,9 @@ function norm(s) {
   return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 }
 
+// Conectivos ignorados na busca por texto (não ajudam a casar e atrapalham o "todas as palavras").
+const STOPWORDS = new Set(["de", "do", "da", "para", "pra", "pro", "com", "e", "o", "a", "os", "as", "em", "no", "na", "ml", "mg"]);
+
 // Busca produtos ativos no catálogo por grupo / subgrupo / especificação / texto livre.
 function precoNum(p) {
   const s = String(p || "").replace(/[^\d,]/g, "").replace(",", ".");
@@ -110,21 +113,32 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
   const cat = config.get().catalogo || {};
   const produtos = (cat.produtos || []).filter((p) => p && p.ativo !== false);
   const g = norm(grupo), sg = norm(subgrupo), esp = norm(especificacao), tx = norm(texto);
-  const palavrasTx = tx.split(/\s+/).filter(Boolean); // texto livre casa por PALAVRA (qualquer ordem)
+  const palavrasTx = tx.split(/\s+/).filter((w) => w && !STOPWORDS.has(w)); // casa por PALAVRA (qualquer ordem), sem conectivos
   const casa = (valor, alvo) => valor && (norm(valor).includes(alvo) || alvo.includes(norm(valor)));
   const casaLista = (lista, alvo) => Array.isArray(lista) && lista.some((x) => casa(x, alvo));
+  // Alvo da busca por texto: nome + descrição + tags (grupo/subgrupos/especificações).
+  const alvoDe = (p) => [p.nome, p.descricao, p.grupo, ...(p.subgrupos || []), ...(p.especificacoes || [])].map(norm).join(" ");
 
-  const achados = produtos.filter((p) => {
+  const filtrarPor = (palavras) => produtos.filter((p) => {
     if (g && !casa(p.grupo, g)) return false;
     if (sg && !casaLista(p.subgrupos, sg)) return false;
     if (esp && !casaLista(p.especificacoes, esp)) return false;
-    if (palavrasTx.length) {
-      // casa também contra as tags (grupo/subgrupos/especificações), não só nome/descrição
-      const alvo = [p.nome, p.descricao, p.grupo, ...(p.subgrupos || []), ...(p.especificacoes || [])].map(norm).join(" ");
-      if (!palavrasTx.every((w) => alvo.includes(w))) return false;
+    if (palavras.length) {
+      const alvo = alvoDe(p);
+      if (!palavras.every((w) => alvo.includes(w))) return false;
     }
     return true;
   });
+
+  let achados = filtrarPor(palavrasTx);
+  // Nomes de produto são técnicos (marca + princípio ativo + embalagem). Se a busca com
+  // TODAS as palavras zerou, relaxa: mantém a 1ª palavra (geralmente a marca) e vai soltando
+  // as últimas — ex.: "hepvet suspensao 60ml" cai para "hepvet" e acha o produto pelo nome.
+  if (!achados.length && palavrasTx.length > 1) {
+    for (let n = palavrasTx.length - 1; n >= 1 && !achados.length; n--) {
+      achados = filtrarPor(palavrasTx.slice(0, n));
+    }
+  }
 
   if (ordenarPor === "preco") achados.sort((a, b) => precoNum(a.preco) - precoNum(b.preco)); // mais barato primeiro
 
@@ -239,6 +253,8 @@ function montarContexto(cliente) {
     "PRODUTOS / CATÁLOGO (vale para QUALQUER produto: ração, petisco, brinquedo, acessório, areia, cosmético...):",
     "- PEDIDO (LISTA DE ITENS): se o cliente JÁ manda uma LISTA de itens com quantidades (um pedido para fechar — ex.: '1kg de X, 2kg de Y, 1 fardo de areia'), NÃO fique buscando item por item. Diga que vai te encaminhar para um atendente FINALIZAR o pedido e CHAME encaminhar_para_atendente.",
     "- IMPORTANTE: pergunta sobre UM produto NUNCA é respondida com o menu de saudação nem pedindo para o cliente escolher 1/2/3. SEMPRE use a função buscar_produtos.",
+    "- NUNCA diga que 'não temos' um produto sem ANTES ter chamado buscar_produtos com o nome dele. Ao procurar um produto ESPECÍFICO (uma marca ou item de receita, ex.: 'Hepvet', 'Vetmax'), busque pela MARCA/NOME com POUCAS palavras (ex.: texto 'hepvet'), NÃO a descrição inteira (embalagem, ml, apresentação) — o nome no catálogo é técnico e o excesso de palavras faz a busca falhar.",
+    "- RECEITA / LISTA DE REMÉDIOS: quando chegar uma receita com vários itens, CHAME buscar_produtos para CADA item (pelo nome/marca) antes de dizer se tem ou não. Os produtos encontrados são enviados com foto automaticamente.",
     "- RAÇÃO (e itens com variação, como vermífugo): ANTES de mandar o catálogo, você PRECISA saber (1) cão ou gato, (2) adulto ou filhote, (3) alguma necessidade especial (castrado, controle de peso/acima do peso, idoso, porte). Pergunte UMA coisa por vez, só o que faltar — comece por 'É para cão ou gato?'. NÃO pergunte o NOME nem a RAÇA do pet pra ração/produto (isso é só pra banho/tosa/consulta/vacina). SÓ depois de ter essas infos, CHAME buscar_produtos com o texto montado (ex.: 'racao gato castrado').",
     "- A GRANEL / POR KG / POR QUILO: quando o cliente pedir ração a granel, por KG ou por QUILO (ex.: 'tem ração a quilo?', '1kg de ração'), ele se refere aos produtos que começam com 'GRANEL' no catálogo. Busque incluindo a palavra 'granel' no texto (ex.: 'granel cachorro').",
     "- MARCAS DE UMA ESPÉCIE SÓ: algumas marcas de ração são só de cão ou só de gato (veja a base de conhecimento). Se o cliente citar uma dessas marcas, NÃO pergunte 'cão ou gato' — busque DIRETO pela marca e mande o valor.",
@@ -325,7 +341,11 @@ async function responder(contactId, mensagem) {
         motivo = (chamada.args && chamada.args.motivo) || "";
       }
       const resultado = await executarFuncao(chamada.name, chamada.args, contactId);
-      if (chamada.name === "buscar_produtos" && resultado && Array.isArray(resultado.produtos)) produtos = resultado.produtos;
+      // Acumula (sem duplicar) os produtos de TODAS as buscas da rodada — ex.: vários itens
+      // de uma receita, ou busca específica + ampla. Antes sobrescrevia e só sobrava a última.
+      if (chamada.name === "buscar_produtos" && resultado && Array.isArray(resultado.produtos)) {
+        for (const p of resultado.produtos) if (!produtos.some((x) => x.nome === p.nome)) produtos.push(p);
+      }
       partesResposta.push({ functionResponse: { name: chamada.name, response: resultado } });
     }
     working.push({ role: "user", parts: partesResposta });
