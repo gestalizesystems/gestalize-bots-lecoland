@@ -30,7 +30,7 @@
     }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: "Poppins", -apple-system, system-ui, sans-serif; color: var(--texto);
-      background: #0a0e18; min-height: 100vh; position: relative; overflow-x: hidden; }
+      background: radial-gradient(1200px 820px at 50% -22%, rgba(32,66,150,0.10), transparent 62%), #0a0e18; min-height: 100vh; position: relative; overflow-x: hidden; }
 
     /* ===== Decorações de fundo ===== */
     .deco { position: fixed; pointer-events: none; z-index: 0; }
@@ -267,48 +267,24 @@
   </div>
 
   <script>
-    // ===== Pontinhos interativos (fogem do cursor pela tela e voltam ao lugar) =====
+    // ===== Grade de pontos sutil e interativa (acendem/afastam perto do cursor) =====
     (function () {
       const canvas = document.getElementById("dotsCanvas");
       const ctx = canvas.getContext("2d");
-      const COR = "rgba(150,180,240,0.20)", RAIO = 1.6, GLOW = 300;
-      const ALCANCE = 150;   // distância em que o cursor começa a empurrar
-      const FORCA = 6;       // intensidade do empurrão (quanto eles correm)
-      const MOLA = 0.012;    // força que puxa de volta à posição original
-      const ATRITO = 0.88;   // desaceleração (suaviza o movimento)
-      let dots = [], centros = [], mx = -9999, my = -9999;
+      const ESP = 30;        // espaçamento da grade
+      const RAIO = 1.5;      // tamanho do ponto
+      const ALCANCE = 180;   // raio de influência do cursor
+      const A_BASE = 0.05;   // opacidade em repouso (bem discreto)
+      const A_ATIVO = 0.7;   // opacidade perto do cursor
+      const FORCA = 3.2, MOLA = 0.02, ATRITO = 0.86; // repulsão suave + retorno
+      let dots = [], mx = -9999, my = -9999;
 
-      function grade(ox, oy, cols, rows, esp) {
-        const cx = (cols - 1) / 2, cy = (rows - 1) / 2;
-        for (let c = 0; c < cols; c++)
-          for (let r = 0; r < rows; r++) {
-            const x = ox + c * esp, y = oy + r * esp;
-            // transparência radial: centro mais forte, bordas mais suaves (mas visíveis)
-            const nx = cx ? (c - cx) / cx : 0, ny = cy ? (r - cy) / cy : 0;
-            const t = Math.hypot(nx, ny);
-            if (t > 1) continue; // recorta a grade em CÍRCULO (grupos redondos)
-            const a = 1 - t * 0.72; // centro ~1.0, borda ~0.28
-            dots.push({ hx: x, hy: y, x, y, vx: 0, vy: 0, a });
-          }
-      }
-      const COLS = 36, ROWS = 36, ESP = 11; // grade quadrada → recortada em círculo (tamanho dobrado)
       function gerar() {
-        dots = []; centros = [];
+        dots = [];
         const W = innerWidth, H = innerHeight;
-        const gw = COLS * ESP, gh = ROWS * ESP;
-        const grupos = [
-          [42, 40],                    // superior esquerdo
-          [W - gw - 40, 40],           // superior direito
-          [42, H - gh - 130],          // inferior esquerdo
-          [W - gw - 40, H - gh - 40],  // inferior direito
-        ];
-        // grupo ao lado do título "Gestalize Bots" (centralizado verticalmente nele)
-        const wm = document.querySelector(".wordmark");
-        if (wm) { const r = wm.getBoundingClientRect(); if (r.width > 0) grupos.push([r.right + 26, r.top + r.height / 2 - gh / 2]); }
-        for (const [ox, oy] of grupos) {
-          grade(ox, oy, COLS, ROWS, ESP);
-          centros.push([ox + gw / 2, oy + gh / 2]); // guarda o centro p/ o glow de fundo
-        }
+        for (let x = ESP; x < W; x += ESP)
+          for (let y = ESP; y < H; y += ESP)
+            dots.push({ hx: x, hy: y, x, y, vx: 0, vy: 0 });
       }
       function dimensoes() {
         const dpr = window.devicePixelRatio || 1;
@@ -322,28 +298,15 @@
 
       function loop() {
         ctx.clearRect(0, 0, innerWidth, innerHeight);
-        // ponto de luz (glow) de fundo atrás de cada grupo
-        for (const [cx, cy] of centros) {
-          const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, GLOW);
-          g.addColorStop(0, "rgba(75,125,235,0.16)");
-          g.addColorStop(1, "rgba(75,125,235,0)");
-          ctx.fillStyle = g;
-          ctx.fillRect(cx - GLOW, cy - GLOW, GLOW * 2, GLOW * 2);
-        }
-        ctx.fillStyle = COR;
         for (const d of dots) {
-          // empurrão a partir da posição ATUAL (eles continuam fugindo enquanto o cursor chega perto)
           const dx = d.x - mx, dy = d.y - my, dist = Math.hypot(dx, dy) || 0.01;
-          if (dist < ALCANCE) {
-            const f = (1 - dist / ALCANCE) * FORCA;
-            d.vx += (dx / dist) * f; d.vy += (dy / dist) * f;
-          }
-          // mola de volta ao lugar de origem + atrito
-          d.vx += (d.hx - d.x) * MOLA;
-          d.vy += (d.hy - d.y) * MOLA;
-          d.vx *= ATRITO; d.vy *= ATRITO;
-          d.x += d.vx; d.y += d.vy;
-          ctx.globalAlpha = d.a;
+          const prox = dist < ALCANCE ? 1 - dist / ALCANCE : 0;
+          if (prox > 0) { const f = prox * FORCA; d.vx += (dx / dist) * f; d.vy += (dy / dist) * f; }
+          d.vx += (d.hx - d.x) * MOLA; d.vy += (d.hy - d.y) * MOLA;
+          d.vx *= ATRITO; d.vy *= ATRITO; d.x += d.vx; d.y += d.vy;
+          const p = prox * prox; // realce concentrado bem perto do cursor
+          ctx.globalAlpha = A_BASE + (A_ATIVO - A_BASE) * p;
+          ctx.fillStyle = p > 0.03 ? "#6f9bf2" : "#8aa0c6";
           ctx.beginPath(); ctx.arc(d.x, d.y, RAIO, 0, Math.PI * 2); ctx.fill();
         }
         ctx.globalAlpha = 1;
