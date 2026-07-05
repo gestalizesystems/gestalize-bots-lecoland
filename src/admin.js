@@ -188,6 +188,23 @@ function iniciarAdmin(porta) {
   app.get("/icon-192.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "icon-192.png")));
   app.get("/icon-512.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "icon-512.png")));
 
+  // robots.txt e sitemap PÚBLICOS (200). Sem eles, o /robots.txt caía no login (302) e
+  // crawlers/IA (GPTBot, ChatGPT-User, Google) tratavam o site como fechado e desistiam.
+  const SITE_URL = (process.env.PUBLIC_URL || "https://bots.gestalizesystems.com.br").replace(/\/$/, "");
+  app.get("/robots.txt", (req, res) => {
+    res.type("text/plain").send(
+      `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /login\nDisallow: /conectar-whatsapp\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
+    );
+  });
+  app.get("/sitemap.xml", (req, res) => {
+    res.type("application/xml").send(
+      `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+      `  <url>\n    <loc>${SITE_URL}/</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n` +
+      `</urlset>\n`
+    );
+  });
+
   // ---- Rotas públicas (login) ----
   app.get("/login", (req, res) => {
     if (estaLogado(req)) return res.redirect("/");
