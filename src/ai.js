@@ -102,6 +102,34 @@ function norm(s) {
 // Conectivos ignorados na busca por texto (não ajudam a casar e atrapalham o "todas as palavras").
 const STOPWORDS = new Set(["de", "do", "da", "para", "pra", "pro", "com", "e", "o", "a", "os", "as", "em", "no", "na", "ml", "mg"]);
 
+// Sinônimos de busca: a palavra da esquerda casa se QUALQUER termo à direita aparecer no produto.
+// Resolve os nomes técnicos do catálogo: gato↔cat, cão↔dog, e "a quilo/kg/fracionado" = GRANEL.
+const SINONIMOS = {
+  gato: ["gato", "gata", "gatos", "cat", "felino", "felina"],
+  gata: ["gato", "gata", "cat", "felino"],
+  gatos: ["gato", "cat", "felino"],
+  cat: ["gato", "cat", "felino"],
+  felino: ["gato", "cat", "felino"],
+  cao: ["cao", "cachorro", "cachorros", "caes", "cadela", "dog", "canino", "canina"],
+  caes: ["cao", "cachorro", "caes", "dog", "canino"],
+  cachorro: ["cao", "cachorro", "dog", "canino"],
+  cachorros: ["cao", "cachorro", "dog", "canino"],
+  cadela: ["cao", "cachorro", "cadela", "dog", "canino"],
+  dog: ["cao", "cachorro", "dog", "canino"],
+  canino: ["cao", "cachorro", "dog", "canino"],
+  granel: ["granel", "fracionad"],
+  quilo: ["granel", "fracionad"],
+  quilos: ["granel", "fracionad"],
+  kilo: ["granel", "fracionad"],
+  kg: ["granel", "fracionad"],
+  fracionado: ["granel", "fracionad"],
+  fracionada: ["granel", "fracionad"],
+};
+// Palavras-ÂNCORA: nunca são relaxadas. A ESPÉCIE (cão/gato) impede misturar as duas espécies;
+// granel/quilo garante que "a quilo" só traga produtos a granel.
+const ANIMAIS = new Set(["gato", "gata", "gatos", "cat", "felino", "felina", "cao", "caes", "cachorro", "cachorros", "cadela", "dog", "canino", "canina"]);
+const ANCORAS = new Set([...ANIMAIS, "granel", "quilo", "quilos", "kilo", "kg", "fracionado", "fracionada"]);
+
 // Busca produtos ativos no catálogo por grupo / subgrupo / especificação / texto livre.
 function precoNum(p) {
   const s = String(p || "").replace(/[^\d,]/g, "").replace(",", ".");
@@ -118,6 +146,9 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
   const casaLista = (lista, alvo) => Array.isArray(lista) && lista.some((x) => casa(x, alvo));
   // Alvo da busca por texto: nome + descrição + tags (grupo/subgrupos/especificações).
   const alvoDe = (p) => [p.nome, p.descricao, p.grupo, ...(p.subgrupos || []), ...(p.especificacoes || [])].map(norm).join(" ");
+  // Uma palavra casa se QUALQUER um dos seus sinônimos aparecer (ex.: "gato" casa "cat"; "quilo" casa "granel").
+  const expandir = (w) => SINONIMOS[w] || [w];
+  const casaPalavra = (alvo, w) => expandir(w).some((s) => alvo.includes(s));
 
   const filtrarPor = (palavras) => produtos.filter((p) => {
     if (g && !casa(p.grupo, g)) return false;
@@ -125,18 +156,23 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
     if (esp && !casaLista(p.especificacoes, esp)) return false;
     if (palavras.length) {
       const alvo = alvoDe(p);
-      if (!palavras.every((w) => alvo.includes(w))) return false;
+      if (!palavras.every((w) => casaPalavra(alvo, w))) return false;
     }
     return true;
   });
 
-  let achados = filtrarPor(palavrasTx);
-  // Nomes de produto são técnicos (marca + princípio ativo + embalagem). Se a busca com
-  // TODAS as palavras zerou, relaxa: mantém a 1ª palavra (geralmente a marca) e vai soltando
-  // as últimas — ex.: "hepvet suspensao 60ml" cai para "hepvet" e acha o produto pelo nome.
-  if (!achados.length && palavrasTx.length > 1) {
-    for (let n = palavrasTx.length - 1; n >= 1 && !achados.length; n--) {
-      achados = filtrarPor(palavrasTx.slice(0, n));
+  // Separa ÂNCORAS (espécie/granel — obrigatórias, nunca relaxadas) das demais palavras.
+  // Assim NUNCA misturamos cão com gato, e "a quilo" só traz produtos a granel.
+  const ancoras = palavrasTx.filter((w) => ANCORAS.has(w));
+  const outras = palavrasTx.filter((w) => !ANCORAS.has(w));
+
+  let achados = filtrarPor([...ancoras, ...outras]);
+  // Se zerou, relaxa APENAS as 'outras' (mantém as âncoras). Ex.: "hepvet suspensao 60ml"
+  // cai para "hepvet"; "granel gato premium sem corante" cai para "granel gato".
+  if (!achados.length && outras.length) {
+    const minimo = ancoras.length ? 0 : 1; // sem âncora, guarda ao menos 1 palavra (não retorna tudo)
+    for (let n = outras.length - 1; n >= minimo && !achados.length; n--) {
+      achados = filtrarPor([...ancoras, ...outras.slice(0, n)]);
     }
   }
 
@@ -256,7 +292,8 @@ function montarContexto(cliente) {
     "- NUNCA diga que 'não temos' um produto sem ANTES ter chamado buscar_produtos com o nome dele. Ao procurar um produto ESPECÍFICO (uma marca ou item de receita, ex.: 'Hepvet', 'Vetmax'), busque pela MARCA/NOME com POUCAS palavras (ex.: texto 'hepvet'), NÃO a descrição inteira (embalagem, ml, apresentação) — o nome no catálogo é técnico e o excesso de palavras faz a busca falhar.",
     "- RECEITA / LISTA DE REMÉDIOS: quando chegar uma receita com vários itens, CHAME buscar_produtos para CADA item (pelo nome/marca) antes de dizer se tem ou não. Os produtos encontrados são enviados com foto automaticamente.",
     "- RAÇÃO (e itens com variação, como vermífugo): ANTES de mandar o catálogo, você PRECISA saber (1) cão ou gato, (2) adulto ou filhote, (3) alguma necessidade especial (castrado, controle de peso/acima do peso, idoso, porte). Pergunte UMA coisa por vez, só o que faltar — comece por 'É para cão ou gato?'. NÃO pergunte o NOME nem a RAÇA do pet pra ração/produto (isso é só pra banho/tosa/consulta/vacina). SÓ depois de ter essas infos, CHAME buscar_produtos com o texto montado (ex.: 'racao gato castrado').",
-    "- A GRANEL / POR KG / POR QUILO: quando o cliente pedir ração a granel, por KG ou por QUILO (ex.: 'tem ração a quilo?', '1kg de ração'), ele se refere aos produtos que começam com 'GRANEL' no catálogo. Busque incluindo a palavra 'granel' no texto (ex.: 'granel cachorro').",
+    "- A GRANEL / QUILO / KG / FRACIONADO: quando o cliente falar em QUILO, KILO, KG, GRANEL ou FRACIONADO (ex.: 'rações no quilo', '1kg de ração', 'tem fracionada?'), ele se refere às rações a GRANEL. SEMPRE busque com o texto 'granel <espécie>' — ex.: 'granel gato' ou 'granel cao' (nunca só 'quilo' nem só 'granel' sem a espécie).",
+    "- ESPÉCIE (NUNCA MISTURE): se o cliente pediu para GATO, só ofereça produtos de GATO; se pediu para CÃO, só de CÃO. É PROIBIDO mostrar ração/produto de cão quando pediram para gato (e vice-versa). Se não tivermos para a espécie pedida, diga que não temos e ofereça buscar outra opção PARA A MESMA ESPÉCIE — nunca sugira a outra espécie.",
     "- MARCAS DE UMA ESPÉCIE SÓ: algumas marcas de ração são só de cão ou só de gato (veja a base de conhecimento). Se o cliente citar uma dessas marcas, NÃO pergunte 'cão ou gato' — busque DIRETO pela marca e mande o valor.",
     "- AREIA (FARDO): se o cliente falar em 'fardo', use a quantidade por fardo informada na base de conhecimento.",
     "- MAIS BARATO / MAIS EM CONTA: se o cliente pedir o item mais barato ou 'mais em conta' (ex.: 'qual a areia mais em conta?'), CHAME buscar_produtos com ordenarPor='preco' e indique o de MENOR preço entre os resultados.",
