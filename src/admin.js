@@ -227,6 +227,9 @@ function iniciarAdmin(porta) {
     );
   });
 
+  // Política de privacidade pública (necessária pra publicar o app na Meta).
+  app.get("/privacidade", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "privacidade.html")));
+
   // ---- Rotas públicas (login) ----
   app.get("/login", (req, res) => {
     if (estaLogado(req)) return res.redirect("/");
