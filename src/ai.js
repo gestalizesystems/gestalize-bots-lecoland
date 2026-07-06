@@ -124,7 +124,13 @@ const SINONIMOS = {
   kg: ["granel", "fracionad"],
   fracionado: ["granel", "fracionad"],
   fracionada: ["granel", "fracionad"],
+  racao: ["racao", "racoes", "alimento"],
+  racoes: ["racao", "racoes", "alimento"],
+  comida: ["racao", "racoes", "alimento", "comida"],
 };
+// Palavras GENÉRICAS de categoria (não identificam a marca/item) — dropadas PRIMEIRO no relaxamento,
+// pra não sequestrar a busca (ex.: "ração chanin" nunca deve virar "ração" e trazer outra marca).
+const GENERICOS = new Set(["racao", "racoes", "comida", "alimento", "produto", "item", "sabor", "racaozinha"]);
 // Palavras-ÂNCORA: nunca são relaxadas. A ESPÉCIE (cão/gato) impede misturar as duas espécies;
 // granel/quilo garante que "a quilo" só traga produtos a granel.
 const ANIMAIS = new Set(["gato", "gata", "gatos", "cat", "felino", "felina", "cao", "caes", "cachorro", "cachorros", "cadela", "dog", "canino", "canina"]);
@@ -141,7 +147,10 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
   const cat = config.get().catalogo || {};
   const produtos = (cat.produtos || []).filter((p) => p && p.ativo !== false);
   const g = norm(grupo), sg = norm(subgrupo), esp = norm(especificacao), tx = norm(texto);
-  const palavrasTx = tx.split(/\s+/).filter((w) => w && !STOPWORDS.has(w)); // casa por PALAVRA (qualquer ordem), sem conectivos
+  let palavrasTx = tx.split(/\s+/).filter((w) => w && !STOPWORDS.has(w)); // casa por PALAVRA (qualquer ordem), sem conectivos
+  // Quantidades ("1kg", "10kg", "500g", "2"...) não identificam o produto e ainda casam por
+  // engano (ex.: "1kg" dentro de "10.1kg"). Ficam de fora — o que importa é a marca/tipo.
+  palavrasTx = palavrasTx.filter((w) => !/^\d/.test(w));
   const casa = (valor, alvo) => valor && (norm(valor).includes(alvo) || alvo.includes(norm(valor)));
   const casaLista = (lista, alvo) => Array.isArray(lista) && lista.some((x) => casa(x, alvo));
   // Alvo da busca por texto: nome + descrição + tags (grupo/subgrupos/especificações).
@@ -161,18 +170,33 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
     return true;
   });
 
-  // Separa ÂNCORAS (espécie/granel — obrigatórias, nunca relaxadas) das demais palavras.
-  // Assim NUNCA misturamos cão com gato, e "a quilo" só traz produtos a granel.
+  // ÂNCORAS (espécie/granel) são obrigatórias e nunca dropadas → nunca mistura cão com gato,
+  // e "a quilo" só traz granel. As demais palavras ('outras') podem ser relaxadas.
   const ancoras = palavrasTx.filter((w) => ANCORAS.has(w));
-  const outras = palavrasTx.filter((w) => !ANCORAS.has(w));
+  let outras = palavrasTx.filter((w) => !ANCORAS.has(w));
 
   let achados = filtrarPor([...ancoras, ...outras]);
-  // Se zerou, relaxa APENAS as 'outras' (mantém as âncoras). Ex.: "hepvet suspensao 60ml"
-  // cai para "hepvet"; "granel gato premium sem corante" cai para "granel gato".
   if (!achados.length && outras.length) {
-    const minimo = ancoras.length ? 0 : 1; // sem âncora, guarda ao menos 1 palavra (não retorna tudo)
-    for (let n = outras.length - 1; n >= minimo && !achados.length; n--) {
-      achados = filtrarPor([...ancoras, ...outras.slice(0, n)]);
+    // Quantas vezes cada palavra casa sozinha (mede o quão seletiva ela é).
+    const cnt = (w) => produtos.reduce((n, p) => n + (casaPalavra(alvoDe(p), w) ? 1 : 0), 0);
+    // 0) Dropa palavras genéricas (racao, comida...) se sobrar algo específico — a marca/tipo manda.
+    if (outras.some((w) => GENERICOS.has(w)) && outras.some((w) => !GENERICOS.has(w))) {
+      outras = outras.filter((w) => !GENERICOS.has(w));
+      achados = filtrarPor([...ancoras, ...outras]);
+    }
+    // 1) Remove palavras que não casam com NADA (typo/abreviação que zera o AND, ex.: "suspensao"
+    //    quando o nome traz "SUSP"). Assim "hepvet suspensao" → "hepvet".
+    if (!achados.length) {
+      outras = outras.filter((w) => cnt(w) > 0);
+      achados = (ancoras.length || outras.length) ? filtrarPor([...ancoras, ...outras]) : [];
+    }
+    // 2) Ainda 0: dropa a 'outra' MENOS seletiva (casa com mais produtos), preservando a mais
+    //    distintiva (a marca). Nunca dropa a última → não retorna resultado amplo/genérico.
+    //    Ex.: "racao chanin" dropa "racao" e mantém "chanin".
+    while (!achados.length && outras.length > 1) {
+      outras.sort((a, b) => cnt(a) - cnt(b));
+      outras.pop(); // remove a de MAIOR contagem (menos seletiva)
+      achados = filtrarPor([...ancoras, ...outras]);
     }
   }
 
@@ -301,7 +325,8 @@ function montarContexto(cliente) {
     "- VERMÍFUGO (remédio de verme): PERGUNTE se é cão ou gato e busque com buscar_produtos usando o termo do animal + 'verme' (ex.: texto 'verme cao' ou 'verme gato'). Os produtos estão marcados com as tags medicamento / cão-ou-gato / verme.",
     "- Se o cliente JÁ deu os detalhes necessários (ex.: 'ração premium pra cão filhote', cita uma marca), busque DIRETO — não fique perguntando à toa.",
     "- Quando buscar_produtos retornar produtos, dê uma resposta CURTA de introdução (ex.: 'Achei essas opções pra você 🐾'). NÃO liste os produtos em texto: as FOTOS de cada produto (com nome e preço) são enviadas automaticamente logo depois da sua mensagem.",
-    "- Se NÃO TEMOS exatamente o que o cliente pediu (buscar_produtos voltou 0), NÃO encaminhe logo: diga 'Não temos essa(e) [ração/produto], mas vou te enviar algumas opções parecidas 🐾' e CHAME buscar_produtos DE NOVO com uma busca MAIS AMPLA (sem a marca — ex.: 'racao gato filhote') pra mandar alternativas. Vale pra qualquer produto (ração, vermífugo, etc.). Só se mesmo assim não achar nada, CHAME encaminhar_para_atendente.",
+    "- Se NÃO TEMOS exatamente o que o cliente pediu (buscar_produtos voltou 0), NÃO encaminhe logo: diga 'Não temos essa(e) [ração/produto], mas vou te enviar algumas opções parecidas 🐾' e CHAME buscar_produtos DE NOVO com uma busca MAIS AMPLA — TIRE a marca mas MANTENHA a espécie (ex.: 'granel gato' ou 'racao gato filhote'). NUNCA troque a espécie. Vale pra qualquer produto. Só se mesmo assim não achar nada, CHAME encaminhar_para_atendente.",
+    "- OBRIGATÓRIO: se você disser QUALQUER coisa como 'vou te enviar opções/alternativas/parecidas', você TEM que CHAMAR buscar_produtos na MESMA resposta. É PROIBIDO prometer enviar produtos sem chamar a função — senão o cliente não recebe nada.",
     "- Nunca invente produtos, marcas ou preços — use exclusivamente o que a função retornar.",
     "",
     "TAXA DE ENTREGA / TÁXI DOG:",
