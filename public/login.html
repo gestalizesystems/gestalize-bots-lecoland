@@ -119,14 +119,13 @@
     }
     .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
       background: linear-gradient(90deg, transparent, rgba(59,130,246,0.6), transparent); }
-    .badge {
-      width: 68px; height: 68px; border-radius: 19px; margin: 0 auto 20px;
-      background: linear-gradient(180deg, rgba(37,99,235,0.22), rgba(37,99,235,0.08));
-      border: 1px solid rgba(59,130,246,0.35);
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 0 30px rgba(37,99,235,0.35); animation: pop 0.7s var(--ease) both 0.1s;
+    .card-brand {
+      display: flex; align-items: center; justify-content: center; gap: 11px;
+      margin: 0 0 20px; animation: pop 0.7s var(--ease) both 0.1s;
     }
-    .badge img { width: 40px; height: 40px; object-fit: contain; }
+    .card-brand img { width: 40px; height: 40px; object-fit: contain; filter: drop-shadow(0 0 18px rgba(37,99,235,0.5)); }
+    .card-brand span { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: var(--white); }
+    .card-brand span em { font-style: normal; color: var(--blue-lt); }
     .card h2 { text-align: center; margin: 0 0 6px; font-size: 24px; color: var(--white); font-weight: 800; letter-spacing: -0.5px; }
     .card .sub { text-align: center; color: var(--muted); margin: 0 0 28px; font-size: 14.5px; }
     label { display: block; font-weight: 600; font-size: 13.5px; margin: 0 0 8px; color: #c6d1e6; }
@@ -239,13 +238,11 @@
 
     <!-- Direita — card de login -->
     <div class="col-dir">
-      <div class="brand-mob">
-        <img src="/robot.png" alt="Gestalize Bots" />
-        <div class="wm">Gestalize <span>Bots</span></div>
-      </div>
-
       <div class="card anim" style="animation-delay:.15s">
-        <div class="badge"><img src="/robot.png" alt="" /></div>
+        <div class="card-brand">
+          <img src="/robot.png" alt="Gestalize Bots" />
+          <span>Gestalize <em>Bots</em></span>
+        </div>
         <h2>Bem-vindo de volta</h2>
         <p class="sub">Entre para acessar sua plataforma</p>
         <form id="formLogin">
