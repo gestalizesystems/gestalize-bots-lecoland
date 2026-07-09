@@ -104,19 +104,11 @@ const STOPWORDS = new Set(["de", "do", "da", "para", "pra", "pro", "com", "e", "
 
 // Sinônimos de busca: a palavra da esquerda casa se QUALQUER termo à direita aparecer no produto.
 // Resolve os nomes técnicos do catálogo: gato↔cat, cão↔dog, e "a quilo/kg/fracionado" = GRANEL.
+const ESPECIE_GATO = ["gato", "gata", "gatos", "cat", "cats", "felino", "felina", "feline"];
+const ESPECIE_CAO = ["cao", "cachorro", "cachorros", "caes", "cadela", "dog", "dogs", "canino", "canina", "canine"];
 const SINONIMOS = {
-  gato: ["gato", "gata", "gatos", "cat", "felino", "felina"],
-  gata: ["gato", "gata", "cat", "felino"],
-  gatos: ["gato", "cat", "felino"],
-  cat: ["gato", "cat", "felino"],
-  felino: ["gato", "cat", "felino"],
-  cao: ["cao", "cachorro", "cachorros", "caes", "cadela", "dog", "canino", "canina"],
-  caes: ["cao", "cachorro", "caes", "dog", "canino"],
-  cachorro: ["cao", "cachorro", "dog", "canino"],
-  cachorros: ["cao", "cachorro", "dog", "canino"],
-  cadela: ["cao", "cachorro", "cadela", "dog", "canino"],
-  dog: ["cao", "cachorro", "dog", "canino"],
-  canino: ["cao", "cachorro", "dog", "canino"],
+  gato: ESPECIE_GATO, gata: ESPECIE_GATO, gatos: ESPECIE_GATO, cat: ESPECIE_GATO, felino: ESPECIE_GATO, feline: ESPECIE_GATO,
+  cao: ESPECIE_CAO, caes: ESPECIE_CAO, cachorro: ESPECIE_CAO, cachorros: ESPECIE_CAO, cadela: ESPECIE_CAO, dog: ESPECIE_CAO, canino: ESPECIE_CAO,
   granel: ["granel", "fracionad"],
   quilo: ["granel", "fracionad"],
   quilos: ["granel", "fracionad"],
@@ -127,6 +119,29 @@ const SINONIMOS = {
   racao: ["racao", "racoes", "alimento"],
   racoes: ["racao", "racoes", "alimento"],
   comida: ["racao", "racoes", "alimento", "comida"],
+  // PT ↔ EN — nomes de ração costumam vir em inglês (necessidade, idade, sabor).
+  urinaria: ["urinaria", "urinario", "urinary"],
+  urinario: ["urinaria", "urinario", "urinary"],
+  urinary: ["urinaria", "urinario", "urinary"],
+  filhote: ["filhote", "filhotes", "filhotinho", "puppy", "kitten", "junior"],
+  filhotes: ["filhote", "filhotes", "puppy", "kitten", "junior"],
+  adulto: ["adulto", "adultos", "adult"],
+  adultos: ["adulto", "adultos", "adult"],
+  senior: ["senior", "idoso", "idosa", "mature"],
+  idoso: ["senior", "idoso", "idosa", "mature"],
+  castrado: ["castrado", "castrada", "castrados", "cast", "neutered", "sterili"],
+  castrada: ["castrado", "castrada", "cast", "neutered", "sterili"],
+  frango: ["frango", "chicken"],
+  chicken: ["frango", "chicken"],
+  carne: ["carne", "beef"],
+  salmao: ["salmao", "salmon"],
+  salmon: ["salmao", "salmon"],
+  peixe: ["peixe", "fish"],
+  cordeiro: ["cordeiro", "lamb"],
+  arroz: ["arroz", "rice"],
+  sensivel: ["sensivel", "sensitive"],
+  renal: ["renal", "kidney"],
+  light: ["light", "control"],
 };
 // Palavras GENÉRICAS de categoria (não identificam a marca/item) — dropadas PRIMEIRO no relaxamento,
 // pra não sequestrar a busca (ex.: "ração chanin" nunca deve virar "ração" e trazer outra marca).
@@ -136,7 +151,7 @@ const GENERICOS = new Set(["racao", "racoes", "comida", "alimento", "produto", "
 const SACA = new Set(["saca", "sacas", "saco", "sacos", "sacaria", "fechada", "fechado", "fechadas", "pacote", "pacotes", "ensacada", "ensacado"]);
 // Palavras-ÂNCORA: nunca são relaxadas. A ESPÉCIE (cão/gato) impede misturar as duas espécies;
 // granel/quilo garante que "a quilo" só traga produtos a granel.
-const ANIMAIS = new Set(["gato", "gata", "gatos", "cat", "felino", "felina", "cao", "caes", "cachorro", "cachorros", "cadela", "dog", "canino", "canina"]);
+const ANIMAIS = new Set([...ESPECIE_GATO, ...ESPECIE_CAO]);
 const ANCORAS = new Set([...ANIMAIS, "granel", "quilo", "quilos", "kilo", "kg", "fracionado", "fracionada"]);
 
 // Busca produtos ativos no catálogo por grupo / subgrupo / especificação / texto livre.
@@ -345,8 +360,10 @@ function montarContexto(cliente) {
     "- VERMÍFUGO (remédio de verme): PERGUNTE se é cão ou gato e busque com buscar_produtos usando o termo do animal + 'verme' (ex.: texto 'verme cao' ou 'verme gato'). Os produtos estão marcados com as tags medicamento / cão-ou-gato / verme.",
     "- Se o cliente JÁ deu os detalhes necessários (ex.: 'ração premium pra cão filhote', cita uma marca), busque DIRETO — não fique perguntando à toa.",
     "- Quando buscar_produtos retornar produtos, dê uma resposta CURTA de introdução (ex.: 'Achei essas opções pra você 🐾'). NÃO liste os produtos em texto: as FOTOS de cada produto (com nome e preço) são enviadas automaticamente logo depois da sua mensagem.",
-    "- Se NÃO TEMOS exatamente o que o cliente pediu (buscar_produtos voltou 0), NÃO encaminhe logo e NÃO mande outra coisa no lugar: PERGUNTE 'Não temos essa(e) [ração/produto] no momento, mas posso te mandar algumas opções parecidas? 🐾' e ESPERE. Só se o cliente CONFIRMAR, CHAME buscar_produtos com uma busca MAIS AMPLA — TIRE a marca mas MANTENHA a espécie (ex.: 'granel gato'). NUNCA troque a espécie. Se nem assim achar, CHAME encaminhar_para_atendente.",
-    "- OBRIGATÓRIO ao ENVIAR: quando você disser que está mostrando/enviando produtos (ex.: 'achei essas opções', 'aqui estão', 'segue'), você TEM que ter chamado buscar_produtos na MESMA resposta — nunca diga que achou/está enviando sem chamar a função. (Já PERGUNTAR 'posso te mandar opções?' NÃO envia nada — só envie DEPOIS que o cliente confirmar.)",
+    "- Se NÃO TEMOS exatamente o que o cliente pediu (buscar_produtos voltou 0): PERGUNTE UMA vez só 'Não temos essa(e) [ração/produto] no momento, mas posso te mandar algumas opções parecidas? 🐾' e PARE (não chame buscar_produtos nessa mensagem, não repita a pergunta). Só DEPOIS que o cliente responder 'sim/pode', CHAME buscar_produtos com uma busca mais ampla.",
+    "- COMO BUSCAR AS PARECIDAS: mantenha SEMPRE (a) a MESMA espécie (cão/gato), (b) a MESMA CATEGORIA (se era ração, busque só ração — inclua a palavra 'racao' no texto, ex.: 'saca racao gato urinaria'), e (c) a MESMA NECESSIDADE/TIPO que o cliente pediu (urinária, filhote, castrado, etc.). Tire só a MARCA. É PROIBIDO oferecer remédio/antipulgas/vermífugo (ex.: Bravecto, Banni) como se fossem ração. Se nem assim achar, CHAME encaminhar_para_atendente.",
+    "- CLIENTE NÃO SABE O NOME EXATO: o nome no catálogo às vezes está em inglês ou é de outra marca (ex.: cliente pede 'vetlife urinária gato' e temos 'VET NAT FELINE URINARY 7,5KG'). Reconheça pelo TIPO: 'urinária' = 'urinary', 'gato' = 'feline', 'filhote' = 'puppy/kitten'. Busque pelo tipo+espécie, não só pela marca — se acharmos uma ração do mesmo tipo, ela SERVE (mostre, dizendo que é a opção equivalente que temos).",
+    "- OBRIGATÓRIO ao ENVIAR: quando você disser que está mostrando/enviando produtos (ex.: 'achei essas opções', 'aqui estão', 'segue'), você TEM que ter chamado buscar_produtos na MESMA resposta. E o contrário: quando você PERGUNTA 'posso te mandar opções?', NÃO chame buscar_produtos e NÃO envie nada nessa mensagem — espere o cliente responder.",
     "- Nunca invente produtos, marcas ou preços — use exclusivamente o que a função retornar.",
     "",
     "TAXA DE ENTREGA / TÁXI DOG:",
