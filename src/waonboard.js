@@ -76,7 +76,7 @@ async function trocarCodePorToken(code) {
     + `?client_id=${encodeURIComponent(APP_ID)}`
     + `&client_secret=${encodeURIComponent(APP_SECRET)}`
     + `&code=${encodeURIComponent(code)}`
-    + `&redirect_uri=${encodeURIComponent("https://bots.gestalizesystems.com.br/api/wa/oauth-callback")}`;
+    + `&redirect_uri=${encodeURIComponent("https://www.facebook.com/connect/login_success.html")}`;
   const res = await fetch(url);
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.access_token) {
