@@ -67,16 +67,16 @@ function gerarUrlOAuth() {
 }
 
 // Troca o "code" do Embedded Signup por um token de acesso do negócio (server-side).
-// O FB SDK popup usa https://www.facebook.com/connect/login_success.html internamente
-// como redirect_uri — precisa ser o mesmo valor na troca. Para isso, facebook.com
-// deve estar nos Domínios do aplicativo (Configurações Básico → Domínios do aplicativo).
+// O redirect_uri precisa ser idêntico ao usado no diálogo OAuth. O front intercepta
+// o window.open do SDK e substitui login_success.html pelo nosso callback registrado,
+// então o exchange usa a mesma URI que está registrada no app da Meta.
 async function trocarCodePorToken(code) {
   if (!APP_ID || !APP_SECRET) throw new Error("META_APP_ID / META_APP_SECRET não configurados no .env.");
   const url = `${GRAPH}/${VERSAO}/oauth/access_token`
     + `?client_id=${encodeURIComponent(APP_ID)}`
     + `&client_secret=${encodeURIComponent(APP_SECRET)}`
     + `&code=${encodeURIComponent(code)}`
-    + `&redirect_uri=${encodeURIComponent("https://www.facebook.com/connect/login_success.html")}`;
+    + `&redirect_uri=${encodeURIComponent(getCallbackUri())}`;
   const res = await fetch(url);
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.access_token) {

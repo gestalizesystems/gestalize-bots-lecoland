@@ -77,7 +77,11 @@
   const msg = (txt, tipo) => { const m = $("#msg"); m.textContent = txt; m.className = "msg " + (tipo || ""); };
 
   let CFG = null;
-  let sessao = {};   // waba_id / phone_number_id do postMessage da Meta
+  let sessao = {};
+  let aguardando = false;
+
+  // URL do callback que nosso servidor processa (sem a dependência do login_success.html)
+  const CALLBACK_URI = () => location.origin + "/api/wa/oauth-callback";
 
   async function init() {
     try { CFG = await (await fetch("/api/wa/config")).json(); } catch (_) { CFG = { pronto: false }; }
@@ -120,59 +124,105 @@
     })(document, "script", "facebook-jssdk");
   }
 
-  // Captura TODOS os campos que a janela da Meta envia por postMessage
+  // Escuta postMessages da Meta (WA_EMBEDDED_SIGNUP) e do nosso callback (WA_CONNECT_*)
   window.addEventListener("message", (event) => {
     try {
-      if (!/facebook\.com$/.test(new URL(event.origin).hostname)) return;
       const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+      if (!data || !data.type) return;
+
+      // Campos do Embedded Signup (origem: facebook.com)
       if (data.type === "WA_EMBEDDED_SIGNUP" && data.data) {
-        Object.assign(sessao, data.data);  // salva tudo: waba_id, phone_number_id, token, etc.
+        try {
+          if (/facebook\.com$/.test(new URL(event.origin).hostname)) {
+            Object.assign(sessao, data.data);
+          }
+        } catch (_) {}
+      }
+
+      // Sucesso ou erro vindos do nosso /api/wa/oauth-callback (origem: mesma origem)
+      if (data.type === "WA_CONNECT_SUCCESS") {
+        aguardando = false;
+        msg("✅ Número conectado!" + (data.numero ? " (" + data.numero + ")" : ""), "ok");
+        sessao = {};
+        $("#btnConectar").disabled = false;
+        atualizarStatus();
+      } else if (data.type === "WA_CONNECT_ERROR") {
+        aguardando = false;
+        msg("❌ " + (data.erro || "Erro ao conectar."), "err");
+        $("#btnConectar").disabled = false;
       }
     } catch (_) {}
   });
 
   function conectar() {
+    if (aguardando) return;
     msg("", "");
     sessao = {};
     if (!window.FB) return msg("SDK ainda carregando, aguarde.", "err");
 
-    const iniciarLogin = () => {
+    aguardando = true;
+    $("#btnConectar").disabled = true;
+    msg("Aguardando autorização na janela da Meta…", "");
+
+    // Guarda o window.open original e instala interceptador
+    // O interceptador troca redirect_uri=login_success.html pelo nosso callback
+    // assim o exchange acontece no servidor com uma URI registrada (sem erro 191)
+    const _open = window.open.bind(window);
+    const cbUri = CALLBACK_URI();
+
+    function interceptarOpen(url, name, features) {
+      window.open = _open; // restaura após primeira chamada
+      if (url && typeof url === "string" && url.includes("dialog/oauth")) {
+        url = url.replace(/([?&]redirect_uri=)[^&]*/, "$1" + encodeURIComponent(cbUri));
+      }
+      return _open(url, name, features);
+    }
+    window.open = interceptarOpen;
+
+    function dispararLogin() {
       FB.login((response) => {
+        // Com o interceptador o popup não retorna ao login_success.html,
+        // então o SDK reporta status vazio/cancelled — isso é esperado.
+        // O sucesso real chega via postMessage (WA_CONNECT_SUCCESS acima).
+        window.open = _open; // garante restauração
+
+        // Fallback: se o SDK retornou um token/code por algum motivo, tenta usar
         const auth = response.authResponse || {};
-        // Se o SDK retornou accessToken diretamente, usa sem precisar do exchange
-        if (auth.accessToken) {
-          finalizar(null, auth.accessToken);
+        if (auth.accessToken || auth.code) {
+          finalizarFallback(auth.code, auth.accessToken);
           return;
         }
-        if (auth.code) {
-          finalizar(auth.code, null);
-          return;
-        }
-        // Debug: mostra o que veio para diagnóstico
-        msg("SDK retornou: " + JSON.stringify(auth), "err");
+
+        // Aguarda postMessage por até 5s antes de marcar como cancelado
+        setTimeout(() => {
+          if (!aguardando) return;
+          aguardando = false;
+          msg("Conexão cancelada ou não autorizada.", "err");
+          $("#btnConectar").disabled = false;
+        }, 5000);
       }, {
         config_id: CFG.configId,
         response_type: "code",
         override_default_response_type: true,
         extras: { setup: {}, featureType: "whatsapp_business_app_onboarding", sessionInfoVersion: "3" },
       });
-    };
+    }
 
-    // Limpa qualquer sessão cacheada do SDK antes de iniciar para garantir código fresco
     FB.getLoginStatus((status) => {
       if (status && status.status === "connected") {
-        FB.logout(iniciarLogin);
+        FB.logout(() => {
+          window.open = interceptarOpen; // reinstala após logout
+          dispararLogin();
+        });
       } else {
-        iniciarLogin();
+        dispararLogin();
       }
     });
   }
 
-  async function finalizar(code, accessToken) {
-    $("#btnConectar").disabled = true;
-    msg("Concluindo a conexão…", "");
+  // Fallback para quando o SDK retorna o code antes de chegar o postMessage do servidor
+  async function finalizarFallback(code, accessToken) {
     try {
-      // Monta o payload: token direto (sem exchange) tem prioridade sobre code
       const payload = {
         waba_id: sessao.waba_id,
         phone_number_id: sessao.phone_number_id || sessao.phoneNumberId,
@@ -190,12 +240,8 @@
         body: JSON.stringify(payload),
       });
       const data = await r.json();
-      if (!r.ok || !data.ok) {
-        // Mostra campos capturados do postMessage para diagnóstico
-        const camposPostMsg = Object.keys(sessao).filter(k => !["waba_id","phone_number_id","phoneNumberId"].includes(k));
-        const extra = camposPostMsg.length ? " | postMsg extras: " + camposPostMsg.join(",") : " | postMsg sem extras";
-        throw new Error((data.erro || "Falha ao conectar.") + extra);
-      }
+      aguardando = false;
+      if (!r.ok || !data.ok) throw new Error(data.erro || "Falha ao conectar.");
       msg("✅ Número conectado!" + (data.numero ? " (" + data.numero + ")" : ""), "ok");
       sessao = {};
       await atualizarStatus();
