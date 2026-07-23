@@ -120,14 +120,13 @@
     })(document, "script", "facebook-jssdk");
   }
 
-  // Captura waba_id / phone_number_id que a janela da Meta envia por postMessage
+  // Captura TODOS os campos que a janela da Meta envia por postMessage
   window.addEventListener("message", (event) => {
     try {
       if (!/facebook\.com$/.test(new URL(event.origin).hostname)) return;
       const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
       if (data.type === "WA_EMBEDDED_SIGNUP" && data.data) {
-        if (data.data.phone_number_id) sessao.phone_number_id = data.data.phone_number_id;
-        if (data.data.waba_id) sessao.waba_id = data.data.waba_id;
+        Object.assign(sessao, data.data);  // salva tudo: waba_id, phone_number_id, token, etc.
       }
     } catch (_) {}
   });
@@ -139,11 +138,18 @@
 
     const iniciarLogin = () => {
       FB.login((response) => {
-        if (response.authResponse && response.authResponse.code) {
-          finalizar(response.authResponse.code);
-        } else {
-          msg("Conexão cancelada ou não autorizada.", "err");
+        const auth = response.authResponse || {};
+        // Se o SDK retornou accessToken diretamente, usa sem precisar do exchange
+        if (auth.accessToken) {
+          finalizar(null, auth.accessToken);
+          return;
         }
+        if (auth.code) {
+          finalizar(auth.code, null);
+          return;
+        }
+        // Debug: mostra o que veio para diagnóstico
+        msg("SDK retornou: " + JSON.stringify(auth), "err");
       }, {
         config_id: CFG.configId,
         response_type: "code",
@@ -162,14 +168,26 @@
     });
   }
 
-  async function finalizar(code) {
+  async function finalizar(code, accessToken) {
     $("#btnConectar").disabled = true;
     msg("Concluindo a conexão…", "");
     try {
+      // Monta o payload: token direto (sem exchange) tem prioridade sobre code
+      const payload = {
+        waba_id: sessao.waba_id,
+        phone_number_id: sessao.phone_number_id || sessao.phoneNumberId,
+      };
+      if (accessToken) {
+        payload.token = accessToken;
+      } else if (sessao.token || sessao.accessToken) {
+        payload.token = sessao.token || sessao.accessToken;
+      } else {
+        payload.code = code;
+      }
       const r = await fetch("/api/wa/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, waba_id: sessao.waba_id, phone_number_id: sessao.phone_number_id }),
+        body: JSON.stringify(payload),
       });
       const data = await r.json();
       if (!r.ok || !data.ok) throw new Error(data.erro || "Falha ao conectar.");
