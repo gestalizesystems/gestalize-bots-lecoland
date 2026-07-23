@@ -345,7 +345,38 @@ function iniciarAdmin(porta) {
     });
   });
 
-  // Recebe o code + ids do Embedded Signup, troca por token, inscreve nos webhooks e salva.
+  // Gera a URL do OAuth dialog (popup abre diretamente aqui, sem SDK do Facebook).
+  app.get("/api/wa/oauth-url", (req, res) => {
+    try { res.json({ url: onboard.gerarUrlOAuth() }); }
+    catch (e) { res.status(400).json({ erro: e.message }); }
+  });
+
+  // Meta redireciona aqui com o code após o usuário autorizar no popup.
+  app.get("/api/wa/oauth-callback", async (req, res) => {
+    const { code, waba_id, phone_number_id, error, error_description } = req.query;
+    if (!code) {
+      return res.send(paginaCallback(false, error_description || error || "Autorização negada."));
+    }
+    try {
+      const creds = await onboard.conectar({ code, wabaId: waba_id, phoneId: phone_number_id });
+      estado.whatsappConectado = wa.configurado();
+      res.send(paginaCallback(true, null, creds.numero));
+    } catch (e) {
+      res.send(paginaCallback(false, e.message));
+    }
+  });
+
+  function paginaCallback(ok, erro, numero) {
+    const payload = ok
+      ? JSON.stringify({ type: "WA_CONNECT_SUCCESS", numero: numero || "" })
+      : JSON.stringify({ type: "WA_CONNECT_ERROR", erro: erro || "Erro desconhecido." });
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>
+      <script>try{window.opener&&window.opener.postMessage(${payload},"*");}catch(_){}window.close();</script>
+      <p style="font-family:sans-serif;padding:2rem">${ok ? "✅ Conectado! Fechando…" : "❌ " + (erro || "")}</p>
+    </body></html>`;
+  }
+
+  // POST legado (mantido como fallback caso o frontend envie token diretamente).
   app.post("/api/wa/connect", async (req, res) => {
     try {
       const { code, token, waba_id, phone_number_id } = req.body || {};

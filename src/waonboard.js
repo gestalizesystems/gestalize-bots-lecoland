@@ -48,6 +48,24 @@ function configPublica() {
   return { appId: APP_ID, configId: ES_CONFIG_ID, graphVersion: VERSAO, pronto: embeddedPronto() };
 }
 
+// URI de callback registrada na Meta (deve ser igual tanto na URL do OAuth quanto na troca do code).
+function getCallbackUri() {
+  const base = (process.env.PUBLIC_URL || "https://bots.gestalizesystems.com.br").replace(/\/$/, "");
+  return base + "/api/wa/oauth-callback";
+}
+
+// URL do OAuth dialog da Meta (abre como popup; não usa o SDK do Facebook).
+function gerarUrlOAuth() {
+  if (!APP_ID || !ES_CONFIG_ID) throw new Error("META_APP_ID / META_ES_CONFIG_ID não configurados.");
+  const extras = JSON.stringify({ setup: {}, featureType: "whatsapp_business_app_onboarding", sessionInfoVersion: "3" });
+  return "https://www.facebook.com/dialog/oauth"
+    + "?client_id=" + encodeURIComponent(APP_ID)
+    + "&redirect_uri=" + encodeURIComponent(getCallbackUri())
+    + "&response_type=code"
+    + "&config_id=" + encodeURIComponent(ES_CONFIG_ID)
+    + "&extras=" + encodeURIComponent(extras);
+}
+
 // Troca o "code" do Embedded Signup por um token de acesso do negócio (server-side).
 async function trocarCodePorToken(code) {
   if (!APP_ID || !APP_SECRET) throw new Error("META_APP_ID / META_APP_SECRET não configurados no .env.");
@@ -55,7 +73,7 @@ async function trocarCodePorToken(code) {
     + `?client_id=${encodeURIComponent(APP_ID)}`
     + `&client_secret=${encodeURIComponent(APP_SECRET)}`
     + `&code=${encodeURIComponent(code)}`
-    + `&redirect_uri=${encodeURIComponent("https://www.facebook.com/connect/login_success.html")}`;
+    + `&redirect_uri=${encodeURIComponent(getCallbackUri())}`;
   const res = await fetch(url);
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.access_token) {
@@ -152,5 +170,5 @@ async function conectar({ code, token, wabaId, phoneId }) {
 
 module.exports = {
   getCredenciais, salvarCredenciais, limparCredenciais,
-  embeddedPronto, configPublica, conectar, infoNumero, VERSAO,
+  embeddedPronto, configPublica, conectar, infoNumero, gerarUrlOAuth, VERSAO,
 };

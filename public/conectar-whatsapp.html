@@ -76,22 +76,18 @@
   const $ = (s) => document.querySelector(s);
   const msg = (txt, tipo) => { const m = $("#msg"); m.textContent = txt; m.className = "msg " + (tipo || ""); };
 
-  let CFG = null;                 // { appId, configId, graphVersion, pronto }
-  let sessao = {};               // { phone_number_id, waba_id } capturados da janela da Meta
-
   // 1) Carrega config pública e status atual
   async function init() {
-    try {
-      CFG = await (await fetch("/api/wa/config")).json();
-    } catch (_) { CFG = { pronto: false }; }
+    let CFG = { pronto: false };
+    try { CFG = await (await fetch("/api/wa/config")).json(); } catch (_) {}
     await atualizarStatus();
 
     if (!CFG.pronto) {
       $("#aviso").innerHTML = "⚙️ O Embedded Signup ainda não está configurado. Falta definir <code>META_APP_ID</code> e <code>META_ES_CONFIG_ID</code> nas variáveis de ambiente (Railway).";
       $("#btnConectar").disabled = true;
-      return;
+    } else {
+      $("#btnConectar").disabled = false;
     }
-    carregarSDK(CFG.appId, CFG.graphVersion);
   }
 
   async function atualizarStatus() {
@@ -112,74 +108,46 @@
     }
   }
 
-  // 2) SDK do Facebook (Embedded Signup)
-  function carregarSDK(appId, versao) {
-    window.fbAsyncInit = function () {
-      FB.init({ appId: appId, autoLogAppEvents: true, xfbml: true, version: versao || "v21.0" });
-      $("#btnConectar").disabled = false;
-    };
-    (function (d, s, id) {
-      if (d.getElementById(id)) return;
-      const js = d.createElement(s); js.id = id;
-      js.src = "https://connect.facebook.net/pt_BR/sdk.js";
-      d.getElementsByTagName("head")[0].appendChild(js);
-    })(document, "script", "facebook-jssdk");
-  }
-
-  // 3) Captura os ids que a janela da Meta devolve (waba_id / phone_number_id)
-  window.addEventListener("message", (event) => {
-    if (!/facebook\.com$/.test(new URL(event.origin).hostname)) return;
-    try {
-      const data = JSON.parse(event.data);
-      if (data.type === "WA_EMBEDDED_SIGNUP" && data.data) {
-        if (data.data.phone_number_id) sessao.phone_number_id = data.data.phone_number_id;
-        if (data.data.waba_id) sessao.waba_id = data.data.waba_id;
-      }
-    } catch (_) { /* mensagem que não é do fluxo */ }
-  });
-
-  // 4) Dispara o fluxo (com featureType de COEXISTÊNCIA)
-  function conectar() {
+  // 2) Abre popup OAuth direto no domínio da Meta (sem SDK do Facebook)
+  async function conectar() {
     msg("", "");
-    if (!window.FB) return msg("SDK ainda carregando, tente de novo em instantes.", "err");
-    FB.login((response) => {
-      if (response.authResponse && response.authResponse.accessToken) {
-        finalizar(response.authResponse.accessToken);
-      } else {
-        msg("Conexão cancelada ou não autorizada.", "err");
-      }
-    }, {
-      config_id: CFG.configId,
-      response_type: "token",
-      override_default_response_type: true,
-      extras: {
-        setup: {},
-        featureType: "whatsapp_business_app_onboarding", // ativa a COEXISTÊNCIA (app + API)
-        sessionInfoVersion: "3",
-      },
-    });
-  }
-
-  // 5) Manda o token + ids pro backend concluir (inscreve webhook, salva)
-  async function finalizar(token) {
-    $("#btnConectar").disabled = true;
-    msg("Concluindo a conexão…", "");
+    let urlData;
     try {
-      const r = await fetch("/api/wa/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, waba_id: sessao.waba_id, phone_number_id: sessao.phone_number_id }),
-      });
-      const data = await r.json();
-      if (!r.ok || !data.ok) throw new Error(data.erro || "Falha ao conectar.");
-      msg("✅ Número conectado com sucesso!" + (data.numero ? " (" + data.numero + ")" : ""), "ok");
-      sessao = {};
-      await atualizarStatus();
+      urlData = await (await fetch("/api/wa/oauth-url")).json();
+      if (urlData.erro) throw new Error(urlData.erro);
     } catch (e) {
-      msg("❌ " + e.message, "err");
-    } finally {
-      $("#btnConectar").disabled = false;
+      return msg("❌ Erro ao iniciar: " + e.message, "err");
     }
+
+    const popup = window.open(urlData.url, "wa-connect", "width=720,height=740,left=200,top=80");
+    if (!popup) return msg("❌ Popup bloqueado pelo navegador. Permita popups para este site.", "err");
+
+    $("#btnConectar").disabled = true;
+    msg("Aguardando autorização na janela da Meta…", "");
+
+    function onMessage(e) {
+      if (!e.data || (e.data.type !== "WA_CONNECT_SUCCESS" && e.data.type !== "WA_CONNECT_ERROR")) return;
+      window.removeEventListener("message", onMessage);
+      clearInterval(checker);
+      $("#btnConectar").disabled = false;
+      if (e.data.type === "WA_CONNECT_SUCCESS") {
+        msg("✅ Número conectado com sucesso!" + (e.data.numero ? " (" + e.data.numero + ")" : ""), "ok");
+        atualizarStatus();
+      } else {
+        msg("❌ " + e.data.erro, "err");
+      }
+    }
+
+    window.addEventListener("message", onMessage);
+
+    const checker = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checker);
+        window.removeEventListener("message", onMessage);
+        $("#btnConectar").disabled = false;
+        if (!$("#msg").className.includes("ok")) msg("Janela fechada antes de concluir.", "err");
+      }
+    }, 600);
   }
 
   async function desconectar() {
