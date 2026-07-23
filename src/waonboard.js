@@ -95,12 +95,41 @@ async function listarNumeros(wabaId, token) {
   return Array.isArray(data.data) ? data.data : [];
 }
 
+// Para o featureType whatsapp_business_app_onboarding (coexistência), o postMessage da Meta
+// não inclui waba_id. Descobrimos a WABA listando os negócios acessíveis pelo token.
+async function descobrirWabaDoToken(token) {
+  const res = await fetch(
+    `${GRAPH}/${VERSAO}/me/businesses?fields=whatsapp_business_accounts.limit(3){id,phone_numbers.limit(5){id,display_phone_number,verified_name}}&limit=5`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (data.data && data.data.length) {
+    for (const biz of data.data) {
+      const wabas = (biz.whatsapp_business_accounts && biz.whatsapp_business_accounts.data) || [];
+      for (const waba of wabas) {
+        if (waba.id) {
+          const phones = (waba.phone_numbers && waba.phone_numbers.data) || [];
+          return { wabaId: waba.id, phoneId: (phones[0] && phones[0].id) || null };
+        }
+      }
+    }
+  }
+  throw new Error("Não foi possível descobrir a conta do WhatsApp pelo token. Tente novamente.");
+}
+
 // Fluxo completo do "Conectar WhatsApp": recebe o code (+ ids) do Embedded Signup, obtém o
 // token, inscreve nos webhooks, descobre o número (se não veio) e guarda as credenciais.
 async function conectar({ code, wabaId, phoneId }) {
   if (!code) throw new Error("Faltou o 'code' do Embedded Signup.");
-  if (!wabaId) throw new Error("Faltou o waba_id (retornado pela janela da Meta).");
   const token = await trocarCodePorToken(code);
+
+  if (!wabaId) {
+    // Coexistência: featureType whatsapp_business_app_onboarding não retorna waba_id no postMessage.
+    const desc = await descobrirWabaDoToken(token);
+    wabaId = desc.wabaId;
+    if (!phoneId && desc.phoneId) phoneId = desc.phoneId;
+  }
+
   await inscreverApp(wabaId, token);
 
   let numero = "", nomeVerificado = "";
