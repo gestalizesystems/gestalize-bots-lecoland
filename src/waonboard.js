@@ -54,7 +54,8 @@ async function trocarCodePorToken(code) {
   const url = `${GRAPH}/${VERSAO}/oauth/access_token`
     + `?client_id=${encodeURIComponent(APP_ID)}`
     + `&client_secret=${encodeURIComponent(APP_SECRET)}`
-    + `&code=${encodeURIComponent(code)}`;
+    + `&code=${encodeURIComponent(code)}`
+    + `&redirect_uri=${encodeURIComponent("https://www.facebook.com/connect/login_success.html")}`;
   const res = await fetch(url);
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.access_token) {
