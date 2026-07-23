@@ -190,7 +190,12 @@
         body: JSON.stringify(payload),
       });
       const data = await r.json();
-      if (!r.ok || !data.ok) throw new Error(data.erro || "Falha ao conectar.");
+      if (!r.ok || !data.ok) {
+        // Mostra campos capturados do postMessage para diagnóstico
+        const camposPostMsg = Object.keys(sessao).filter(k => !["waba_id","phone_number_id","phoneNumberId"].includes(k));
+        const extra = camposPostMsg.length ? " | postMsg extras: " + camposPostMsg.join(",") : " | postMsg sem extras";
+        throw new Error((data.erro || "Falha ao conectar.") + extra);
+      }
       msg("✅ Número conectado!" + (data.numero ? " (" + data.numero + ")" : ""), "ok");
       sessao = {};
       await atualizarStatus();
