@@ -125,8 +125,8 @@ const SINONIMOS = {
   urinary: ["urinaria", "urinario", "urinary"],
   filhote: ["filhote", "filhotes", "filhotinho", "puppy", "kitten", "junior"],
   filhotes: ["filhote", "filhotes", "puppy", "kitten", "junior"],
-  adulto: ["adulto", "adultos", "adult"],
-  adultos: ["adulto", "adultos", "adult"],
+  adulto: ["adulto", "adultos", "adult", " ad "],  // " ad " = abreviação de adulto em nomes de produtos
+  adultos: ["adulto", "adultos", "adult", " ad "],
   senior: ["senior", "idoso", "idosa", "mature"],
   idoso: ["senior", "idoso", "idosa", "mature"],
   castrado: ["castrado", "castrada", "castrados", "cast", "neutered", "sterili"],
@@ -230,10 +230,6 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
 
   if (ordenarPor === "preco") achados.sort((a, b) => precoNum(a.preco) - precoNum(b.preco)); // mais barato primeiro
 
-  // Log de diagnóstico (aparece nos logs do Railway): o que a IA buscou e quantos achou.
-  console.log("[buscar_produtos]", JSON.stringify({ grupo, subgrupo, especificacao, texto, ordenarPor }), "->", achados.length,
-    achados.slice(0, 3).map((p) => p.nome).join(" | "));
-
   return {
     total: achados.length,
     produtos: achados.slice(0, 8).map((p) => ({
@@ -329,6 +325,8 @@ function montarContexto(cliente) {
     "- CLIENTE (memória entre conversas): se a seção DADOS DO CLIENTE já tiver o nome ou o endereço, USE-os e NÃO pergunte de novo (nem em conversas futuras). Sempre que o cliente informar o NOME ou um ENDEREÇO, CHAME a função salvar_dados_cliente para guardar.",
     "- PRIMEIRO CONTATO: NÃO comece a sua resposta com 'Olá/Oi/Seja bem-vindo' — a saudação de boas-vindas já é enviada automaticamente pelo sistema. Vá direto ao ponto respondendo o que o cliente perguntou/enviou. NÃO mande menu. Se você ainda não sabe o nome do cliente (seção DADOS DO CLIENTE vazia), pergunte o nome dele UMA vez e JÁ responda na mesma mensagem; quando ele disser o nome, CHAME salvar_dados_cliente.",
     "- PET (banho/tosa/consulta/vacina): quando o assunto for banho, tosa, consulta ou vacina e você ainda NÃO souber o pet do cliente (seção DADOS DO CLIENTE), pergunte o NOME e a RAÇA do pet e CHAME salvar_pet para guardar. Se você JÁ souber o pet (ex.: 'Belinha'), use o nome dele e seja mais simpático — ex.: 'É o banho da Belinha? 🐾'. Não pergunte de novo o que já sabe.",
+    "- PET MENCIONADO POR NOME SEM CADASTRO: se o cliente citar um pet pelo nome (ex.: 'a Mel', 'o Thor') que NÃO está em DADOS DO CLIENTE, NUNCA pergunte 'quem é X?' nem questione quem é o animal. Assuma que é o pet do cliente e trate pelo nome. Se o assunto indicar um serviço presencial em andamento (banho, tosa, consulta que ele trouxe), encaminhe para um atendente para verificar pessoalmente.",
+    "- SERVIÇO PRESENCIAL EM ANDAMENTO: quando a mensagem indicar que o cliente trouxe o pet fisicamente (ex.: 'quando fica pronto?', 'posso vir buscar?', 'como está meu pet?', 'deixei o cachorro aí', 'já terminou?', 'tá quase pronto?'), você NÃO tem visibilidade do que acontece na loja — SEMPRE encaminhe para um atendente sem tentar responder por conta própria.",
     "- Responda APENAS com base nas informações acima. Não invente preços, serviços, horários ou taxas.",
     "- Se a pergunta for sobre algo que você não tem (ex.: preço específico, disponibilidade, caso clínico), diga que vai verificar com um atendente e peça os dados necessários.",
     "- Nunca dê diagnóstico ou orientação médica veterinária; em emergências, oriente a ligar para o telefone do negócio.",

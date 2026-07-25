@@ -29,7 +29,7 @@ iniciarAdmin(PORTA).then(() => {
   console.log(`   Bot no painel: ${config.get().botAtivo ? "LIGADO 🟢" : "DESLIGADO ⚪"}`);
   if (!wa.configurado()) {
     console.warn("⚠️  WhatsApp Cloud API ainda não configurado.");
-    console.warn("    Defina WHATSAPP_TOKEN, WHATSAPP_PHONE_ID e WHATSAPP_VERIFY_TOKEN no .env (veja MIGRACAO.md).");
+    console.warn("    Defina WHATSAPP_TOKEN, WHATSAPP_PHONE_ID e WHATSAPP_VERIFY_TOKEN no .env (veja .env.example).");
   }
 });
 

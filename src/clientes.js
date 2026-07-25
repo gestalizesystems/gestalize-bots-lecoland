@@ -38,6 +38,8 @@ function salvar(telefone, dados = {}) {
   if (!atual.etapa) atual.etapa = "lead"; // todo cliente novo entra como lead no funil
   if (dados.nome != null && String(dados.nome).trim()) atual.nome = String(dados.nome).trim();
   if (dados.endereco != null && String(dados.endereco).trim()) atual.endereco = String(dados.endereco).trim();
+  if (dados.avisoEnviado) atual.avisoEnviado = true;
+  if (dados.preBotClearado) atual.preBotClearado = true;
   atual.telefone = telefone;
   atual.atualizadoEm = Date.now();
   clientes[telefone] = atual;

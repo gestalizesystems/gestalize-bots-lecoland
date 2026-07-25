@@ -24,24 +24,35 @@ function listar() {
 }
 
 // Adiciona ou atualiza um colaborador.
-function salvar({ id, nome, cargo, obs } = {}) {
+function salvar({ id, nome, cargo, obs, telefone } = {}) {
   if (!nome || !String(nome).trim()) return null;
   let m = id ? lista.find((x) => x.id === id) : null;
   if (m) {
     m.nome = String(nome).trim();
     m.cargo = String(cargo || "").trim();
     m.obs = String(obs || "").trim();
+    m.telefone = String(telefone || "").replace(/\D/g, "");
   } else {
     m = {
       id: "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
       nome: String(nome).trim(),
       cargo: String(cargo || "").trim(),
       obs: String(obs || "").trim(),
+      telefone: String(telefone || "").replace(/\D/g, ""),
     };
     lista.push(m);
   }
   persistir();
   return m;
+}
+
+// Retorna true se o número (formato WhatsApp, ex: 5585982258020) pertence a um funcionário.
+function ehFuncionario(telefone) {
+  if (!telefone) return false;
+  const dig = String(telefone).replace(/\D/g, "");
+  const comFone = lista.filter((m) => m.telefone);
+  if (!comFone.length) return false;
+  return comFone.some((m) => dig === m.telefone || dig.endsWith(m.telefone));
 }
 
 function remover(id) {
@@ -57,4 +68,4 @@ function resumoParaIA() {
     .join("\n");
 }
 
-module.exports = { listar, salvar, remover, resumoParaIA };
+module.exports = { listar, salvar, remover, ehFuncionario, resumoParaIA };

@@ -36,12 +36,28 @@
   .btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
   .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); margin-top:0.75rem; }
   .btn-ghost:hover { color:var(--white); }
+  .btn-danger { background:transparent; color:#f87171; border:1px solid rgba(239,68,68,0.4); margin-top:0.75rem; }
+  .btn-danger:hover { background:rgba(239,68,68,0.08); border-color:rgba(239,68,68,0.7); color:#fca5a5; }
+  .aviso-desconectar { margin-top:0.5rem; font-size:0.78rem; color:#f87171; line-height:1.45; display:none; }
   .msg { margin-top:1rem; font-size:0.86rem; line-height:1.5; display:none; padding:0.75rem 1rem; border-radius:10px; }
   .msg.err { display:block; background:rgba(239,68,68,0.1); color:#fca5a5; border:1px solid rgba(239,68,68,0.3); }
   .msg.ok  { display:block; background:rgba(34,197,94,0.1); color:#86efac; border:1px solid rgba(34,197,94,0.3); }
   .aviso { margin-top:1.25rem; font-size:0.78rem; color:var(--muted); line-height:1.5; }
   a.voltar { display:inline-block; margin-top:1.5rem; color:var(--muted); font-size:0.85rem; text-decoration:none; }
   a.voltar:hover { color:var(--white); }
+  .divider { display:flex; align-items:center; gap:10px; margin:1.5rem 0; color:var(--muted); font-size:0.78rem; }
+  .divider::before,.divider::after { content:""; flex:1; height:1px; background:var(--border); }
+  .perm { background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:14px; padding:1.15rem 1.25rem; }
+  .perm summary { cursor:pointer; font-size:0.88rem; font-weight:600; color:var(--muted); list-style:none; display:flex; align-items:center; gap:6px; }
+  .perm summary::-webkit-details-marker { display:none; }
+  .perm summary::before { content:"▶"; font-size:0.6rem; transition:transform .2s; }
+  .perm[open] summary::before { transform:rotate(90deg); }
+  .perm summary:hover { color:var(--white); }
+  .perm .body { margin-top:1rem; display:flex; flex-direction:column; gap:0.75rem; }
+  .perm label { font-size:0.8rem; color:var(--muted); display:block; margin-bottom:0.25rem; }
+  .perm input { width:100%; background:#0a1120; border:1px solid var(--border); border-radius:9px; padding:0.65rem 0.85rem; color:var(--white); font-family:inherit; font-size:0.85rem; outline:none; }
+  .perm input:focus { border-color:var(--blue); }
+  .perm input::placeholder { color:#3d5178; }
 </style>
 </head>
 <body>
@@ -64,9 +80,28 @@
     </ol>
 
     <button class="btn-primary" id="btnConectar" disabled>Conectar WhatsApp</button>
-    <button class="btn-ghost" id="btnDesconectar" style="display:none">Desconectar número</button>
+    <button class="btn-danger" id="btnDesconectar" style="display:none">Desconectar número</button>
+    <p class="aviso-desconectar" id="avisoDesconectar">⚠️ Apaga as credenciais salvas. O bot para de funcionar até você reaplicar o token.</p>
 
     <div class="msg" id="msg"></div>
+
+    <div class="divider">ou</div>
+
+    <details class="perm" id="permSection">
+      <summary>Aplicar token permanente (System User)</summary>
+      <div class="body">
+        <div>
+          <label>Token do System User (nunca expira)</label>
+          <input type="password" id="permToken" placeholder="EAAxxxxxxxxxxxxxxxx..." autocomplete="off" />
+        </div>
+        <div>
+          <label>Phone Number ID</label>
+          <input type="text" id="permPhoneId" placeholder="1234567890123456" autocomplete="off" />
+        </div>
+        <button class="btn-primary" id="btnAplicarPerm" style="margin-top:0.25rem">Aplicar token permanente</button>
+        <div class="msg" id="msgPerm"></div>
+      </div>
+    </details>
 
     <p class="aviso" id="aviso"></p>
     <a class="voltar" href="/">← Voltar ao painel</a>
@@ -77,7 +112,11 @@
   const msg = (txt, tipo) => { const m = $("#msg"); m.textContent = txt; m.className = "msg " + (tipo || ""); };
 
   let CFG = null;
-  let sessao = {};   // waba_id / phone_number_id do postMessage da Meta
+  let sessao = {};
+  let aguardando = false;
+
+  // URL do callback que nosso servidor processa (sem a dependência do login_success.html)
+  const CALLBACK_URI = () => location.origin + "/api/wa/oauth-callback";
 
   async function init() {
     try { CFG = await (await fetch("/api/wa/config")).json(); } catch (_) { CFG = { pronto: false }; }
@@ -92,6 +131,8 @@
   async function atualizarStatus() {
     let s;
     try { s = await (await fetch("/api/wa/status")).json(); } catch (_) { s = {}; }
+    if (s.phoneId && !$("#permPhoneId").value) $("#permPhoneId").value = s.phoneId;
+    if (s.wabaId) $("#permPhoneId").dataset.wabaId = s.wabaId;
     const el = $("#status");
     if (s.conectado) {
       el.innerHTML = `
@@ -100,6 +141,7 @@
         <div class="linha"><span class="dot ${s.coexistencia ? "on" : "warn"}"></span> <span class="muted">${s.coexistencia ? "Coexistência ativa (app do celular segue funcionando)" : "Conexão direta (sem coexistência)"}</span></div>`;
       $("#btnConectar").textContent = "Reconectar / trocar número";
       $("#btnDesconectar").style.display = "block";
+      $("#avisoDesconectar").style.display = "block";
     } else if (s.envFallback) {
       el.innerHTML = `<div class="linha"><span class="dot warn"></span> <span class="muted">Usando número do .env. Conecte pela coexistência para usar o número da loja.</span></div>`;
     } else {
@@ -120,46 +162,154 @@
     })(document, "script", "facebook-jssdk");
   }
 
-  // Captura waba_id / phone_number_id que a janela da Meta envia por postMessage
+  // Escuta postMessages da Meta (WA_EMBEDDED_SIGNUP) e do nosso callback (WA_CONNECT_*)
   window.addEventListener("message", (event) => {
     try {
-      if (!/facebook\.com$/.test(new URL(event.origin).hostname)) return;
       const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+      if (!data || !data.type) return;
+
+      // Campos do Embedded Signup (origem: facebook.com)
       if (data.type === "WA_EMBEDDED_SIGNUP" && data.data) {
-        if (data.data.phone_number_id) sessao.phone_number_id = data.data.phone_number_id;
-        if (data.data.waba_id) sessao.waba_id = data.data.waba_id;
+        try {
+          if (/facebook\.com$/.test(new URL(event.origin).hostname)) {
+            Object.assign(sessao, data.data);
+          }
+        } catch (_) {}
+      }
+
+      // Sucesso ou erro vindos do nosso /api/wa/oauth-callback (origem: mesma origem)
+      if (data.type === "WA_CONNECT_SUCCESS") {
+        aguardando = false;
+        msg("✅ Número conectado!" + (data.numero ? " (" + data.numero + ")" : ""), "ok");
+        sessao = {};
+        $("#btnConectar").disabled = false;
+        atualizarStatus();
+      } else if (data.type === "WA_CONNECT_ERROR") {
+        aguardando = false;
+        // Se o servidor trocou o code mas não achou a WABA, e o WA_EMBEDDED_SIGNUP
+        // nos deu o waba_id ou phone_number_id, retenta conectar com esses dados.
+        if (data.tokenParaRetry && (sessao.waba_id || sessao.phone_number_id)) {
+          retentarComToken(data.tokenParaRetry);
+          return;
+        }
+        msg("❌ " + (data.erro || "Erro ao conectar."), "err");
+        $("#btnConectar").disabled = false;
       }
     } catch (_) {}
   });
 
   function conectar() {
+    if (aguardando) return;
     msg("", "");
     sessao = {};
     if (!window.FB) return msg("SDK ainda carregando, aguarde.", "err");
-    FB.login((response) => {
-      if (response.authResponse && response.authResponse.code) {
-        finalizar(response.authResponse.code);
-      } else {
-        msg("Conexão cancelada ou não autorizada.", "err");
+
+    aguardando = true;
+    $("#btnConectar").disabled = true;
+    msg("Aguardando autorização na janela da Meta…", "");
+
+    // Guarda o window.open original e instala interceptador
+    // O interceptador troca redirect_uri=login_success.html pelo nosso callback
+    // assim o exchange acontece no servidor com uma URI registrada (sem erro 191)
+    const _open = window.open.bind(window);
+    const cbUri = CALLBACK_URI();
+
+    function interceptarOpen(url, name, features) {
+      window.open = _open; // restaura após primeira chamada
+      if (url && typeof url === "string" && url.includes("dialog/oauth")) {
+        url = url.replace(/([?&]redirect_uri=)[^&]*/, "$1" + encodeURIComponent(cbUri));
       }
-    }, {
-      config_id: CFG.configId,
-      response_type: "code",
-      override_default_response_type: true,
-      extras: { setup: {}, featureType: "whatsapp_business_app_onboarding", sessionInfoVersion: "3" },
+      return _open(url, name, features);
+    }
+    window.open = interceptarOpen;
+
+    function dispararLogin() {
+      FB.login((response) => {
+        // Com o interceptador o popup não retorna ao login_success.html,
+        // então o SDK reporta status vazio/cancelled — isso é esperado.
+        // O sucesso real chega via postMessage (WA_CONNECT_SUCCESS acima).
+        window.open = _open; // garante restauração
+
+        // Fallback: se o SDK retornou um token/code por algum motivo, tenta usar
+        const auth = response.authResponse || {};
+        if (auth.accessToken || auth.code) {
+          finalizarFallback(auth.code, auth.accessToken);
+          return;
+        }
+
+        // Aguarda postMessage por até 5s antes de marcar como cancelado
+        setTimeout(() => {
+          if (!aguardando) return;
+          aguardando = false;
+          msg("Conexão cancelada ou não autorizada.", "err");
+          $("#btnConectar").disabled = false;
+        }, 5000);
+      }, {
+        config_id: CFG.configId,
+        response_type: "code",
+        override_default_response_type: true,
+        extras: { setup: {}, featureType: "whatsapp_business_app_onboarding", sessionInfoVersion: "3" },
+      });
+    }
+
+    FB.getLoginStatus((status) => {
+      if (status && status.status === "connected") {
+        FB.logout(() => {
+          window.open = interceptarOpen; // reinstala após logout
+          dispararLogin();
+        });
+      } else {
+        dispararLogin();
+      }
     });
   }
 
-  async function finalizar(code) {
-    $("#btnConectar").disabled = true;
-    msg("Concluindo a conexão…", "");
+  // Retry automático: server passou o token mas não achou a WABA; usamos dados do WA_EMBEDDED_SIGNUP.
+  async function retentarComToken(token) {
+    msg("Concluindo conexão…", "");
     try {
       const r = await fetch("/api/wa/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, waba_id: sessao.waba_id, phone_number_id: sessao.phone_number_id }),
+        body: JSON.stringify({
+          token,
+          waba_id: sessao.waba_id,
+          phone_number_id: sessao.phone_number_id || sessao.phoneNumberId,
+        }),
+      });
+      const resp = await r.json();
+      if (!r.ok || !resp.ok) throw new Error(resp.erro || "Falha ao conectar.");
+      msg("✅ Número conectado!" + (resp.numero ? " (" + resp.numero + ")" : ""), "ok");
+      sessao = {};
+      await atualizarStatus();
+    } catch (e) {
+      msg("❌ " + e.message, "err");
+    } finally {
+      $("#btnConectar").disabled = false;
+    }
+  }
+
+  // Fallback para quando o SDK retorna o code antes de chegar o postMessage do servidor
+  async function finalizarFallback(code, accessToken) {
+    try {
+      const payload = {
+        waba_id: sessao.waba_id,
+        phone_number_id: sessao.phone_number_id || sessao.phoneNumberId,
+      };
+      if (accessToken) {
+        payload.token = accessToken;
+      } else if (sessao.token || sessao.accessToken) {
+        payload.token = sessao.token || sessao.accessToken;
+      } else {
+        payload.code = code;
+      }
+      const r = await fetch("/api/wa/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
       const data = await r.json();
+      aguardando = false;
       if (!r.ok || !data.ok) throw new Error(data.erro || "Falha ao conectar.");
       msg("✅ Número conectado!" + (data.numero ? " (" + data.numero + ")" : ""), "ok");
       sessao = {};
@@ -172,15 +322,49 @@
   }
 
   async function desconectar() {
-    if (!confirm("Desconectar o número? O bot para de atender por ele até você reconectar.")) return;
+    if (!confirm(
+      "Desconectar o número?\n\n" +
+      "Isso apaga as credenciais salvas (token permanente incluído).\n" +
+      "O bot para de funcionar completamente até você reaplicar o token."
+    )) return;
     await fetch("/api/wa/desconectar", { method: "POST" });
     $("#btnDesconectar").style.display = "none";
+    $("#avisoDesconectar").style.display = "none";
     msg("Número desconectado.", "ok");
     await atualizarStatus();
   }
 
+  async function aplicarTokenPermanente() {
+    const token = $("#permToken").value.trim();
+    const phoneId = $("#permPhoneId").value.trim();
+    const msgEl = $("#msgPerm");
+    const btn = $("#btnAplicarPerm");
+    const show = (txt, tipo) => { msgEl.textContent = txt; msgEl.className = "msg " + (tipo || ""); };
+    if (!token || !phoneId) return show("Preencha o token e o Phone Number ID.", "err");
+    btn.disabled = true;
+    show("Aplicando…", "");
+    try {
+      const wabaId = $("#permPhoneId").dataset.wabaId || "";
+      const r = await fetch("/api/wa/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, phone_number_id: phoneId, waba_id: wabaId }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data.ok) throw new Error(data.erro || "Falha ao aplicar.");
+      show("✅ Token permanente aplicado!" + (data.numero ? " (" + data.numero + ")" : ""), "ok");
+      $("#permToken").value = "";
+      await atualizarStatus();
+    } catch (e) {
+      show("❌ " + e.message, "err");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   $("#btnConectar").addEventListener("click", conectar);
   $("#btnDesconectar").addEventListener("click", desconectar);
+  $("#btnAplicarPerm").addEventListener("click", aplicarTokenPermanente);
   init();
 </script>
 </body>

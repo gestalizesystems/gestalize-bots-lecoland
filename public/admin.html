@@ -712,7 +712,7 @@
 
         <section class="card page" id="page-equipe">
           <h2>👨‍⚕️ Equipe</h2>
-          <p class="dica">Cadastre os colaboradores (com a função). O bot usa isso pra reconhecer quando o cliente pergunta por uma pessoa pelo <b>nome</b> (ex.: "a Dra. Ana está?") ou pela <b>função</b> (ex.: "tem veterinário?") e responder do jeito certo.</p>
+          <p class="dica">Cadastre os colaboradores (com a função). O bot usa isso pra reconhecer quando o cliente pergunta por uma pessoa pelo <b>nome</b> (ex.: "a Dra. Ana está?") ou pela <b>função</b> (ex.: "tem veterinário?"). Se o colaborador tiver o <b>WhatsApp pessoal</b> cadastrado, o bot fica <b>silencioso</b> para esse número.</p>
           <div class="cat-topo">
             <input class="busca" id="eqBusca" placeholder="🔎 Buscar (nome ou função)..." oninput="eqPagina=1;renderEquipe()" />
             <button class="btn-primary" onclick="abrirMembro()">+ Adicionar colaborador</button>
@@ -730,6 +730,8 @@
               <option>Veterinário(a)</option><option>Banhista / Tosador(a)</option><option>Atendente</option>
               <option>Gerente</option><option>Recepcionista</option><option>Auxiliar</option>
             </datalist>
+            <label>WhatsApp pessoal (opcional — bot fica silencioso para esse número)</label>
+            <input type="text" id="eqTelefone" oninput="mascaraTel(this)" placeholder="(85) 99999-9999" />
             <label>Observação (opcional — especialidade, horário...)</label><textarea id="eqObs" placeholder="ex.: Atende de segunda a sexta, à tarde."></textarea>
             <div class="modal-acoes">
               <button class="btn-sec" onclick="fecharMembro()">Cancelar</button>
@@ -1282,12 +1284,14 @@
     function abrirAtendimentos() { mostrarPagina("page-atendimentos", document.querySelector('.nav-item[data-target="page-atendimentos"]')); }
     function renderTempoReal() {
       const c = el("dashTempoReal"); if (!c) return;
-      const lista = atendimentosPend || [];
+      const lista = conversasAtivas.filter(cv => cv.estado === "aguardando");
       if (!lista.length) { c.innerHTML = '<p class="dica" style="padding:10px 2px">Nenhum cliente aguardando atendimento no momento. 🎉</p>'; return; }
-      c.innerHTML = lista.slice(0, 3).map(a => `
-        <div class="rt"><div class="av">${esc((a.nome || "?").charAt(0).toUpperCase())}</div>
-          <div class="info"><div class="nome">${esc(a.nome || "(sem nome)")}</div><div class="msg">${esc(a.resumo || a.motivo || "")}</div></div>
-          <div class="dir"><span class="tag humano">Aguardando</span><div class="tempo">há ${tempoRel(a.atualizadoEm)}</div></div></div>`).join("")
+      c.innerHTML = lista.slice(0, 3).map(cv => {
+        const a = cv.atendimento || {};
+        return `<div class="rt"><div class="av">${esc((cv.nome || "?").charAt(0).toUpperCase())}</div>
+          <div class="info"><div class="nome">${esc(cv.nome || "(sem nome)")}</div><div class="msg">${esc(a.resumo || a.motivo || "")}</div></div>
+          <div class="dir"><span class="tag humano">Aguardando</span><div class="tempo">há ${tempoRel(a.atualizadoEm || cv.ultimaMsgTs)}</div></div></div>`;
+      }).join("")
         + `<button class="add" style="width:100%;margin-top:8px" onclick="abrirAtendimentos()">Ver mais (${lista.length}) →</button>`;
     }
     function renderServicos(m) {
@@ -1578,6 +1582,7 @@
           <div class="pinfo">
             <div class="pnome">${esc(m.nome)}${m.cargo ? ` <span style="background:#dbeafe;color:#2563eb;font-size:11px;font-weight:700;padding:2px 7px;border-radius:7px">${esc(m.cargo)}</span>` : ""}</div>
             ${m.obs ? `<div class="pdesc">${esc(m.obs)}</div>` : ""}
+            ${m.telefone ? `<div class="pdesc" style="font-size:12px">🔇 Bot silencioso para ${esc(m.telefone)}</div>` : ""}
           </div>
           <div class="pacoes">
             <button class="iconbtn" title="Editar" onclick="abrirMembro('${m.id}')">✏️</button>
@@ -1593,6 +1598,8 @@
       el("eqNome").value = m ? (m.nome || "") : "";
       el("eqCargo").value = m ? (m.cargo || "") : "";
       el("eqObs").value = m ? (m.obs || "") : "";
+      el("eqTelefone").value = m && m.telefone ? m.telefone : "";
+      if (el("eqTelefone").value) mascaraTel(el("eqTelefone"));
       el("modalMembro").classList.add("aberto");
     }
     function fecharMembro() { el("modalMembro").classList.remove("aberto"); }
@@ -1600,7 +1607,7 @@
       const nome = el("eqNome").value.trim();
       if (!nome) { alert("Informe o nome do colaborador."); return; }
       try {
-        await apiCat("/api/equipe", { id: eqEditId, nome, cargo: el("eqCargo").value.trim(), obs: el("eqObs").value.trim() });
+        await apiCat("/api/equipe", { id: eqEditId, nome, cargo: el("eqCargo").value.trim(), obs: el("eqObs").value.trim(), telefone: el("eqTelefone").value.trim() });
         fecharMembro(); await carregarEquipe();
       } catch (e) { alert("Erro ao salvar: " + e.message); }
     }
@@ -1656,8 +1663,8 @@
       el("npsPager").innerHTML = montarPager(npsPagina, totalPags, total, "satIrPagina", "avaliações");
     }
 
-    // ===== Atendimentos (fila de handoff com resumo da IA) =====
-    let atendimentosPend = [], atPagina = 1;
+    // ===== Atendimentos (todas as conversas ativas) =====
+    let conversasAtivas = [], atPagina = 1;
     function atIrPagina(n) { atPagina = n; renderAtendimentos(); const c = el("listaAtendimentos"); if (c) c.scrollIntoView({ block: "start" }); }
     function tempoRel(ms) {
       const s = Math.floor((Date.now() - ms) / 1000);
@@ -1668,38 +1675,66 @@
     }
     function pintarBadgeAtendimentos() {
       const b = el("navAtBadge"); if (!b) return;
-      const n = atendimentosPend.length;
+      const n = conversasAtivas.filter(c => c.estado === "aguardando").length;
       b.textContent = n; b.style.display = n ? "inline-flex" : "none";
     }
     async function carregarAtendimentos() {
-      try { const d = await (await fetch("/api/atendimentos")).json(); atendimentosPend = d.pendentes || []; }
-      catch (_) { atendimentosPend = []; }
+      try { const d = await (await fetch("/api/conversas")).json(); conversasAtivas = d.conversas || []; }
+      catch (_) { conversasAtivas = []; }
       pintarBadgeAtendimentos(); renderAtendimentos(); renderTempoReal();
     }
     function renderAtendimentos() {
       const c = el("listaAtendimentos"); if (!c) return;
-      if (!atendimentosPend.length) { c.innerHTML = '<p class="dica">Nenhum cliente aguardando atendimento. 🎉</p>'; if (el("atPager")) el("atPager").innerHTML = ""; return; }
-      const POR = 15, total = atendimentosPend.length, totalPags = Math.ceil(total / POR);
+      if (!conversasAtivas.length) { c.innerHTML = '<p class="dica">Nenhuma conversa ativa no momento. 🎉</p>'; if (el("atPager")) el("atPager").innerHTML = ""; return; }
+      const estadoCfg = {
+        aguardando: { bg: "#dbeafe", ico: "🔔", tag: '<span style="background:#2563eb;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">🔵 Aguardando atendente</span>' },
+        bot:        { bg: "#dcfce7", ico: "🤖", tag: '<span style="background:#16a34a;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">🟢 Em atendimento BOT</span>' },
+        pausado:    { bg: "#fee2e2", ico: "⏸",  tag: '<span style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">🔴 BOT pausado</span>' },
+      };
+      const POR = 15, total = conversasAtivas.length, totalPags = Math.ceil(total / POR);
       atPagina = Math.min(Math.max(1, atPagina), totalPags || 1);
       const ini = (atPagina - 1) * POR;
-      c.innerHTML = atendimentosPend.slice(ini, ini + POR).map(a => `
-        <div class="prod" style="align-items:flex-start">
-          <div class="semimg" style="background:#fee2e2">🔔</div>
+      c.innerHTML = conversasAtivas.slice(ini, ini + POR).map(a => {
+        const cfg = estadoCfg[a.estado] || estadoCfg.bot;
+        const resumo = a.atendimento ? (a.atendimento.resumo || a.atendimento.motivo || "") : "";
+        const ts = a.ultimaMsgTs || (a.atendimento && a.atendimento.atualizadoEm) || 0;
+        return `<div class="prod" style="align-items:flex-start">
+          <div class="semimg" style="background:${cfg.bg};font-size:22px">${cfg.ico}</div>
           <div class="pinfo">
-            <div class="pnome">${esc(a.nome || "(sem nome)")} <span style="font-size:12px;color:var(--suave);font-weight:600">📞 ${esc(a.telefone)} · há ${tempoRel(a.atualizadoEm)}</span></div>
-            <div class="pdesc" style="color:#334155">📝 ${esc(a.resumo || a.motivo || "")}</div>
+            <div class="pnome">${esc(a.nome || "(sem nome)")} <span style="font-size:12px;color:var(--suave);font-weight:600">📞 ${esc(a.telefone)}${ts ? " · há " + tempoRel(ts) : ""}</span></div>
+            <div style="margin:3px 0">${cfg.tag}</div>
+            ${resumo ? `<div class="pdesc" style="color:#334155;margin-top:4px">📝 ${esc(resumo)}</div>` : ""}
           </div>
           <div class="pacoes">
             <a class="iconbtn" title="Abrir no WhatsApp" href="https://wa.me/${esc(a.telefone)}" target="_blank">💬</a>
-            <button class="btn-primary" style="padding:7px 12px;white-space:nowrap" onclick="resolverAtendimento('${a.id}')">✓ Atendido</button>
+            ${a.estado === "pausado"
+              ? `<button class="btn-sec" style="padding:7px 12px;white-space:nowrap;background:#dcfce7;color:#15803d;border-color:#86efac" onclick="retomarBotCard('${esc(a.telefone)}',this)">▶ Retomar bot</button>`
+              : `<button class="btn-sec" style="padding:7px 12px;white-space:nowrap" onclick="pausarBotCard('${esc(a.telefone)}',this)">⏸ Pausar bot</button>`}
+            <button class="btn-primary" style="padding:7px 12px;white-space:nowrap" onclick="resolverAtendimento('${esc(a.atendimento && a.atendimento.id)}','${esc(a.telefone)}')">✓ Atendido</button>
           </div>
-        </div>`).join("");
-      if (el("atPager")) el("atPager").innerHTML = montarPager(atPagina, totalPags, total, "atIrPagina", "aguardando");
+        </div>`;
+      }).join("");
+      if (el("atPager")) el("atPager").innerHTML = montarPager(atPagina, totalPags, total, "atIrPagina", "conversa");
     }
-    async function resolverAtendimento(id) {
-      try { const d = await (await fetch("/api/atendimentos/resolver", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })).json(); atendimentosPend = d.pendentes || []; }
+    async function resolverAtendimento(id, telefone) {
+      if (!id && !telefone) return;
+      try { await fetch("/api/atendimentos/concluir", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id || "", telefone: telefone || "" }) }); }
       catch (_) {}
-      pintarBadgeAtendimentos(); renderAtendimentos();
+      await carregarAtendimentos();
+    }
+    async function pausarBotCard(telefone, btn) {
+      try {
+        await fetch("/api/bot/pausar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ telefone }) });
+        if (btn) { btn.textContent = "✓ Pausado"; btn.disabled = true; }
+      } catch (_) {}
+      setTimeout(carregarAtendimentos, 600);
+    }
+    async function retomarBotCard(telefone, btn) {
+      try {
+        await fetch("/api/bot/retomar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ telefone }) });
+        if (btn) { btn.textContent = "✓ Retomado"; btn.disabled = true; }
+      } catch (_) {}
+      setTimeout(carregarAtendimentos, 600);
     }
 
     // ===== Campanhas (mensagens ativas) =====

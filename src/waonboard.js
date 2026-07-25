@@ -67,13 +67,16 @@ function gerarUrlOAuth() {
 }
 
 // Troca o "code" do Embedded Signup por um token de acesso do negócio (server-side).
-// Nota: para o fluxo via JS SDK (popup) a Meta não exige redirect_uri no exchange.
+// O redirect_uri precisa ser idêntico ao usado no diálogo OAuth. O front intercepta
+// o window.open do SDK e substitui login_success.html pelo nosso callback registrado,
+// então o exchange usa a mesma URI que está registrada no app da Meta.
 async function trocarCodePorToken(code) {
   if (!APP_ID || !APP_SECRET) throw new Error("META_APP_ID / META_APP_SECRET não configurados no .env.");
   const url = `${GRAPH}/${VERSAO}/oauth/access_token`
     + `?client_id=${encodeURIComponent(APP_ID)}`
     + `&client_secret=${encodeURIComponent(APP_SECRET)}`
-    + `&code=${encodeURIComponent(code)}`;
+    + `&code=${encodeURIComponent(code)}`
+    + `&redirect_uri=${encodeURIComponent(getCallbackUri())}`;
   const res = await fetch(url);
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.access_token) {
@@ -116,15 +119,33 @@ async function listarNumeros(wabaId, token) {
 }
 
 // Para o featureType whatsapp_business_app_onboarding (coexistência), o postMessage da Meta
-// não inclui waba_id. Descobrimos a WABA listando os negócios acessíveis pelo token.
+// não inclui waba_id. Tenta 3 abordagens em ordem crescente de latência.
 async function descobrirWabaDoToken(token) {
-  const res = await fetch(
-    `${GRAPH}/${VERSAO}/me/businesses?fields=whatsapp_business_accounts.limit(3){id,phone_numbers.limit(5){id,display_phone_number,verified_name}}&limit=5`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  const data = await res.json().catch(() => ({}));
-  if (data.data && data.data.length) {
-    for (const biz of data.data) {
+  // 1) granular_scopes: lista os IDs de WABA diretamente autorizados no token (mais direto)
+  try {
+    const r1 = await fetch(`${GRAPH}/${VERSAO}/me?fields=granular_scopes`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const d1 = await r1.json().catch(() => ({}));
+    for (const sc of (Array.isArray(d1.granular_scopes) ? d1.granular_scopes : [])) {
+      if (sc.scope === "whatsapp_business_management" && Array.isArray(sc.target_ids) && sc.target_ids.length) {
+        const wabaId = sc.target_ids[0];
+        const nums = await listarNumeros(wabaId, token);
+        return { wabaId, phoneId: (nums[0] && nums[0].id) || null };
+      }
+    }
+  } catch (_) {}
+
+  // 2) /me/businesses com field expansion aninhado
+  let bizList = [];
+  try {
+    const r2 = await fetch(
+      `${GRAPH}/${VERSAO}/me/businesses?fields=whatsapp_business_accounts.limit(3){id,phone_numbers.limit(5){id,display_phone_number,verified_name}}&limit=10`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const d2 = await r2.json().catch(() => ({}));
+    bizList = d2.data || [];
+    for (const biz of bizList) {
       const wabas = (biz.whatsapp_business_accounts && biz.whatsapp_business_accounts.data) || [];
       for (const waba of wabas) {
         if (waba.id) {
@@ -133,7 +154,25 @@ async function descobrirWabaDoToken(token) {
         }
       }
     }
+  } catch (_) {}
+
+  // 3) consulta WABA por negócio separadamente (evita falha de field expansion)
+  for (const biz of bizList) {
+    try {
+      const r3 = await fetch(
+        `${GRAPH}/${VERSAO}/${biz.id}/whatsapp_business_accounts?fields=id,phone_numbers{id,display_phone_number,verified_name}&limit=5`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const d3 = await r3.json().catch(() => ({}));
+      for (const waba of (d3.data || [])) {
+        if (waba.id) {
+          const phones = (waba.phone_numbers && waba.phone_numbers.data) || [];
+          return { wabaId: waba.id, phoneId: (phones[0] && phones[0].id) || null };
+        }
+      }
+    } catch (_) {}
   }
+
   throw new Error("Não foi possível descobrir a conta do WhatsApp pelo token. Tente novamente.");
 }
 
@@ -171,5 +210,5 @@ async function conectar({ code, token, wabaId, phoneId }) {
 
 module.exports = {
   getCredenciais, salvarCredenciais, limparCredenciais,
-  embeddedPronto, configPublica, conectar, infoNumero, gerarUrlOAuth, VERSAO,
+  embeddedPronto, configPublica, conectar, trocarCodePorToken, infoNumero, gerarUrlOAuth, VERSAO,
 };

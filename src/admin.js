@@ -27,8 +27,6 @@ async function processarAudio(from, mediaId, nomeWpp) {
     const { buffer, mimeType } = await wa.baixarMidia(mediaId);
     const texto = await ai.transcreverAudio(buffer.toString("base64"), mimeType);
     if (texto && texto.trim()) {
-      // Eco da transcrição: confirma o que o bot entendeu (visível pra cliente e atendente no chat).
-      try { await wa.enviarTexto(from, `🎤 _Entendi seu áudio:_ "${texto.trim()}"`); } catch (_) {}
       await conversa.processar(from, texto.trim(), nomeWpp);
     } else {
       try { await wa.enviarTexto(from, "Desculpa, não consegui entender o áudio 🙏 Pode me mandar por texto?"); } catch (_) {}
@@ -192,7 +190,10 @@ function validar(c) {
 function iniciarAdmin(porta) {
   const app = express();
   app.set("trust proxy", 1); // atrás do proxy do Railway: respeita x-forwarded-for/proto
-  app.use(express.json({ limit: "8mb" }));
+  app.use(express.json({
+    limit: "8mb",
+    verify: (req, _res, buf) => { req.rawBody = buf; },
+  }));
 
   semearUploads();
 
@@ -215,7 +216,7 @@ function iniciarAdmin(porta) {
   const SITE_URL = (process.env.PUBLIC_URL || "https://bots.gestalizesystems.com.br").replace(/\/$/, "");
   app.get("/robots.txt", (req, res) => {
     res.type("text/plain").send(
-      `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /login\nDisallow: /conectar-whatsapp\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
+      `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /login\nDisallow: /conectar-whatsapp-lecoland-c8ce6065\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
     );
   });
   app.get("/sitemap.xml", (req, res) => {
@@ -267,6 +268,19 @@ function iniciarAdmin(porta) {
   });
 
   // ---- Webhook do WhatsApp Cloud API (público — a Meta chama aqui) ----
+  // Rejeita POSTs com assinatura inválida (protege contra injeção de mensagens falsas).
+  // Usa o META_APP_SECRET do .env; se ausente, passa sem verificar (modo degradado).
+  function assinaturaValida(req) {
+    const secret = process.env.META_APP_SECRET;
+    if (!secret) return true;
+    const header = req.headers["x-hub-signature-256"] || "";
+    const hash = header.startsWith("sha256=") ? header.slice(7) : "";
+    if (!hash || !req.rawBody) return false;
+    const esperado = crypto.createHmac("sha256", secret).update(req.rawBody).digest("hex");
+    try { return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(esperado, "hex")); }
+    catch (_) { return false; }
+  }
+
   // Verificação (a Meta faz um GET ao configurar o webhook).
   app.get("/webhook", (req, res) => {
     const esperado = process.env.WHATSAPP_VERIFY_TOKEN || "";
@@ -277,6 +291,7 @@ function iniciarAdmin(porta) {
   });
   // Recebimento de mensagens (a Meta faz POST a cada mensagem).
   app.post("/webhook", (req, res) => {
+    if (!assinaturaValida(req)) return res.sendStatus(403);
     res.sendStatus(200); // responde rápido; processa em seguida
     try {
       for (const entry of (req.body && req.body.entry) || []) {
@@ -284,6 +299,10 @@ function iniciarAdmin(porta) {
           const val = ch.value || {};
           const nomes = {};
           for (const ct of val.contacts || []) if (ct.wa_id) nomes[ct.wa_id] = ct.profile && ct.profile.name;
+          for (const st of val.statuses || []) {
+            if (st.status === "sent" && st.recipient_id && !conversa.ehMsgBot(st.id) && !equipe.ehFuncionario(String(st.recipient_id)))
+              conversa.registrarSessaoAtendente(String(st.recipient_id));
+          }
           for (const msg of val.messages || []) {
             if (jaProcessada(msg.id)) continue; // reentrega da Meta → ignora (evita resposta dupla)
             const from = msg.from;
@@ -326,7 +345,7 @@ function iniciarAdmin(porta) {
 
   // ---- Conexão do WhatsApp (Embedded Signup / Coexistência) ----
   // Página do fluxo de conexão (abre a janela oficial da Meta).
-  app.get("/conectar-whatsapp", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "conectar-whatsapp.html")));
+  app.get("/conectar-whatsapp-lecoland-c8ce6065", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "conectar-whatsapp.html")));
 
   // Config pública pro front iniciar o SDK do Facebook (sem o App Secret).
   app.get("/api/wa/config", (req, res) => res.json(onboard.configPublica()));
@@ -342,6 +361,8 @@ function iniciarAdmin(porta) {
       conectadoEm: (c && c.conectadoEm) || null,
       embeddedPronto: onboard.embeddedPronto(),
       envFallback: !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_ID),
+      phoneId: (c && c.phoneId) || (process.env.WHATSAPP_PHONE_ID) || "",
+      wabaId: (c && c.wabaId) || "",
     });
   });
 
@@ -355,21 +376,29 @@ function iniciarAdmin(porta) {
   app.get("/api/wa/oauth-callback", async (req, res) => {
     const { code, waba_id, phone_number_id, error, error_description } = req.query;
     if (!code) {
-      return res.send(paginaCallback(false, error_description || error || "Autorização negada."));
+      return res.send(paginaCallback({ ok: false, erro: error_description || error || "Autorização negada." }));
+    }
+    // Troca o code por token separadamente para poder repassá-lo ao front em caso de falha na
+    // descoberta da WABA — o front então reusa o token junto com o waba_id do WA_EMBEDDED_SIGNUP.
+    let token;
+    try {
+      token = await onboard.trocarCodePorToken(code);
+    } catch (e) {
+      return res.send(paginaCallback({ ok: false, erro: e.message }));
     }
     try {
-      const creds = await onboard.conectar({ code, wabaId: waba_id, phoneId: phone_number_id });
+      const creds = await onboard.conectar({ token, wabaId: waba_id, phoneId: phone_number_id });
       estado.whatsappConectado = wa.configurado();
-      res.send(paginaCallback(true, null, creds.numero));
+      res.send(paginaCallback({ ok: true, numero: creds.numero }));
     } catch (e) {
-      res.send(paginaCallback(false, e.message));
+      res.send(paginaCallback({ ok: false, erro: e.message, tokenParaRetry: token }));
     }
   });
 
-  function paginaCallback(ok, erro, numero) {
+  function paginaCallback({ ok, erro, numero, tokenParaRetry } = {}) {
     const payload = ok
       ? JSON.stringify({ type: "WA_CONNECT_SUCCESS", numero: numero || "" })
-      : JSON.stringify({ type: "WA_CONNECT_ERROR", erro: erro || "Erro desconhecido." });
+      : JSON.stringify({ type: "WA_CONNECT_ERROR", erro: erro || "Erro desconhecido.", tokenParaRetry: tokenParaRetry || null });
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>
       <script>try{window.opener&&window.opener.postMessage(${payload},"*");}catch(_){}window.close();</script>
       <p style="font-family:sans-serif;padding:2rem">${ok ? "✅ Conectado! Fechando…" : "❌ " + (erro || "")}</p>
@@ -540,9 +569,9 @@ function iniciarAdmin(porta) {
   app.get("/api/equipe", (req, res) => res.json({ ok: true, equipe: equipe.listar() }));
   app.post("/api/equipe", (req, res) => {
     try {
-      const { id, nome, cargo, obs } = req.body || {};
+      const { id, nome, cargo, obs, telefone } = req.body || {};
       if (!String(nome || "").trim()) throw new Error("Informe o nome do colaborador.");
-      res.json({ ok: true, membro: equipe.salvar({ id, nome, cargo, obs }) });
+      res.json({ ok: true, membro: equipe.salvar({ id, nome, cargo, obs, telefone }) });
     } catch (e) { res.status(400).json({ ok: false, erro: e.message }); }
   });
   app.post("/api/equipe/remover", (req, res) => {
@@ -601,6 +630,34 @@ function iniciarAdmin(porta) {
   });
 
   // Liga/desliga do bot no WhatsApp + status de conexão.
+  app.get("/api/conversas", (req, res) => {
+    const ativas = conversa.conversasAtivas();
+    res.json({ conversas: ativas.map(c => {
+      const cli = clientes.get(c.contactId);
+      return { telefone: c.contactId, nome: (cli && cli.nome) || "", estado: c.estado, ultimaMsgTs: c.ultimaMsgTs, atendimento: c.atendimento || null };
+    }) });
+  });
+
+  app.post("/api/bot/pausar", (req, res) => {
+    const tel = String((req.body && req.body.telefone) || "").replace(/\D/g, "");
+    if (!tel) return res.json({ ok: false, erro: "Telefone obrigatório." });
+    conversa.pausar(tel);
+    res.json({ ok: true });
+  });
+
+  app.post("/api/atendimentos/concluir", async (req, res) => {
+    const tel = String((req.body && req.body.telefone) || "").replace(/\D/g, "");
+    if (tel) await conversa.concluirAtendimento(tel);
+    res.json({ ok: true });
+  });
+
+  app.post("/api/bot/retomar", (req, res) => {
+    const tel = String((req.body && req.body.telefone) || "").replace(/\D/g, "");
+    if (!tel) return res.json({ ok: false, erro: "Telefone obrigatório." });
+    conversa.retomar(tel);
+    res.json({ ok: true });
+  });
+
   app.get("/api/bot", (req, res) => {
     res.json({ ativo: config.get().botAtivo === true, conectado: estado.whatsappConectado === true });
   });

@@ -76,11 +76,9 @@ function triar(textoBruto, contexto) {
     return { tipo: "atendente", resposta: config.preencher(dados.mensagens.atendente) };
   }
 
-  // Saudação só abre o menu em mensagens CURTAS (saudações são curtas). Assim uma
-  // pergunta longa que por acaso contenha uma palavra de saudação vai para a IA.
-  // `saudacao: true` deixa o conversa.js mostrar o menu só UMA vez por conversa.
-  const numPalavras = texto.split(/\s+/).filter(Boolean).length;
-  if (dados.gatilhosSaudacao.includes(texto) || (numPalavras <= 5 && casaAlgumGatilho(texto, dados.gatilhosSaudacao))) {
+  // Saudação abre o menu SOMENTE quando o texto é exatamente o gatilho (nada mais).
+  // "Oi", "Bom dia", "Boa tarde" → menu. "Oi, quanto custa?" → vai para IA/keyword.
+  if (dados.gatilhosSaudacao.includes(texto)) {
     return { tipo: "menu", saudacao: true, resposta: menuPrincipal(), novoContexto: ctxPrincipal };
   }
 

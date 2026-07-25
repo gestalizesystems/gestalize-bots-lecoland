@@ -46,9 +46,6 @@ const CAMPOS = ["recebidas", "enviadas", "handoffs", "atendimentos"];
 
 // Incrementa um contador do dia de hoje.
 function inc(campo, n = 1) {
-  if (!CAMPOS.includes(campo === "recebida" ? "recebidas" : campo)) {
-    // aceita singular/plural
-  }
   const c = { recebida: "recebidas", enviada: "enviadas", handoff: "handoffs", atendimento: "atendimentos" }[campo] || campo;
   if (!CAMPOS.includes(c)) return;
   const dia = hojeStr();

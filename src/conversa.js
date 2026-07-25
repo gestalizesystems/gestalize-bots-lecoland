@@ -5,6 +5,7 @@ const { triar, menuPrincipal } = require("./triage");
 const { responder, limparHistorico, registrarTurno, resumirConversa } = require("./ai");
 const config = require("./config");
 const clientes = require("./clientes");
+const equipe = require("./equipe");
 const nps = require("./nps");
 const atendimentos = require("./atendimentos");
 const metricas = require("./metricas");
@@ -15,14 +16,20 @@ function configurar(fnTexto, fnImagem) {
   if (fnTexto) _enviarTexto = fnTexto;
   if (fnImagem) _enviarImagem = fnImagem;
 }
+// IDs de mensagens enviadas pelo bot (para distinguir do atendente no webhook de statuses).
+const _botMsgIds = new Set();
+function _rastrearId(result) {
+  try { const id = result && result.messages && result.messages[0] && result.messages[0].id; if (id) { _botMsgIds.add(id); setTimeout(() => _botMsgIds.delete(id), 120000); } } catch (_) {}
+}
+function ehMsgBot(id) { return _botMsgIds.has(id); }
 // Wrappers que contam as mensagens enviadas (métricas do dashboard).
-async function enviar(para, texto) { metricas.inc("enviada"); return _enviarTexto(para, texto); }
-async function enviarImagem(para, link, legenda) { metricas.inc("enviada"); return _enviarImagem(para, link, legenda); }
+async function enviar(para, texto) { metricas.inc("enviada"); const r = await _enviarTexto(para, texto); _rastrearId(r); return r; }
+async function enviarImagem(para, link, legenda) { metricas.inc("enviada"); const r = await _enviarImagem(para, link, legenda); _rastrearId(r); return r; }
 
 // URL pública do painel (pra montar o link das fotos do catálogo no WhatsApp).
 const PUBLIC_URL = (process.env.PUBLIC_URL || "https://bots.gestalizesystems.com.br").replace(/\/$/, "");
 
-// Aviso enviado SEMPRE junto com a saudação (novo sistema em testes).
+// Aviso enviado UMA VEZ junto com a saudação do novo cliente (nunca repetido).
 const AVISO_SISTEMA = "🔔 Estamos com um novo sistema de atendimento por aqui, ainda em fase de *testes*! Se tiver alguma sugestão, pode deixar no final da conversa. 🐾";
 
 // Envia até 5 produtos achados como foto + nome + preço (formato de catálogo).
@@ -36,7 +43,7 @@ async function enviarProdutos(from, produtos) {
     try {
       if (p.imagem && /^\/uploads\//.test(p.imagem)) await enviarImagem(from, PUBLIC_URL + p.imagem, legenda);
       else if (p.imagem && /^https?:\/\//i.test(p.imagem)) await enviarImagem(from, p.imagem, legenda);
-      else await enviar(from, legenda); // produto sem foto → só texto
+      else await enviar(from, legenda);
     } catch (e) {
       console.error("Falha ao enviar produto:", e.message);
       try { await enviar(from, legenda); } catch (_) {}
@@ -45,20 +52,45 @@ async function enviarProdutos(from, produtos) {
 }
 
 // ===== Estado por contato (em memória) =====
-const pausados = new Map(); // contactId -> { timer, ultimaMsg }
-const aguardandoFecho = new Map(); // contactId -> { timer }
-const menuContexto = new Map(); // contactId -> opções do menu atual
-const jaSaudou = new Set(); // contatos que já receberam o menu de saudação nesta conversa
-const aguardandoNome = new Set(); // contatos a quem o bot perguntou o nome e espera a resposta
-const aguardandoNps = new Set(); // contatos a quem o bot perguntou a nota (NPS) e espera a resposta
-const aguardandoNpsComentario = new Map(); // contactId -> { id, detrator } esperando o comentário do NPS
-const historicoConversa = new Map(); // contactId -> [últimas mensagens do cliente] (pro resumo do handoff)
-const ausenciaEnviada = new Map(); // contactId -> instante do último aviso de ausência
-const AUSENCIA_THROTTLE_MS = 60 * 60 * 1000; // não repete a ausência mais de 1x/h por contato
-const inatividade = new Map(); // contactId -> timer de silêncio (reengaja/encerra a conversa do bot)
+const pausados = new Map();            // contactId -> { ultimaMsg }
+const ultimaMsgTs = new Map();         // contactId -> timestamp da última mensagem recebida
+const aguardandoFecho = new Map();     // contactId -> { timer }
+const menuContexto = new Map();        // contactId -> opções do menu atual
+const jaSaudou = new Set();            // contatos que já receberam o fluxo de boas-vindas
+const aguardandoNome = new Map();      // contactId -> { textoOriginal, rTriagem }
+const aguardandoNps = new Set();
+const aguardandoNpsComentario = new Map();
+const historicoConversa = new Map();
+const ausenciaEnviada = new Map();
+const AUSENCIA_THROTTLE_MS = 60 * 60 * 1000;
+setInterval(() => {
+  const expirou = Date.now() - AUSENCIA_THROTTLE_MS;
+  for (const [id, ts] of ausenciaEnviada) if (ts < expirou) ausenciaEnviada.delete(id);
+}, 12 * 60 * 60 * 1000);
+const inatividade = new Map();
 
-const PAUSA_SILENCIO_MS = 60 * 60 * 1000; // 1h SEM novas mensagens (do cliente OU do bot) → "ainda por aí?"
-const SEM_RESPOSTA_MS = 2 * 60 * 60 * 1000; // sem resposta em 2h após o reengajamento → finaliza
+// Contatos que existiam ANTES da conexão do bot → bot fica silencioso para eles até
+// que enviem uma saudação clara (aí começa uma nova conversa normalmente).
+const preBot = new Set();
+let preBotIniciado = false;
+
+function garantirPreBot() {
+  if (preBotIniciado) return;
+  // Lazy: tenta iniciar a cada mensagem até as credenciais estarem disponíveis.
+  const waonboard = require("./waonboard");
+  const creds = waonboard.getCredenciais();
+  if (!creds || !creds.conectadoEm) return;
+  preBotIniciado = true;
+  for (const c of clientes.listar()) {
+    if (c.telefone && !c.preBotClearado) preBot.add(c.telefone);
+  }
+  if (preBot.size > 0) {
+    console.log(`[bot] ${preBot.size} contatos anteriores à conexão marcados como preBot (bot silencioso até saudação).`);
+  }
+}
+
+const PAUSA_SILENCIO_MS = 60 * 60 * 1000;
+const SEM_RESPOSTA_MS = 2 * 60 * 60 * 1000;
 
 const FECHO_PALAVRAS = ["nao", "no", "obrigado", "obrigada", "obg", "vlw", "valeu", "era so isso", "so isso", "so isso mesmo", "era isso", "isso mesmo", "tudo certo", "ok", "blz", "beleza", "nada mais", "agradecido", "grato", "grata", "por enquanto so"];
 
@@ -72,9 +104,8 @@ function ehFecho(t) {
 }
 
 // Extrai o nome de uma resposta tipo "Ana", "meu nome é Ana", "sou a Ana Silva".
-// Retorna "" se não parecer um nome (ex.: uma pergunta) — aí o fluxo segue normal.
 function extrairNome(texto) {
-  if (!texto || /\?/.test(texto)) return ""; // pergunta não é nome
+  if (!texto || /\?/.test(texto)) return "";
   let t = String(texto).trim()
     .replace(/^(meu nome (e|eh|é)|me chamo|pode me chamar de|sou (o|a)|sou|aqui (e|eh|é)|e|eh|é|nome:?)\s+/i, "")
     .replace(/[^\p{L}\s'.-]/gu, " ")
@@ -87,7 +118,6 @@ function extrairNome(texto) {
   return palavras.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
 }
 
-// Despedida/agradecimento CLARO (encerra o atendimento). Mais forte que ehFecho (não pega "ok"/"blz").
 const DESPEDIDA = ["obrigado", "obrigada", "obg", "brigado", "brigada", "vlw", "valeu", "tchau", "ate mais", "ate logo", "ate breve", "era isso", "era so isso", "so isso", "so isso mesmo", "agradecido", "agradecida", "grato", "grata", "nada mais"];
 function ehDespedidaForte(t) {
   const n = normaliza(t);
@@ -95,7 +125,6 @@ function ehDespedidaForte(t) {
   return DESPEDIDA.some((p) => n === p || n.includes(p));
 }
 
-// Envia o encerramento e, se elegível (1x/30 dias), faz a pergunta de NPS (nota 0–10).
 async function encerrarComNps(from, msgPadrao) {
   if (nps.podePerguntar(from)) {
     nps.marcarPerguntado(from);
@@ -109,7 +138,6 @@ async function encerrarComNps(from, msgPadrao) {
   }
 }
 
-// Convida o cliente a seguir no Instagram e avaliar no Google (vai junto com o NPS, 1x/30 dias).
 async function enviarConviteRedes(from) {
   const n = config.get().negocio || {};
   const insta = String(n.instagram || "").trim();
@@ -122,9 +150,8 @@ async function enviarConviteRedes(from) {
   try { await enviar(from, msg); } catch (e) { console.error("Falha no convite redes:", e.message); }
 }
 
-// Abre um atendimento na fila do painel com um RESUMO da conversa feito pela IA (handoff).
 async function abrirHandoff(from, motivo) {
-  metricas.inc("handoff"); // métrica: transferência para humano
+  metricas.inc("handoff");
   try {
     const msgs = (historicoConversa.get(from) || []).slice(-15);
     const cli = clientes.get(from);
@@ -136,10 +163,9 @@ async function abrirHandoff(from, motivo) {
   }
 }
 
-// Verdadeiro se, AGORA, a loja está fora do horário de atendimento do bot.
 function foraDoHorario(dados) {
   const exp = dados.expediente;
-  if (!exp || !exp.ativo) return false; // recurso desligado → sempre atende
+  if (!exp || !exp.ativo) return false;
   const tz = exp.timezone || "America/Fortaleza";
   let wd, hh, mm, hoje;
   try {
@@ -150,23 +176,17 @@ function foraDoHorario(dados) {
     hh = +partes.find((p) => p.type === "hour").value;
     mm = +partes.find((p) => p.type === "minute").value;
     hoje = partes.find((p) => p.type === "day").value + "/" + partes.find((p) => p.type === "month").value;
-  } catch (_) {
-    return false; // em caso de erro de fuso, não bloqueia o atendimento
-  }
-  // Feriado (formato DD/MM, todo ano) → loja fechada.
+  } catch (_) { return false; }
   if (Array.isArray(exp.feriados) && exp.feriados.includes(hoje)) return true;
   const agora = hh * 60 + mm;
   const faixa = wd === "Sun" ? exp.domingo : wd === "Sat" ? exp.sabado : exp.semana;
-  if (!faixa || !faixa.abre || !faixa.fecha) return true; // dia fechado
+  if (!faixa || !faixa.abre || !faixa.fecha) return true;
   const [ah, am] = String(faixa.abre).split(":").map(Number);
   const [fh, fm] = String(faixa.fecha).split(":").map(Number);
   const abre = ah * 60 + am, fecha = fh * 60 + fm;
   return !(agora >= abre && agora < fecha);
 }
 
-// Agenda/renova o timer de silêncio: 1h SEM novas mensagens (do cliente OU do bot) →
-// reengaja ("ainda por aí?") e, se continuar mudo por +2h, encerra. Chamado ao FINAL de
-// toda resposta do bot, pra o atendimento nunca ficar parado sem solução.
 function agendarInatividade(contactId) {
   const t = inatividade.get(contactId);
   if (t) clearTimeout(t);
@@ -179,13 +199,30 @@ function limparInatividade(contactId) {
 }
 
 function pausar(contactId) {
-  pausados.set(contactId, { ultimaMsg: Date.now() }); // atendimento humano em andamento (bot fica quieto)
+  pausados.set(contactId, { ultimaMsg: Date.now() });
   agendarInatividade(contactId);
+}
+function registrarSessaoAtendente(contactId) {
+  pausar(contactId);
+}
+function retomar(contactId) {
+  pausados.delete(contactId);
+  limparInatividade(contactId);
+}
+async function concluirAtendimento(contactId) {
+  await finalizar(contactId, false);
+  if (equipe.ehFuncionario(contactId)) return; // funcionário: só limpa o estado, sem enviar mensagem
+  try {
+    await encerrarComNps(contactId, "Atendimento finalizado, qualquer coisa é só chamar! 🐾");
+  } catch (e) {
+    console.error("Falha ao concluir atendimento:", e.message);
+  }
 }
 
 async function aoSilenciar(contactId) {
   inatividade.delete(contactId);
-  pausados.delete(contactId); // se vinha de atendimento humano, encerra o modo "quieto"
+  pausados.delete(contactId);
+  if (equipe.ehFuncionario(contactId)) return; // não reengaja funcionário
   try {
     await enviar(contactId, "Ainda por aí? 😊 Se precisar de mais alguma coisa, é só me chamar!");
     aguardandoFecho.set(contactId, { timer: setTimeout(() => finalizar(contactId, true), SEM_RESPOSTA_MS) });
@@ -200,12 +237,15 @@ async function finalizar(contactId, enviarDespedida) {
   if (f && f.timer) clearTimeout(f.timer);
   aguardandoFecho.delete(contactId);
   menuContexto.delete(contactId);
-  jaSaudou.delete(contactId); // conversa nova → pode saudar de novo
+  jaSaudou.delete(contactId);
   aguardandoNome.delete(contactId);
   aguardandoNps.delete(contactId);
   aguardandoNpsComentario.delete(contactId);
   historicoConversa.delete(contactId);
-  atendimentos.resolver(contactId); // conversa encerrada → tira da fila de atendimentos
+  ultimaMsgTs.delete(contactId);
+  pausados.delete(contactId);
+  preBot.delete(contactId); // conversa encerrada → sai do modo pré-bot se estiver lá
+  atendimentos.resolver(contactId);
   limparHistorico(contactId);
   if (enviarDespedida) {
     try {
@@ -218,18 +258,19 @@ async function finalizar(contactId, enviarDespedida) {
 
 // Processa uma mensagem recebida do cliente.
 async function processar(from, texto, nomeWpp) {
+  // Inicializa preBot na primeira mensagem após as credenciais estarem disponíveis.
+  if (!preBotIniciado) garantirPreBot();
+
   const dados = config.get();
-  // Bot desligado no painel → não responde nada.
   if (!dados.botAtivo) return;
 
-  metricas.inc("recebida"); // métrica: mensagem recebida
+  // Funcionários cadastrados no painel não recebem mensagens do bot.
+  if (equipe.ehFuncionario(from)) return;
 
-  // Cliente respondeu → cancela o reengajamento pendente. A MEMÓRIA da conversa é mantida
-  // até o atendimento ser realmente finalizado (despedida do cliente ou silêncio prolongado),
-  // mesmo que ele fique horas parado — assim o bot lembra o assunto (ex.: remédio de verme).
+  metricas.inc("recebida");
+  ultimaMsgTs.set(from, Date.now());
   limparInatividade(from);
 
-  // Guarda as últimas mensagens do cliente (em memória) pra montar o resumo no handoff.
   if (texto && String(texto).trim()) {
     const buf = historicoConversa.get(from) || [];
     buf.push(String(texto).trim());
@@ -237,7 +278,7 @@ async function processar(from, texto, nomeWpp) {
     historicoConversa.set(from, buf);
   }
 
-  // NPS — passo 1: cliente manda a nota 0–10 → registra e pede um comentário.
+  // ── NPS passo 1: cliente manda nota ────────────────────────────────────
   if (aguardandoNps.has(from)) {
     aguardandoNps.delete(from);
     const m = String(texto).match(/\b(10|[0-9])\b/);
@@ -250,10 +291,9 @@ async function processar(from, texto, nomeWpp) {
         : `Obrigada pela nota ${nota}! 🐾 Quer deixar um comentário? (ou mande *ok*)`);
       return;
     }
-    // não veio uma nota → segue o fluxo normal (não trava o atendimento)
   }
 
-  // NPS — passo 2: comentário (após a nota).
+  // ── NPS passo 2: comentário ─────────────────────────────────────────────
   if (aguardandoNpsComentario.has(from)) {
     const { id, detrator } = aguardandoNpsComentario.get(from);
     aguardandoNpsComentario.delete(from);
@@ -261,72 +301,139 @@ async function processar(from, texto, nomeWpp) {
     if (!pular) nps.comentar(id, texto);
     if (detrator) {
       await enviar(from, "Obrigada por compartilhar! 🐾 Vou repassar pra um atendente cuidar disso pra você.");
-      pausar(from); // ouvir o detrator
+      pausar(from);
       await abrirHandoff(from, "Cliente deu nota baixa no NPS (detrator)" + (pular ? "." : ": " + String(texto).trim()));
     } else {
       await enviar(from, "Valeu pela avaliação! 💛 Significa muito pra gente. 🐾");
-      await enviarConviteRedes(from); // só p/ quem gostou (promotores/neutros): segue no Insta + avalia no Google
+      await enviarConviteRedes(from);
     }
     return;
   }
 
-  // Fora do horário → só a mensagem de ausência (sem menu/saudação/IA), no máximo 1x/h.
+  // ── Fora do horário ─────────────────────────────────────────────────────
   if (foraDoHorario(dados)) {
     const ultimo = ausenciaEnviada.get(from) || 0;
     if (Date.now() - ultimo > AUSENCIA_THROTTLE_MS) {
       ausenciaEnviada.set(from, Date.now());
       try {
         await enviar(from, config.preencher(dados.mensagens.ausencia || "No momento estamos fora do horário de atendimento. Retornamos no horário comercial. 🐾"));
-      } catch (e) {
-        console.error("Falha ao enviar ausência:", e.message);
-      }
+      } catch (e) { console.error("Falha ao enviar ausência:", e.message); }
     }
     return;
   }
 
-  // Atendimento humano em andamento: fica quieto e reinicia o cronômetro de silêncio.
+  // ── Atendimento humano em andamento ────────────────────────────────────
   if (pausados.has(from)) {
     pausar(from);
     return;
   }
 
-  // Resposta ao "Ainda por aí?".
+  // ── Resposta ao "Ainda por aí?" ─────────────────────────────────────────
   if (aguardandoFecho.has(from)) {
     if (ehFecho(texto)) {
       await finalizar(from, false);
       await encerrarComNps(from, "Atendimento finalizado, qualquer coisa é só chamar! 🐾");
       return;
     }
-    // Trouxe algo novo → cancela só o encerramento pendente e CONTINUA a conversa com a
-    // memória intacta (o bot ainda lembra o assunto que estava em andamento).
     const f = aguardandoFecho.get(from);
     if (f && f.timer) clearTimeout(f.timer);
     aguardandoFecho.delete(from);
   }
 
-  // Cliente se despediu/agradeceu (ex.: "obrigada", "era só isso") → encerra e pede a nota (NPS).
+  // ── Contatos anteriores à conexão do bot ────────────────────────────────
+  // Fica silencioso para quem já estava em atendimento humano antes do bot conectar.
+  // Quando o cliente mandar uma saudação, inicia uma conversa nova normalmente.
+  if (preBot.has(from)) {
+    const rCheck = triar(texto, null);
+    if (rCheck.saudacao) {
+      preBot.delete(from);
+      clientes.salvar(from, { preBotClearado: true });
+      // Não retorna → cai no fluxo normal abaixo
+    } else {
+      return; // silêncio — humano ainda atende
+    }
+  }
+
+  // ── Despedida clara ──────────────────────────────────────────────────────
   if (ehDespedidaForte(texto)) {
     await finalizar(from, false);
     await encerrarComNps(from, "Por nada, qualquer coisa é só chamar! 🐾");
     return;
   }
 
-  // O bot perguntou o nome e o cliente respondeu → guarda e manda a saudação personalizada.
+  // ── Resposta ao pedido de nome ───────────────────────────────────────────
+  // aguardandoNome agora é um Map com o texto e resultado de triagem originais,
+  // para que depois de receber o nome o bot responda a pergunta que o cliente
+  // fez na primeira mensagem (sem mostrar o menu se era uma pergunta direta).
   if (aguardandoNome.has(from)) {
+    const { textoOriginal, rTriagem } = aguardandoNome.get(from);
     aguardandoNome.delete(from);
     const nome = extrairNome(texto);
-    if (nome) {
-      clientes.salvar(from, { nome });
-      jaSaudou.add(from);
+
+    if (!nome) {
+      // Não parece um nome — não insiste, processa a mensagem normalmente
+      await processar(from, texto, nomeWpp);
+      return;
+    }
+
+    clientes.salvar(from, { nome });
+
+    if (textoOriginal === null) {
+      // Pergunta já foi respondida — só acusa o nome e continua
+      await enviar(from, `Prazer, ${nome}! 🐾 Se precisar de mais alguma coisa, é só perguntar.`);
+      agendarInatividade(from);
+      return;
+    }
+
+    if (rTriagem && rTriagem.tipo === "atendente") {
+      await enviar(from, `Prazer, ${nome}! 🐾 ` + config.preencher(dados.mensagens.atendente));
+      pausar(from);
+      await abrirHandoff(from, "Cliente pediu para falar com um atendente.");
+      return;
+    }
+
+    if (rTriagem && rTriagem.saudacao) {
+      // Primeira mensagem era uma saudação → mostra o menu personalizado
       const menu = menuPrincipal(nome);
       menuContexto.set(from, { opcoes: config.intents(), texto: menu, sub: false });
       await enviar(from, menu);
       agendarInatividade(from);
       return;
     }
-    // não parece um nome → segue o fluxo normal (não trava o atendimento)
+
+    if (rTriagem && rTriagem.resposta) {
+      // Primeira mensagem casou com palavra-chave → responde direto (sem menu)
+      let resp = rTriagem.resposta;
+      if (rTriagem.tipo === "opcao" && /banho|tosa|consult|veterin|vacin/i.test(rTriagem.titulo || "")) {
+        const cli = clientes.get(from);
+        if (!cli || !Array.isArray(cli.pets) || !cli.pets.length) {
+          resp += "\n\n🐾 Pra deixar tudo certinho, me diz o *nome* e a *raça* do seu pet?";
+        }
+      }
+      await enviar(from, `Prazer, ${nome}! 🐾\n\n` + resp);
+      if (rTriagem.tipo === "opcao" || rTriagem.tipo === "mensagem") {
+        const nota = rTriagem.titulo ? `(O cliente escolheu: ${rTriagem.titulo}.) ` : "";
+        registrarTurno(from, textoOriginal, nota + resp);
+        if (rTriagem.titulo) metricas.registrarServico(rTriagem.titulo);
+      }
+      agendarInatividade(from);
+      return;
+    }
+
+    // Primeira mensagem era pergunta livre → IA responde (sem menu)
+    const respIA = await responder(from, textoOriginal);
+    await enviar(from, `Prazer, ${nome}! 🐾\n\n` + (respIA.texto || "").trim());
+    if (respIA.encaminhar) {
+      pausar(from);
+      await abrirHandoff(from, respIA.motivo || "A IA encaminhou para um atendente.");
+      return;
+    }
+    if (respIA.produtos && respIA.produtos.length) await enviarProdutos(from, respIA.produtos);
+    agendarInatividade(from);
+    return;
   }
 
+  // ── Triagem ──────────────────────────────────────────────────────────────
   const ctx = menuContexto.get(from) || null;
   const r = triar(texto, ctx);
   if ("novoContexto" in r) {
@@ -334,25 +441,81 @@ async function processar(from, texto, nomeWpp) {
     else menuContexto.delete(from);
   }
 
-  // Menu de saudação aparece só UMA vez por conversa (no início). Depois disso, IA.
-  if (r.saudacao) {
-    if (jaSaudou.has(from)) {
-      r.tipo = "ia"; r.resposta = null;
-    } else {
-      jaSaudou.add(from);
-      metricas.inc("atendimento"); // métrica: nova conversa/atendimento iniciado
-      const cli = clientes.get(from);
-      if (cli && cli.nome) {
-        r.resposta = menuPrincipal(cli.nome); // já conhece → "Olá, Ana!" personalizado
-      } else {
-        aguardandoNome.add(from); // cliente novo → pergunta o nome antes do menu
-        menuContexto.delete(from);
-        r.resposta = config.preencher(dados.mensagens.saudacaoNome || "Olá! 🐾 Seja muito bem-vindo(a) à {nome}! Antes de começar, como posso te chamar? 😊")
-          + "\n\n" + AVISO_SISTEMA; // aviso do novo sistema — SOMENTE para clientes novos (sem nome ainda)
+  // ── Primeiro contato (ainda não saudou nesta sessão) ────────────────────
+  if (!jaSaudou.has(from)) {
+    jaSaudou.add(from);
+    metricas.inc("atendimento");
+    const cli = clientes.get(from);
+    const deveAviso = !cli || !cli.avisoEnviado;
+    const avisoTexto = deveAviso ? ("\n\n" + AVISO_SISTEMA) : "";
+
+    if (!cli || !cli.nome) {
+      menuContexto.delete(from);
+      const msgBV = config.preencher(dados.mensagens.saudacaoNome || "Olá! 🐾 Seja muito bem-vindo(a) à {nome}! Como posso te chamar? 😊");
+      await enviar(from, msgBV + avisoTexto);
+      if (deveAviso) clientes.salvar(from, { avisoEnviado: true });
+
+      if (r.saudacao) {
+        // Saudação pura → aguarda nome para mostrar o menu personalizado
+        aguardandoNome.set(from, { textoOriginal: texto, rTriagem: r });
+        agendarInatividade(from);
+        return;
       }
+
+      // Primeira mensagem tem pergunta/pedido → responde já, sem esperar o nome.
+      // Mantém aguardandoNome (textoOriginal=null) só para salvar o nome se vier.
+      aguardandoNome.set(from, { textoOriginal: null, rTriagem: null });
+
+      if (r.tipo === "atendente") {
+        aguardandoNome.delete(from);
+        await enviar(from, r.resposta || config.preencher(dados.mensagens.atendente));
+        pausar(from);
+        await abrirHandoff(from, "Cliente pediu para falar com um atendente.");
+        return;
+      }
+      if (r.resposta) {
+        await enviar(from, r.resposta);
+        if (r.tipo === "opcao" || r.tipo === "mensagem") {
+          const nota = r.titulo ? `(O cliente escolheu: ${r.titulo}.) ` : "";
+          registrarTurno(from, texto, nota + r.resposta);
+          if (r.titulo) metricas.registrarServico(r.titulo);
+        }
+        agendarInatividade(from);
+        return;
+      }
+      // IA responde à pergunta imediatamente
+      const respIA0 = await responder(from, texto);
+      await enviar(from, (respIA0.texto || "").trim());
+      if (respIA0.encaminhar) {
+        aguardandoNome.delete(from);
+        pausar(from);
+        await abrirHandoff(from, respIA0.motivo || "A IA encaminhou para um atendente.");
+        return;
+      }
+      if (respIA0.produtos && respIA0.produtos.length) await enviarProdutos(from, respIA0.produtos);
+      agendarInatividade(from);
+      return;
     }
+
+    // Contato conhecido
+    if (r.saudacao) {
+      // Saudação → menu personalizado (+ aviso se primeira vez com o bot)
+      const menu = menuPrincipal(cli.nome);
+      menuContexto.set(from, { opcoes: config.intents(), texto: menu, sub: false });
+      await enviar(from, menu + avisoTexto);
+      if (deveAviso) clientes.salvar(from, { avisoEnviado: true });
+      agendarInatividade(from);
+      return;
+    }
+
+    // Contato conhecido + pergunta direta → envia saudação breve + aviso (sem menu)
+    // e depois cai para responder a pergunta normalmente abaixo.
+    await enviar(from, `Oi, ${cli.nome}! 🐾` + avisoTexto);
+    if (deveAviso) clientes.salvar(from, { avisoEnviado: true });
+    // Não retorna — responde a pergunta a seguir
   }
 
+  // ── Atendente humano ────────────────────────────────────────────────────
   if (r.tipo === "atendente") {
     await enviar(from, r.resposta);
     pausar(from);
@@ -360,8 +523,14 @@ async function processar(from, texto, nomeWpp) {
     return;
   }
 
+  // Saudação em conversa já iniciada — menu foi enviado no início, não repete
+  if (r.saudacao) {
+    agendarInatividade(from);
+    return;
+  }
+
+  // ── Resposta por palavra-chave ───────────────────────────────────────────
   if (r.resposta) {
-    // Banho/tosa/consulta/vacina: se ainda não souber o pet, pergunta nome + raça (a IA cuida da resposta).
     if (r.tipo === "opcao" && /banho|tosa|consult|veterin|vacin/i.test(r.titulo || "")) {
       const cli = clientes.get(from);
       if (!cli || !Array.isArray(cli.pets) || !cli.pets.length) {
@@ -369,38 +538,56 @@ async function processar(from, texto, nomeWpp) {
       }
     }
     await enviar(from, r.resposta);
-    // Memória: grava só ESCOLHAS com significado (opção/comando), nunca o texto de menus
-    // — senão a IA pode "repetir" o menu. Registra a escolha POR EXTENSO (ex.: "Entrega (moto)")
-    // pra a IA não reperguntar o que o cliente já escolheu.
     if (r.tipo === "opcao" || r.tipo === "mensagem") {
       const nota = r.titulo ? `(O cliente escolheu: ${r.titulo}.) ` : "";
       registrarTurno(from, texto, nota + r.resposta);
-      if (r.titulo) metricas.registrarServico(r.titulo); // métrica: serviço mais procurado
+      if (r.titulo) metricas.registrarServico(r.titulo);
     }
-    agendarInatividade(from); // conversa segue aberta → programa o follow-up de silêncio
+    agendarInatividade(from);
     return;
   }
 
-  // tipo === "ia": pergunta livre.
-  // SAUDAÇÃO SEMPRE no primeiro contato — mas SEM o menu quando o cliente já chegou
-  // perguntando ou enviando arquivo (aí só damos as boas-vindas e já respondemos).
-  let saudacao = "";
-  if (!jaSaudou.has(from)) {
-    jaSaudou.add(from);
-    metricas.inc("atendimento"); // métrica: nova conversa/atendimento iniciado
-    const cli = clientes.get(from);
-    const loja = dados.negocio && dados.negocio.nome ? " à " + dados.negocio.nome : "";
-    saudacao = (cli && cli.nome) ? `Oi, ${cli.nome}! 🐾 ` : `Olá! 🐾 Seja muito bem-vindo(a)${loja}! `;
-  }
+  // ── IA: pergunta livre ───────────────────────────────────────────────────
   const resp = await responder(from, texto);
-  await enviar(from, (saudacao + (resp.texto || "")).trim());
-  if (resp.encaminhar) { // a IA pediu um atendente humano
+  await enviar(from, (resp.texto || "").trim());
+  if (resp.encaminhar) {
     pausar(from);
     await abrirHandoff(from, resp.motivo || "A IA encaminhou para um atendente.");
   } else {
-    agendarInatividade(from); // conversa segue aberta → 1h de silêncio reengaja/encerra
+    agendarInatividade(from);
   }
-  if (resp.produtos && resp.produtos.length) await enviarProdutos(from, resp.produtos); // catálogo com foto
+  if (resp.produtos && resp.produtos.length) await enviarProdutos(from, resp.produtos);
 }
 
-module.exports = { configurar, processar };
+function conversasAtivas() {
+  const todos = new Set([
+    ...jaSaudou,
+    ...aguardandoNome.keys(),
+    ...aguardandoFecho.keys(),
+    ...menuContexto.keys(),
+    ...pausados.keys(),
+  ]);
+  // Inclui qualquer contato que mandou mensagem nas últimas 24h,
+  // mesmo que o bot tenha ficado silencioso (preBot, fora do horário, etc.)
+  const RECENTE_MS = 24 * 60 * 60 * 1000;
+  const agora = Date.now();
+  for (const [id, ts] of ultimaMsgTs.entries()) {
+    if (agora - ts < RECENTE_MS) todos.add(id);
+  }
+  const pendentesAt = atendimentos.pendentes();
+  for (const a of pendentesAt) todos.add(a.telefone);
+  const atMap = new Map(pendentesAt.map(a => [a.telefone, a]));
+  return Array.from(todos).map(id => {
+    const at = atMap.get(id);
+    const ts = ultimaMsgTs.get(id)
+      || (pausados.get(id) && pausados.get(id).ultimaMsg)
+      || (at && at.atualizadoEm) || 0;
+    const estado = at ? "aguardando" : pausados.has(id) ? "pausado" : "bot";
+    return { contactId: id, estado, ultimaMsgTs: ts, atendimento: at || null };
+  }).sort((a, b) => {
+    const ord = { aguardando: 0, pausado: 1, bot: 2 };
+    return ((ord[a.estado] ?? 3) - (ord[b.estado] ?? 3)) || ((b.ultimaMsgTs || 0) - (a.ultimaMsgTs || 0));
+  });
+}
+
+module.exports = { configurar, processar, pausar, retomar, concluirAtendimento, registrarSessaoAtendente, ehMsgBot, conversasAtivas };
