@@ -4,16 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Entrar — Gestalize Bots</title>
-  <link rel="icon" type="image/png" href="/robot.png" />
-  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="icon" type="image/png" href="/gestalize-bot.png"/>
+  <link rel="apple-touch-icon" href="/gestalize-bot.png"/>
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="theme-color" content="#1f3a5f" />
+  <meta name="theme-color" content="#07090F" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Gestalize Bots" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Gestalize Bots" />
-  <meta property="og:description" content="Plataforma profissional para gerenciamento de bots de atendimento e automações WhatsApp." />
+  <meta property="og:description" content="Plataforma de comunicação com IA — atendimento, vendas e operação no WhatsApp." />
   <meta property="og:image" content="https://bots.gestalizesystems.com.br/og-gestalize-wide.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -22,257 +22,260 @@
   <meta name="twitter:image" content="https://bots.gestalizesystems.com.br/og-gestalize-wide.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --azul: #2563eb; --azul-vivo: #2f6bf6; --azul-escuro: #1d4ed8; --azul-medio: #3b82f6;
-      --azul-claro: rgba(37,99,235,.18); --texto: #dfe7f5; --escuro: #f1f5f9; --suave: #94a4bf; --borda: rgba(255,255,255,.13);
+      --bg: #07090F; --bg2: #0A0E1A;
+      --blue: #2563EB; --blue-lt: #3B82F6; --blue-dk: #1D4ED8;
+      --white: #FFFFFF; --text: #DFE7F5; --muted: #8B9CB8; --muted-2: #667795;
+      --border: rgba(80,120,200,0.14); --border-2: rgba(80,120,200,0.24);
+      --card: #0E1526; --input: #0B1120;
+      --shadow: 0 24px 60px -20px rgba(0,0,0,0.6);
+      --shadow-blue: 0 34px 90px -26px rgba(37,99,235,0.5);
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
     }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: "Poppins", -apple-system, system-ui, sans-serif; color: var(--texto);
-      background: radial-gradient(1200px 820px at 50% -22%, rgba(32,66,150,0.10), transparent 62%), #0a0e18; min-height: 100vh; position: relative; overflow-x: hidden; }
+    body {
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
+      color: var(--text); background: var(--bg);
+      min-height: 100vh; position: relative; overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::selection { background: rgba(37,99,235,0.4); }
 
-    /* ===== Decorações de fundo ===== */
-    .deco { position: fixed; pointer-events: none; z-index: 0; }
-    .deco-canvas { top: 0; left: 0; width: 100%; height: 100%; }
-    .deco-blob1 { top: -120px; left: -120px; width: 420px; height: 420px; border-radius: 50%;
-      background: radial-gradient(circle at 50% 50%, rgba(79,140,246,.10), transparent 70%); }
-    .deco-blob2 { top: -70px; right: 40px; width: 540px; height: 500px; border-radius: 50%;
-      background: radial-gradient(circle at 58% 42%, rgba(32,52,110,.40), transparent 62%); }
-    .deco-blob3 { bottom: -60px; left: -40px; width: 520px; height: 380px; border-radius: 50%;
-      background: radial-gradient(circle at 42% 60%, rgba(32,52,110,.34), transparent 62%); }
-    /* suaviza as linhas/ondas que passam atrás do texto da esquerda */
-    .deco-veil { top: 6%; left: 0; width: 52%; height: 84%;
-      background: radial-gradient(ellipse 62% 56% at 42% 50%, rgba(9,13,24,.78), rgba(9,13,24,0) 72%); }
-    .deco-wave { top: 0; left: 0; width: 100%; height: 100%; opacity: .95; }
-    /* remove as listras (ondas) e as formas navy; o glow de fundo agora é desenhado atrás de cada grupo de pontinhos */
-    .deco-blob1, .deco-blob2, .deco-blob3, .deco-wave, .deco-veil { display: none; }
+    /* fundo: canvas interativo + glow ambiente atrás da marca */
+    #dotsCanvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+    .amb { position: fixed; pointer-events: none; z-index: 0; }
+    .amb-1 { top: -12%; left: -6%; width: 620px; height: 620px; border-radius: 50%;
+      background: radial-gradient(circle at 50% 50%, rgba(37,99,235,0.16), transparent 66%); }
+    .amb-2 { bottom: -18%; right: -8%; width: 560px; height: 560px; border-radius: 50%;
+      background: radial-gradient(circle at 50% 50%, rgba(37,99,235,0.10), transparent 68%); }
+
+    /* entradas suaves */
+    @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+    @keyframes pop  { from { opacity: 0; transform: scale(0.82); } to { opacity: 1; transform: none; } }
+    @keyframes floatY { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .anim { opacity: 0; animation: rise 0.8s var(--ease) forwards; }
+    @media (prefers-reduced-motion: reduce) { .anim { opacity: 1; animation: none; } .float-card, .shot { animation: none !important; } }
 
     /* ===== Layout ===== */
-    .wrap { position: relative; z-index: 1; max-width: 1120px; margin: 0 auto; min-height: 100vh;
-      display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 70px; padding: 40px 48px 90px; }
+    .wrap {
+      position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; min-height: 100vh;
+      display: grid; grid-template-columns: 1.05fr 0.95fr; align-items: center; gap: 64px;
+      padding: 48px 48px 64px;
+    }
 
-    /* ===== Esquerda — marca ===== */
-    .marca { display: flex; align-items: center; gap: 16px; margin-bottom: 32px; }
-    .robo { width: 84px; height: 84px; object-fit: contain; flex: 0 0 auto; }
-    .wordmark { line-height: 1.0; }
-    .wordmark .g { font-size: 42px; font-weight: 800; color: var(--escuro); letter-spacing: -1px; display: block; }
-    .wordmark .b { font-size: 42px; font-weight: 800; color: var(--azul); letter-spacing: -1px; display: block; }
-    .esq h2 { font-size: 34px; line-height: 1.2; margin: 0 0 16px; color: var(--escuro); font-weight: 700; }
-    .esq h2 b { color: var(--azul); font-weight: 700; }
-    .esq .desc { color: var(--suave); font-size: 16px; margin: 0 0 34px; line-height: 1.55; max-width: 420px; }
-    .features { list-style: none; padding: 0; margin: 0 0 40px; display: flex; flex-direction: column; gap: 18px; }
-    .features li { display: flex; align-items: center; gap: 14px; font-weight: 600; color: #c6d1e6; font-size: 15.5px; }
-    .fic { width: 42px; height: 42px; border-radius: 12px; background: var(--azul-claro); color: var(--azul);
-      display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
-    .seg { position: fixed; left: 56px; bottom: 32px; z-index: 2; display: flex; align-items: center; gap: 12px; }
-    .seg .sic { width: 40px; height: 40px; color: var(--azul);
-      display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
-    .seg strong { color: var(--escuro); font-size: 14.5px; display: block; font-weight: 600; }
-    .seg small { font-size: 13px; color: var(--suave); }
+    /* ===== Esquerda — showcase do produto ===== */
+    .showcase { max-width: 560px; }
+    .brand { display: flex; align-items: center; gap: 13px; margin-bottom: 30px; }
+    .brand img { width: 46px; height: 46px; object-fit: contain; filter: drop-shadow(0 0 22px rgba(37,99,235,0.5)); }
+    .brand .wm { font-size: 24px; font-weight: 800; letter-spacing: -0.6px; color: var(--white); }
+    .brand .wm span { color: var(--blue-lt); }
+    .showcase h1 {
+      font-size: clamp(28px, 3vw, 40px); font-weight: 900; line-height: 1.12; letter-spacing: -1.4px;
+      color: var(--white); margin-bottom: 16px;
+    }
+    .showcase h1 em { font-style: normal; color: var(--blue-lt); }
+    .showcase .lead { color: var(--muted); font-size: 16px; line-height: 1.6; max-width: 460px; margin-bottom: 30px; }
 
-    /* ===== Direita — card ===== */
-    .card { background: #141d33; border-radius: 26px; padding: 44px 40px;
-      box-shadow: 0 24px 70px rgba(0,0,0,.5), 0 6px 26px rgba(37,99,235,.20); border: 1px solid rgba(255,255,255,.08); }
+    /* preview do painel (moldura de browser) */
+    .preview { position: relative; margin-bottom: 30px; }
+    .preview-glow { position: absolute; inset: -14% 6% auto; height: 70%; z-index: -1;
+      background: radial-gradient(ellipse at center, rgba(37,99,235,0.28), transparent 70%); }
+    .shot {
+      border: 1px solid var(--border-2); border-radius: 15px; overflow: hidden;
+      background: #0c1220; box-shadow: var(--shadow-blue); animation: floatY 7s ease-in-out infinite;
+    }
+    .shot-bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #0e1424; border-bottom: 1px solid var(--border); }
+    .shot-bar i { width: 10px; height: 10px; border-radius: 50%; }
+    .shot-bar i:nth-child(1){ background:#ff5f57; } .shot-bar i:nth-child(2){ background:#febc2e; } .shot-bar i:nth-child(3){ background:#28c840; }
+    .shot-bar .url { margin-left: 12px; font-size: 11px; color: var(--muted-2); background: #0a0f1c; border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; }
+    .shot img { display: block; width: 100%; height: auto; }
+    .float-card {
+      position: absolute; bottom: -18px; right: -14px; z-index: 3;
+      background: rgba(13,19,34,0.82); backdrop-filter: blur(14px);
+      border: 1px solid var(--border-2); border-radius: 13px; padding: 11px 14px;
+      display: flex; align-items: center; gap: 10px; box-shadow: var(--shadow);
+      animation: floatY 6s ease-in-out infinite 0.6s;
+    }
+    .float-card .ic { width: 32px; height: 32px; border-radius: 9px; background: rgba(37,99,235,0.16); color: var(--blue-lt); display: flex; align-items: center; justify-content: center; }
+    .float-card .ic svg { width: 17px; height: 17px; }
+    .float-card b { font-size: 13px; font-weight: 700; display: block; color: var(--white); }
+    .float-card small { font-size: 11px; color: var(--muted); }
+
+    /* benefícios */
+    .benefits { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; }
+    .benefit { display: flex; align-items: center; gap: 11px; }
+    .benefit .bic { width: 38px; height: 38px; border-radius: 10px; background: rgba(37,99,235,0.13); border: 1px solid rgba(37,99,235,0.2); color: var(--blue-lt); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+    .benefit .bic svg { width: 19px; height: 19px; }
+    .benefit span { font-size: 14px; font-weight: 600; color: #c6d1e6; }
+
+    /* ===== Direita — card de login ===== */
     .col-dir { display: flex; flex-direction: column; }
-    .escudo { width: 64px; height: 64px; border-radius: 50%; background: var(--azul-claro); color: var(--azul);
-      margin: 0 auto 18px; display: flex; align-items: center; justify-content: center; }
-    .card h2 { text-align: center; margin: 0 0 6px; font-size: 26px; color: var(--escuro); font-weight: 700; }
-    .card .sub { text-align: center; color: var(--suave); margin: 0 0 30px; font-size: 14.5px; }
-    label { display: block; font-weight: 600; font-size: 14px; margin: 0 0 9px; color: #c6d1e6; }
-    .campo { display: flex; align-items: center; gap: 11px; border: 1.5px solid var(--borda); border-radius: 13px;
-      padding: 0 16px; margin-bottom: 20px; transition: border .15s, box-shadow .15s; background: #0e1730; }
-    .campo:focus-within { border-color: var(--azul); box-shadow: 0 0 0 3px rgba(37,99,235,.14); }
-    .campo .ic { color: var(--azul); display: flex; flex: 0 0 auto; }
-    .campo input { flex: 1; border: none; outline: none; background: transparent; padding: 15px 0; font-size: 15px;
-      font-family: inherit; color: var(--texto); }
-    .campo input::placeholder { color: #94a3b8; }
-    /* impede o navegador (autofill) de pintar o campo de branco ao preencher */
-    .campo input:-webkit-autofill,
-    .campo input:-webkit-autofill:hover,
-    .campo input:-webkit-autofill:focus,
-    .campo input:-webkit-autofill:active {
-      -webkit-box-shadow: 0 0 0 1000px #0e1730 inset;
-      -webkit-text-fill-color: var(--texto);
-      caret-color: var(--texto);
-      transition: background-color 9999s ease-in-out 0s;
+    .card {
+      background: var(--card); border: 1px solid var(--border-2); border-radius: 24px;
+      padding: 42px 40px; box-shadow: var(--shadow-blue); position: relative; overflow: hidden;
     }
-    .olho { background: none; border: none; cursor: pointer; color: #94a3b8; padding: 4px; display: flex; }
-    .linha { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; font-size: 14px; }
+    .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(59,130,246,0.6), transparent); }
+    .card-brand {
+      display: flex; align-items: center; justify-content: center; gap: 11px;
+      margin: 0 0 20px; animation: pop 0.7s var(--ease) both 0.1s;
+    }
+    .card-brand img { width: 40px; height: 40px; object-fit: contain; filter: drop-shadow(0 0 18px rgba(37,99,235,0.5)); }
+    .card-brand span { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: var(--white); }
+    .card-brand span em { font-style: normal; color: var(--blue-lt); }
+    .card h2 { text-align: center; margin: 0 0 6px; font-size: 24px; color: var(--white); font-weight: 800; letter-spacing: -0.5px; }
+    .card .sub { text-align: center; color: var(--muted); margin: 0 0 28px; font-size: 14.5px; }
+    label { display: block; font-weight: 600; font-size: 13.5px; margin: 0 0 8px; color: #c6d1e6; }
+    .campo {
+      display: flex; align-items: center; gap: 11px; border: 1.5px solid var(--border); border-radius: 13px;
+      padding: 0 15px; margin-bottom: 18px; background: var(--input);
+      transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+    }
+    .campo:hover { border-color: var(--border-2); }
+    .campo:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.16); background: #0c1424; }
+    .campo .ic { color: var(--muted); display: flex; flex: 0 0 auto; transition: color 0.18s; }
+    .campo:focus-within .ic { color: var(--blue-lt); }
+    .campo input { flex: 1; border: none; outline: none; background: transparent; padding: 15px 0; font-size: 15px; font-family: inherit; color: var(--text); }
+    .campo input::placeholder { color: #6c7c99; }
+    .campo input:-webkit-autofill, .campo input:-webkit-autofill:hover, .campo input:-webkit-autofill:focus, .campo input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 1000px var(--input) inset; -webkit-text-fill-color: var(--text); caret-color: var(--text); transition: background-color 9999s ease-in-out 0s;
+    }
+    .olho { background: none; border: none; cursor: pointer; color: #6c7c99; padding: 4px; display: flex; transition: color 0.18s; }
+    .olho:hover { color: var(--blue-lt); }
+    .linha { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; font-size: 13.5px; }
     .chk { display: flex; align-items: center; gap: 9px; font-weight: 500; color: #b8c4da; margin: 0; cursor: pointer; }
-    .chk input { accent-color: var(--azul); width: 17px; height: 17px; border-radius: 5px; }
-    .linha a { color: var(--azul); font-weight: 600; text-decoration: none; }
-    .btn-entrar { position: relative; width: 100%; background: var(--azul-vivo); color: #fff; border: none; border-radius: 13px;
-      padding: 16px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center;
-      justify-content: center; transition: background .15s; font-family: inherit; }
-    .btn-entrar:hover { background: var(--azul-escuro); }
-    .btn-entrar:disabled { opacity: .7; cursor: default; }
-    .btn-entrar .seta { position: absolute; right: 22px; display: flex; }
-    .divisor { text-align: center; color: var(--suave); font-size: 14px; margin: 26px 0 18px; position: relative; }
-    .divisor::before, .divisor::after { content: ""; position: absolute; top: 50%; width: 36%; height: 1px; background: var(--borda); }
-    .divisor::before { left: 0; } .divisor::after { right: 0; }
-    .btn-criar { width: 100%; background: transparent; color: var(--azul-medio); border: 1.5px solid var(--borda); border-radius: 13px;
-      padding: 15px; font-size: 15.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center;
-      justify-content: center; gap: 11px; transition: border .15s, background .15s; font-family: inherit; }
-    .btn-criar:hover { border-color: var(--azul); background: var(--azul-claro); }
-    .aviso { text-align: center; color: var(--suave); font-size: 13px; margin-top: 18px; line-height: 1.55; }
-    .erro { color: #dc2626; font-size: 13px; text-align: center; margin-top: 14px; min-height: 16px; font-weight: 600; }
-    .rodape { text-align: center; color: var(--suave); font-size: 13px; margin-top: 22px;
-      display: flex; align-items: center; justify-content: center; gap: 7px; }
-
-    /* blocos exclusivos do mobile (escondidos no desktop) */
-    .marca-mob, .primeiro-mob, .plat-mob { display: none; }
-
-    @media (max-width: 900px) {
-      body { background: #0a0e1a; }
-      .deco { display: none; }
-      .esq { display: none; }
-      .wrap { grid-template-columns: 1fr; max-width: 440px; padding: 26px 22px 40px; align-items: start; }
-
-      /* marca no topo */
-      .marca-mob { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 24px; }
-      .marca-mob img { width: 78px; height: 78px; object-fit: contain; }
-      .marca-mob .wm { font-size: 30px; font-weight: 800; letter-spacing: -1px; }
-      .marca-mob .wm .g { color: var(--escuro); }
-      .marca-mob .wm .b { color: var(--azul); }
-
-      /* card vira plano (formulário direto na página) */
-      .card { box-shadow: none; border: none; background: transparent; padding: 0; }
-      .escudo { display: none; }
-      .card h2 { font-size: 25px; }
-      .card .sub { margin-bottom: 26px; }
-
-      /* esconde o "primeiro acesso" do desktop (vira card abaixo) */
-      .divisor, .btn-criar, .aviso { display: none; }
-
-      /* card cinza "Primeiro acesso?" */
-      .primeiro-mob { display: block; margin-top: 22px; }
-      .ou-mob { text-align: center; color: var(--suave); font-size: 14px; position: relative; margin-bottom: 18px; }
-      .ou-mob::before, .ou-mob::after { content: ""; position: absolute; top: 50%; width: 42%; height: 1px; background: var(--borda); }
-      .ou-mob::before { left: 0; } .ou-mob::after { right: 0; }
-      .pcard { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 14px; background: #141d33; border: 1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 18px; }
-      .picon { width: 46px; height: 46px; border-radius: 50%; background: var(--azul-claro); color: var(--azul); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
-      .ptxt { flex: 1 1 0; min-width: 150px; }
-      .ptxt strong { display: block; color: var(--escuro); font-size: 15.5px; font-weight: 700; }
-      .ptxt span { color: var(--suave); font-size: 13px; line-height: 1.4; }
-      .pbtn { flex: 1 1 100%; background: transparent; color: var(--azul-medio); border: 1.5px solid rgba(255,255,255,.14); border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 2px; }
-      .pbtn:hover { border-color: var(--azul); background: var(--azul-claro); }
-
-      /* rodapé: descrição da plataforma + copyright */
-      .plat-mob { display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; margin-top: 36px; color: var(--suave); }
-      .plat-mob .psic { color: var(--azul); }
-      .plat-mob p { margin: 0; font-size: 13.5px; line-height: 1.5; max-width: 330px; }
-      .rodape { margin-top: 16px; }
+    .chk input { accent-color: var(--blue); width: 16px; height: 16px; }
+    .linha a { color: var(--blue-lt); font-weight: 600; text-decoration: none; transition: color 0.18s; }
+    .linha a:hover { color: var(--white); }
+    .btn-entrar {
+      position: relative; width: 100%; color: #fff; border: none; border-radius: 13px;
+      background: linear-gradient(180deg, var(--blue-lt), var(--blue));
+      padding: 16px; font-size: 15.5px; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      font-family: inherit; box-shadow: 0 8px 26px rgba(37,99,235,0.4);
+      transition: transform 0.15s var(--ease), box-shadow 0.2s, filter 0.15s;
     }
-    @media (max-width: 380px) {
-      .marca-mob img { width: 66px; height: 66px; }
-      .marca-mob .wm { font-size: 26px; }
+    .btn-entrar:hover { transform: translateY(-2px); box-shadow: 0 14px 38px rgba(37,99,235,0.55); filter: brightness(1.05); }
+    .btn-entrar:active { transform: translateY(0) scale(0.99); box-shadow: 0 6px 20px rgba(37,99,235,0.4); }
+    .btn-entrar:disabled { cursor: default; filter: saturate(0.8); transform: none; }
+    .btn-entrar .seta { display: flex; transition: transform 0.2s var(--ease); }
+    .btn-entrar:hover .seta { transform: translateX(4px); }
+    .spin { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    .erro { color: #fca5a5; font-size: 13px; text-align: center; margin-top: 14px; min-height: 16px; font-weight: 600; }
+
+    /* primeiro acesso — bloco secundário agrupado */
+    .divisor { text-align: center; color: var(--muted-2); font-size: 12.5px; letter-spacing: 0.04em; text-transform: uppercase; margin: 26px 0 16px; position: relative; }
+    .divisor::before, .divisor::after { content: ""; position: absolute; top: 50%; width: 32%; height: 1px; background: var(--border); }
+    .divisor::before { left: 0; } .divisor::after { right: 0; }
+    .first {
+      display: flex; align-items: center; gap: 13px; background: rgba(37,99,235,0.05);
+      border: 1px solid var(--border); border-radius: 15px; padding: 15px 16px;
+    }
+    .first .fi { width: 42px; height: 42px; border-radius: 11px; background: rgba(37,99,235,0.14); color: var(--blue-lt); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+    .first .ft { flex: 1; }
+    .first .ft strong { display: block; font-size: 14px; font-weight: 700; color: var(--white); }
+    .first .ft span { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+    .first .fb { background: transparent; color: var(--blue-lt); border: 1px solid var(--border-2); border-radius: 10px; padding: 9px 14px; font-size: 13.5px; font-weight: 700; cursor: pointer; font-family: inherit; white-space: nowrap; transition: border-color 0.18s, background 0.18s, color 0.18s; }
+    .first .fb:hover { border-color: var(--blue); background: rgba(37,99,235,0.12); color: var(--white); }
+
+    /* rodapé minimalista */
+    .rodape { text-align: center; color: var(--muted-2); font-size: 12px; margin-top: 26px; }
+
+    /* blocos exclusivos do mobile */
+    .brand-mob { display: none; }
+
+    @media (max-width: 940px) {
+      .wrap { grid-template-columns: 1fr; max-width: 440px; padding: 30px 22px 40px; align-items: start; gap: 0; }
+      .amb-1, .amb-2 { display: none; }
+      .showcase { display: none; }
+      .brand-mob { display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 8px 0 26px; }
+      .brand-mob img { width: 68px; height: 68px; object-fit: contain; filter: drop-shadow(0 0 22px rgba(37,99,235,0.5)); }
+      .brand-mob .wm { font-size: 26px; font-weight: 800; letter-spacing: -0.6px; }
+      .brand-mob .wm span { color: var(--blue-lt); }
+      .card { padding: 32px 24px; border-radius: 22px; }
+      .first { flex-wrap: wrap; }
+      .first .fb { flex: 1 1 100%; padding: 12px; }
     }
   </style>
 </head>
 <body>
-  <!-- Decorações -->
-  <div class="deco deco-blob1"></div>
-  <div class="deco deco-blob2"></div>
-  <div class="deco deco-blob3"></div>
-  <canvas class="deco deco-canvas" id="dotsCanvas"></canvas>
-  <svg class="deco deco-wave" id="waveSvg" width="100%" height="100%" viewBox="0 0 1440 900" preserveAspectRatio="none" fill="none"></svg>
-  <div class="deco deco-veil"></div>
+  <div class="amb amb-1"></div>
+  <div class="amb amb-2"></div>
+  <canvas id="dotsCanvas"></canvas>
 
   <div class="wrap">
-    <!-- Esquerda -->
-    <div class="esq">
-      <div class="marca">
-        <img src="/robot.png" alt="Gestalize Bots" class="robo" />
-        <div class="wordmark"><span class="g">Gestalize</span><span class="b">Bots</span></div>
+    <!-- Esquerda — showcase do produto -->
+    <div class="showcase">
+      <div class="brand anim" style="animation-delay:.05s">
+        <img src="/robot.png" alt="Gestalize Bots" />
+        <div class="wm">Gestalize <span>Bots</span></div>
+      </div>
+      <h1 class="anim" style="animation-delay:.12s">Automatize atendimento, vendas e suporte com <em>inteligência artificial</em>.</h1>
+      <p class="lead anim" style="animation-delay:.2s">A comunicação do seu negócio no WhatsApp, centralizada em uma plataforma inteligente — com sua equipe sempre no controle.</p>
+
+      <div class="preview anim" style="animation-delay:.28s">
+        <div class="preview-glow"></div>
+        <div class="shot">
+          <div class="shot-bar"><i></i><i></i><i></i><span class="url">app.gestalizebots.com/dashboard</span></div>
+          <img src="/screenshots/dashboard.png" alt="Painel do Gestalize Bots com métricas em tempo real" loading="lazy" />
+        </div>
+        <div class="float-card">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+          <div><b>NPS 100</b><small>satisfação medida</small></div>
+        </div>
       </div>
 
-      <h2>Plataforma completa para gerenciar <b>seus bots</b></h2>
-      <p class="desc">Gerencie atendimentos, automatize conversas e impulsione resultados no WhatsApp.</p>
-
-      <ul class="features">
-        <li>
-          <span class="fic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.2A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/></svg></span>
-          Atendimentos automatizados
-        </li>
-        <li>
-          <span class="fic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
-          Relatórios e insights
-        </li>
-        <li>
-          <span class="fic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
-          Configurações avançadas
-        </li>
-        <li>
-          <span class="fic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3z"/><path d="M19 13.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></span>
-          Respostas com IA
-        </li>
-      </ul>
-
-      <div class="seg">
-        <span class="sic"><svg width="38" height="38" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 14-4-4 1.4-1.4L11 12.2l4.6-4.6L17 9l-6 6z"/></svg></span>
-        <div><strong>Segurança e confiabilidade</strong><small>Seus dados protegidos com alto padrão de segurança.</small></div>
+      <div class="benefits anim" style="animation-delay:.36s">
+        <div class="benefit"><span class="bic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span>Atendimento com IA</span></div>
+        <div class="benefit"><span class="bic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><span>Automação no WhatsApp</span></div>
+        <div class="benefit"><span class="bic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></span><span>Métricas em tempo real</span></div>
+        <div class="benefit"><span class="bic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span><span>Gestão completa da operação</span></div>
       </div>
     </div>
 
-    <!-- Direita -->
+    <!-- Direita — card de login -->
     <div class="col-dir">
-    <div class="marca-mob">
-      <img src="/robot.png" alt="Gestalize Bots" />
-      <div class="wm"><span class="g">Gestalize</span> <span class="b">Bots</span></div>
-    </div>
-    <div class="card">
-      <div class="escudo"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 14-4-4 1.4-1.4L11 12.2l4.6-4.6L17 9l-6 6z"/></svg></div>
-      <h2>Bem-vindo de volta!</h2>
-      <p class="sub">Acesse sua conta para continuar</p>
-      <form id="formLogin">
-        <label>E-mail</label>
-        <div class="campo">
-          <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg></span>
-          <input type="email" id="email" placeholder="Digite seu e-mail" autocomplete="username" required />
+      <div class="card anim" style="animation-delay:.15s">
+        <div class="card-brand">
+          <img src="/robot.png" alt="Gestalize Bots" />
+          <span>Gestalize <em>Bots</em></span>
         </div>
-        <label>Senha</label>
-        <div class="campo">
-          <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-          <input type="password" id="senha" placeholder="Digite sua senha" autocomplete="current-password" required />
-          <button type="button" class="olho" id="olho" title="Mostrar/ocultar senha">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
-        </div>
-        <div class="linha">
-          <label class="chk"><input type="checkbox" id="lembrar" checked /> Lembrar de mim</label>
-          <a href="#" id="esqueci">Esqueci minha senha</a>
-        </div>
-        <button type="submit" class="btn-entrar" id="btnEntrar">Entrar <span class="seta"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span></button>
-        <div class="erro" id="erro"></div>
-      </form>
+        <h2>Bem-vindo de volta</h2>
+        <p class="sub">Entre para acessar sua plataforma</p>
+        <form id="formLogin">
+          <label>E-mail</label>
+          <div class="campo">
+            <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg></span>
+            <input type="email" id="email" placeholder="Digite seu e-mail" autocomplete="username" required />
+          </div>
+          <label>Senha</label>
+          <div class="campo">
+            <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+            <input type="password" id="senha" placeholder="Digite sua senha" autocomplete="current-password" required />
+            <button type="button" class="olho" id="olho" title="Mostrar/ocultar senha" aria-label="Mostrar ou ocultar senha">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <div class="linha">
+            <label class="chk"><input type="checkbox" id="lembrar" checked /> Lembrar de mim</label>
+            <a href="#" id="esqueci">Esqueci minha senha</a>
+          </div>
+          <button type="submit" class="btn-entrar" id="btnEntrar">Entrar <span class="seta"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span></button>
+          <div class="erro" id="erro"></div>
+        </form>
 
-      <div class="divisor">Primeiro acesso?</div>
-      <button type="button" class="btn-criar" id="criar">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>
-        Criar minha senha
-      </button>
-      <p class="aviso">Recebeu um convite da Gestalize Bots?<br/>Clique acima para configurar sua senha.</p>
-    </div>
-
-    <div class="primeiro-mob">
-      <div class="ou-mob"><span>ou</span></div>
-      <div class="pcard">
-        <span class="picon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-        <div class="ptxt"><strong>Primeiro acesso?</strong><span>Recebeu um convite da Gestalize Bots?</span></div>
-        <button type="button" class="pbtn" id="criar2">Criar minha senha <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+        <div class="divisor">Primeiro acesso</div>
+        <div class="first">
+          <span class="fi"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+          <div class="ft"><strong>Recebeu um convite?</strong><span>Configure sua senha para começar.</span></div>
+          <button type="button" class="fb" id="criar">Criar senha</button>
+        </div>
       </div>
-    </div>
 
-    <div class="plat-mob">
-      <span class="psic"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 14-4-4 1.4-1.4L11 12.2l4.6-4.6L17 9l-6 6z"/></svg></span>
-      <p>Plataforma profissional para gerenciamento de bots de atendimento e automações WhatsApp.</p>
-    </div>
-
-    <div class="rodape">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      © <span id="ano"></span> Gestalize Bots. Todos os direitos reservados.
-    </div>
+      <div class="rodape">© <span id="ano"></span> Gestalize Systems. Todos os direitos reservados.</div>
     </div>
   </div>
 
@@ -281,20 +284,14 @@
     (function () {
       const canvas = document.getElementById("dotsCanvas");
       const ctx = canvas.getContext("2d");
-      const ESP = 30;        // espaçamento da grade
-      const RAIO = 1.5;      // tamanho do ponto
-      const ALCANCE = 180;   // raio de influência do cursor
-      const A_BASE = 0.05;   // opacidade em repouso (bem discreto)
-      const A_ATIVO = 0.7;   // opacidade perto do cursor
-      const FORCA = 3.2, MOLA = 0.02, ATRITO = 0.86; // repulsão suave + retorno
+      const ESP = 30, RAIO = 1.5, ALCANCE = 180;
+      const A_BASE = 0.05, A_ATIVO = 0.7;
+      const FORCA = 3.2, MOLA = 0.02, ATRITO = 0.86;
       let dots = [], mx = -9999, my = -9999;
-
       function gerar() {
         dots = [];
         const W = innerWidth, H = innerHeight;
-        for (let x = ESP; x < W; x += ESP)
-          for (let y = ESP; y < H; y += ESP)
-            dots.push({ hx: x, hy: y, x, y, vx: 0, vy: 0 });
+        for (let x = ESP; x < W; x += ESP) for (let y = ESP; y < H; y += ESP) dots.push({ hx: x, hy: y, x, y, vx: 0, vy: 0 });
       }
       function dimensoes() {
         const dpr = window.devicePixelRatio || 1;
@@ -305,7 +302,6 @@
       addEventListener("resize", dimensoes);
       addEventListener("mousemove", (e) => { mx = e.clientX; my = e.clientY; });
       addEventListener("mouseout", () => { mx = -9999; my = -9999; });
-
       function loop() {
         ctx.clearRect(0, 0, innerWidth, innerHeight);
         for (const d of dots) {
@@ -314,7 +310,7 @@
           if (prox > 0) { const f = prox * FORCA; d.vx += (dx / dist) * f; d.vy += (dy / dist) * f; }
           d.vx += (d.hx - d.x) * MOLA; d.vy += (d.hy - d.y) * MOLA;
           d.vx *= ATRITO; d.vy *= ATRITO; d.x += d.vx; d.y += d.vy;
-          const p = prox * prox; // realce concentrado bem perto do cursor
+          const p = prox * prox;
           ctx.globalAlpha = A_BASE + (A_ATIVO - A_BASE) * p;
           ctx.fillStyle = p > 0.03 ? "#6f9bf2" : "#8aa0c6";
           ctx.beginPath(); ctx.arc(d.x, d.y, RAIO, 0, Math.PI * 2); ctx.fill();
@@ -323,46 +319,6 @@
         requestAnimationFrame(loop);
       }
       dimensoes(); loop();
-    })();
-
-    // ===== Onda de fundo (sobe na diagonal, com sombra/profundidade) =====
-    (function () {
-      const svg = document.getElementById("waveSvg");
-      if (!svg) return;
-      // Baixa e ondulada no rodapé até a metade; depois sobe até o canto superior direito.
-      function onda(dy) {
-        // Esquerda: colinas suaves + vale (Catmull-Rom) até x=1000.
-        const L = [[0, 718], [250, 658], [430, 700], [585, 626], [800, 692], [1000, 664]].map((p) => [p[0], p[1] + dy]);
-        let d = `M${L[0][0]} ${L[0][1]}`;
-        for (let i = 0; i < L.length - 1; i++) {
-          const p0 = L[i - 1] || L[i], p1 = L[i], p2 = L[i + 1], p3 = L[i + 2] || p2;
-          const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
-          const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
-          d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2[0]} ${p2[1]}`;
-        }
-        // Direita: S perfeito (curva sigmoide, simétrica) de x=1000 até x=1440.
-        const x0 = 1000, x1 = 1440, yB = 664 + dy, yT = 116 + dy, k = 9;
-        const sig = (t) => 1 / (1 + Math.exp(-k * (t - 0.5)));
-        const s0 = sig(0), s1 = sig(1);
-        const N = 48;
-        for (let i = 1; i <= N; i++) {
-          const t = i / N;
-          const x = x0 + (x1 - x0) * t;
-          const sn = (sig(t) - s0) / (s1 - s0);
-          const y = yB + (yT - yB) * sn;
-          d += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
-        }
-        return d;
-      }
-      const cores = ["#16244a", "#1a2c58", "#1f3468", "#243c78", "#294488", "#2f4d98"];
-      let html = '<defs><filter id="ondaSombra" x="-5%" y="-12%" width="115%" height="132%">'
-        + '<feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#6f8cc7" flood-opacity="0.32"/></filter></defs>';
-      html += `<path d="${onda(0)} L1440 900 L0 900 Z" fill="#e6edfa" opacity="0.4"/>`;
-      html += '<g filter="url(#ondaSombra)">';
-      for (let i = 0; i < cores.length; i++)
-        html += `<path d="${onda(i * 15)}" stroke="${cores[i]}" stroke-width="1.8" fill="none"/>`;
-      html += "</g>";
-      svg.innerHTML = html;
     })();
 
     const $ = (id) => document.getElementById(id);
@@ -375,18 +331,18 @@
     function emBreve(e) {
       e.preventDefault();
       const erro = $("erro");
-      erro.style.color = "#2563eb";
+      erro.style.color = "#3B82F6";
       erro.textContent = "Recuperação/criação por e-mail chega em breve. A senha é definida no painel.";
     }
     $("esqueci").addEventListener("click", emBreve);
     $("criar").addEventListener("click", emBreve);
-    if ($("criar2")) $("criar2").addEventListener("click", emBreve);
 
+    const btnHTML = 'Entrar <span class="seta"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>';
     $("formLogin").addEventListener("submit", async (e) => {
       e.preventDefault();
       const btn = $("btnEntrar"), erro = $("erro");
-      erro.textContent = ""; erro.style.color = "#dc2626";
-      btn.disabled = true; btn.textContent = "Entrando...";
+      erro.textContent = ""; erro.style.color = "#fca5a5";
+      btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Entrando…';
       try {
         const r = await fetch("/api/login", {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -399,7 +355,7 @@
         erro.textContent = "Erro de conexão. Tente novamente.";
       }
       btn.disabled = false;
-      btn.innerHTML = 'Entrar <span class="seta"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>';
+      btn.innerHTML = btnHTML;
     });
   </script>
 </body>

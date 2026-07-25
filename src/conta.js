@@ -58,9 +58,17 @@ function get() {
   return { email: conta.email, nomeUsuario: conta.nomeUsuario, telefone: conta.telefone };
 }
 
+// Login de TESTE (ex.: revisor da Meta durante a análise do app). Definido por variáveis de
+// ambiente no Railway (REVISOR_EMAIL / REVISOR_SENHA) — nada de credencial no repo público.
+// É só apagar as variáveis pra desativar o acesso depois da aprovação.
+const REVISOR_EMAIL = (process.env.REVISOR_EMAIL || "").trim().toLowerCase();
+const REVISOR_SENHA = process.env.REVISOR_SENHA || "";
+
 function verifica(email, senha) {
+  const e = String(email).trim().toLowerCase();
+  if (REVISOR_EMAIL && REVISOR_SENHA && e === REVISOR_EMAIL && String(senha) === REVISOR_SENHA) return true;
   if (!conta.email) return false;
-  return String(email).trim().toLowerCase() === conta.email.toLowerCase() && confere(senha, conta.senhaHash);
+  return e === conta.email.toLowerCase() && confere(senha, conta.senhaHash);
 }
 
 function atualizar({ nomeUsuario, telefone, email } = {}) {

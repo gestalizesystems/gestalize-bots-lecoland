@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Conectar WhatsApp — Gestalize Bots</title>
+<link rel="icon" type="image/png" href="/gestalize-bot.png"/>
+<link rel="apple-touch-icon" href="/gestalize-bot.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+  :root { --bg:#07090F; --card:#0e1526; --border:#1c2740; --blue:#2563EB; --blue-lt:#3B82F6; --muted:#8aa0c6; --white:#eef2fb; --ok:#22c55e; --warn:#f59e0b; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--white); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:2rem; }
+  .card { width:100%; max-width:560px; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:2.5rem; }
+  .head { display:flex; align-items:center; gap:12px; margin-bottom:1.5rem; }
+  .head img { width:42px; height:42px; object-fit:contain; }
+  .head h1 { font-size:1.35rem; font-weight:800; letter-spacing:-0.5px; }
+  .head span { color:var(--blue-lt); }
+  p.sub { color:var(--muted); font-size:0.92rem; line-height:1.6; margin-bottom:1.75rem; }
+  .status { border:1px solid var(--border); border-radius:14px; padding:1rem 1.15rem; margin-bottom:1.5rem; background:rgba(255,255,255,0.02); font-size:0.9rem; }
+  .status .linha { display:flex; align-items:center; gap:8px; }
+  .status .linha + .linha { margin-top:0.5rem; }
+  .dot { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
+  .dot.on { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+  .dot.off { background:#475569; }
+  .dot.warn { background:var(--warn); box-shadow:0 0 8px var(--warn); }
+  .num { color:var(--white); font-weight:600; }
+  .muted { color:var(--muted); }
+  .steps { list-style:none; margin:0 0 1.75rem; padding:0; counter-reset:s; }
+  .steps li { position:relative; padding:0.35rem 0 0.35rem 2rem; color:var(--muted); font-size:0.88rem; line-height:1.55; counter-increment:s; }
+  .steps li::before { content:counter(s); position:absolute; left:0; top:0.3rem; width:1.35rem; height:1.35rem; border-radius:50%; background:rgba(37,99,235,0.15); color:var(--blue-lt); font-size:0.72rem; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  button { width:100%; border:none; border-radius:12px; padding:0.95rem; font-family:inherit; font-size:0.98rem; font-weight:700; cursor:pointer; transition:filter .15s, opacity .15s; }
+  .btn-primary { background:var(--blue); color:#fff; }
+  .btn-primary:hover { filter:brightness(1.08); }
+  .btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
+  .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); margin-top:0.75rem; }
+  .btn-ghost:hover { color:var(--white); }
+  .msg { margin-top:1rem; font-size:0.86rem; line-height:1.5; display:none; padding:0.75rem 1rem; border-radius:10px; }
+  .msg.err { display:block; background:rgba(239,68,68,0.1); color:#fca5a5; border:1px solid rgba(239,68,68,0.3); }
+  .msg.ok  { display:block; background:rgba(34,197,94,0.1); color:#86efac; border:1px solid rgba(34,197,94,0.3); }
+  .aviso { margin-top:1.25rem; font-size:0.78rem; color:var(--muted); line-height:1.5; }
+  a.voltar { display:inline-block; margin-top:1.5rem; color:var(--muted); font-size:0.85rem; text-decoration:none; }
+  a.voltar:hover { color:var(--white); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <img src="/robot.png" alt="Gestalize Bots" />
+      <h1>Conectar <span>WhatsApp</span></h1>
+    </div>
+    <p class="sub">Conecte o número da loja mantendo o app do WhatsApp Business funcionando no celular (<strong>coexistência</strong>). O bot atende pela Cloud API e sua equipe continua respondendo pelo aparelho.</p>
+
+    <div class="status" id="status">
+      <div class="linha"><span class="dot off"></span> <span class="muted">Verificando conexão…</span></div>
+    </div>
+
+    <ol class="steps">
+      <li>Clique em <strong>Conectar WhatsApp</strong> — abre a janela oficial da Meta.</li>
+      <li>Entre com a conta Meta que administra o número e selecione a empresa.</li>
+      <li>Escolha o número da loja e a opção de <strong>usar o app junto com a API (coexistência)</strong>.</li>
+      <li>Confirme a autorização no celular. Pronto — o bot passa a atender.</li>
+    </ol>
+
+    <button class="btn-primary" id="btnConectar" disabled>Conectar WhatsApp</button>
+    <button class="btn-ghost" id="btnDesconectar" style="display:none">Desconectar número</button>
+
+    <div class="msg" id="msg"></div>
+
+    <p class="aviso" id="aviso"></p>
+    <a class="voltar" href="/">← Voltar ao painel</a>
+  </div>
+
+<script>
+  const $ = (s) => document.querySelector(s);
+  const msg = (txt, tipo) => { const m = $("#msg"); m.textContent = txt; m.className = "msg " + (tipo || ""); };
+
+  let CFG = null;
+  let sessao = {};   // waba_id / phone_number_id do postMessage da Meta
+
+  async function init() {
+    try { CFG = await (await fetch("/api/wa/config")).json(); } catch (_) { CFG = { pronto: false }; }
+    await atualizarStatus();
+    if (!CFG.pronto) {
+      $("#aviso").innerHTML = "⚙️ Falta definir <code>META_APP_ID</code> e <code>META_ES_CONFIG_ID</code> no Railway.";
+      return;
+    }
+    carregarSDK(CFG.appId, CFG.graphVersion);
+  }
+
+  async function atualizarStatus() {
+    let s;
+    try { s = await (await fetch("/api/wa/status")).json(); } catch (_) { s = {}; }
+    const el = $("#status");
+    if (s.conectado) {
+      el.innerHTML = `
+        <div class="linha"><span class="dot on"></span> <span class="num">Conectado${s.numero ? " — " + s.numero : ""}</span></div>
+        ${s.nomeVerificado ? `<div class="linha"><span class="dot on"></span> <span class="muted">${s.nomeVerificado}</span></div>` : ""}
+        <div class="linha"><span class="dot ${s.coexistencia ? "on" : "warn"}"></span> <span class="muted">${s.coexistencia ? "Coexistência ativa (app do celular segue funcionando)" : "Conexão direta (sem coexistência)"}</span></div>`;
+      $("#btnConectar").textContent = "Reconectar / trocar número";
+      $("#btnDesconectar").style.display = "block";
+    } else if (s.envFallback) {
+      el.innerHTML = `<div class="linha"><span class="dot warn"></span> <span class="muted">Usando número do .env. Conecte pela coexistência para usar o número da loja.</span></div>`;
+    } else {
+      el.innerHTML = `<div class="linha"><span class="dot off"></span> <span class="muted">Nenhum número conectado ainda.</span></div>`;
+    }
+  }
+
+  function carregarSDK(appId, versao) {
+    window.fbAsyncInit = function () {
+      FB.init({ appId, autoLogAppEvents: true, xfbml: true, version: versao || "v21.0" });
+      $("#btnConectar").disabled = false;
+    };
+    (function (d, s, id) {
+      if (d.getElementById(id)) return;
+      const js = d.createElement(s); js.id = id;
+      js.src = "https://connect.facebook.net/pt_BR/sdk.js";
+      d.getElementsByTagName("head")[0].appendChild(js);
+    })(document, "script", "facebook-jssdk");
+  }
+
+  // Captura waba_id / phone_number_id que a janela da Meta envia por postMessage
+  window.addEventListener("message", (event) => {
+    try {
+      if (!/facebook\.com$/.test(new URL(event.origin).hostname)) return;
+      const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+      if (data.type === "WA_EMBEDDED_SIGNUP" && data.data) {
+        if (data.data.phone_number_id) sessao.phone_number_id = data.data.phone_number_id;
+        if (data.data.waba_id) sessao.waba_id = data.data.waba_id;
+      }
+    } catch (_) {}
+  });
+
+  function conectar() {
+    msg("", "");
+    sessao = {};
+    if (!window.FB) return msg("SDK ainda carregando, aguarde.", "err");
+    FB.login((response) => {
+      if (response.authResponse && response.authResponse.code) {
+        finalizar(response.authResponse.code);
+      } else {
+        msg("Conexão cancelada ou não autorizada.", "err");
+      }
+    }, {
+      config_id: CFG.configId,
+      response_type: "code",
+      override_default_response_type: true,
+      extras: { setup: {}, featureType: "whatsapp_business_app_onboarding", sessionInfoVersion: "3" },
+    });
+  }
+
+  async function finalizar(code) {
+    $("#btnConectar").disabled = true;
+    msg("Concluindo a conexão…", "");
+    try {
+      const r = await fetch("/api/wa/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, waba_id: sessao.waba_id, phone_number_id: sessao.phone_number_id }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data.ok) throw new Error(data.erro || "Falha ao conectar.");
+      msg("✅ Número conectado!" + (data.numero ? " (" + data.numero + ")" : ""), "ok");
+      sessao = {};
+      await atualizarStatus();
+    } catch (e) {
+      msg("❌ " + e.message, "err");
+    } finally {
+      $("#btnConectar").disabled = false;
+    }
+  }
+
+  async function desconectar() {
+    if (!confirm("Desconectar o número? O bot para de atender por ele até você reconectar.")) return;
+    await fetch("/api/wa/desconectar", { method: "POST" });
+    $("#btnDesconectar").style.display = "none";
+    msg("Número desconectado.", "ok");
+    await atualizarStatus();
+  }
+
+  $("#btnConectar").addEventListener("click", conectar);
+  $("#btnDesconectar").addEventListener("click", desconectar);
+  init();
+</script>
+</body>
+</html>

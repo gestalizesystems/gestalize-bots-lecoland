@@ -19,6 +19,8 @@ data/equipe.json
 data/config.json
 data/codigos-vendidos.json
 data/precos-estoque.json
+# Credenciais do WhatsApp conectadas pela coexistência (token de acesso) — NUNCA versionar
+data/wa-credenciais.json
 
 # Arquivos do macOS
 .DS_Store

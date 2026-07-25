@@ -16,6 +16,7 @@ const equipe = require("./equipe");
 const metricas = require("./metricas");
 const campanhas = require("./campanhas");
 const wa = require("./wa");
+const onboard = require("./waonboard");
 const ai = require("./ai");
 
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
@@ -78,6 +79,26 @@ function contextoAnuncio(ref) {
   const ad = [ref.headline, ref.body].filter(Boolean).join(" — ");
   if (!ad) return "";
   return `(O cliente veio de um anúncio do Instagram/Facebook sobre: "${ad}". Reconheça o produto/serviço do anúncio e passe as informações.) `;
+}
+
+// ===== Entrega ordenada e sem duplicatas das mensagens do webhook =====
+// A Meta pode REENTREGAR a mesma mensagem (retry) e o cliente costuma mandar VÁRIAS
+// mensagens seguidas. Aqui: dedup por message.id + fila POR CONTATO (uma de cada vez, em
+// ordem), pra não responder duas vezes nem embaralhar o contexto da IA.
+const msgVistas = new Set();
+function jaProcessada(id) {
+  if (!id) return false;
+  if (msgVistas.has(id)) return true;
+  msgVistas.add(id);
+  if (msgVistas.size > 3000) { const it = msgVistas.values(); for (let i = 0; i < 1000; i++) msgVistas.delete(it.next().value); }
+  return false;
+}
+const filasContato = new Map(); // contactId -> Promise (cauda da fila daquele contato)
+function enfileirar(from, tarefa) {
+  const anterior = filasContato.get(from) || Promise.resolve();
+  const atual = anterior.then(tarefa).catch((e) => console.error("Erro ao processar mensagem:", e.message));
+  filasContato.set(from, atual);
+  atual.finally(() => { if (filasContato.get(from) === atual) filasContato.delete(from); });
 }
 // Em produção (Railway) as imagens vão para o Volume persistente; local usa public/uploads.
 const UPLOAD_DIR = process.env.DATA_DIR ? path.join(process.env.DATA_DIR, "uploads") : path.join(PUBLIC_DIR, "uploads");
@@ -179,6 +200,8 @@ function iniciarAdmin(porta) {
   // Nomes de arquivo são únicos por upload → pode cachear forte (carrega 1x e não "some" mais).
   app.use("/uploads", express.static(UPLOAD_DIR, { maxAge: "30d", immutable: true }));
   app.get("/robot.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "robot.png")));
+  // Screenshots do produto usados na landing pública (dashboard, catálogo, conversa).
+  app.use("/screenshots", express.static(path.join(PUBLIC_DIR, "screenshots"), { maxAge: "7d" }));
   app.get("/favicon.ico", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "robot.png")));
   app.get("/og-gestalize.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "og-gestalize.png")));
   app.get("/og-gestalize-wide.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "og-gestalize-wide.png")));
@@ -186,6 +209,26 @@ function iniciarAdmin(porta) {
   app.get("/manifest.webmanifest", (req, res) => { res.type("application/manifest+json"); res.sendFile(path.join(PUBLIC_DIR, "manifest.webmanifest")); });
   app.get("/icon-192.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "icon-192.png")));
   app.get("/icon-512.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "icon-512.png")));
+
+  // robots.txt e sitemap PÚBLICOS (200). Sem eles, o /robots.txt caía no login (302) e
+  // crawlers/IA (GPTBot, ChatGPT-User, Google) tratavam o site como fechado e desistiam.
+  const SITE_URL = (process.env.PUBLIC_URL || "https://bots.gestalizesystems.com.br").replace(/\/$/, "");
+  app.get("/robots.txt", (req, res) => {
+    res.type("text/plain").send(
+      `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /login\nDisallow: /conectar-whatsapp\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
+    );
+  });
+  app.get("/sitemap.xml", (req, res) => {
+    res.type("application/xml").send(
+      `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+      `  <url>\n    <loc>${SITE_URL}/</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n` +
+      `</urlset>\n`
+    );
+  });
+
+  // Política de privacidade pública (necessária pra publicar o app na Meta).
+  app.get("/privacidade", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "privacidade.html")));
 
   // ---- Rotas públicas (login) ----
   app.get("/login", (req, res) => {
@@ -242,16 +285,19 @@ function iniciarAdmin(porta) {
           const nomes = {};
           for (const ct of val.contacts || []) if (ct.wa_id) nomes[ct.wa_id] = ct.profile && ct.profile.name;
           for (const msg of val.messages || []) {
-            const nomeWpp = nomes[msg.from] || Object.values(nomes)[0]; // nome do perfil do WhatsApp
+            if (jaProcessada(msg.id)) continue; // reentrega da Meta → ignora (evita resposta dupla)
+            const from = msg.from;
+            const nomeWpp = nomes[from] || Object.values(nomes)[0]; // nome do perfil do WhatsApp
             const ctxAd = contextoAnuncio(msg.referral); // veio de anúncio do Instagram/Facebook?
+            // Cada contato tem sua fila: mensagens em rajada são tratadas UMA de cada vez, em ordem.
             if (msg.type === "text" && msg.text) {
-              conversa.processar(msg.from, ctxAd + (msg.text.body || ""), nomeWpp).catch((e) => console.error("Erro ao processar mensagem:", e.message));
+              enfileirar(from, () => conversa.processar(from, ctxAd + (msg.text.body || ""), nomeWpp));
             } else if (msg.type === "image" && msg.image && msg.image.id) {
-              processarImagem(msg.from, msg.image.id, (ctxAd + (msg.image.caption || "")).trim(), nomeWpp).catch((e) => console.error("Erro na imagem:", e.message));
+              enfileirar(from, () => processarImagem(from, msg.image.id, (ctxAd + (msg.image.caption || "")).trim(), nomeWpp));
             } else if (msg.type === "audio" && msg.audio && msg.audio.id) {
-              processarAudio(msg.from, msg.audio.id, nomeWpp).catch((e) => console.error("Erro no áudio:", e.message));
+              enfileirar(from, () => processarAudio(from, msg.audio.id, nomeWpp));
             } else if (msg.type === "document" && msg.document && msg.document.id) {
-              processarDocumento(msg.from, msg.document.id, msg.document.mime_type, nomeWpp).catch((e) => console.error("Erro no documento:", e.message));
+              enfileirar(from, () => processarDocumento(from, msg.document.id, msg.document.mime_type, nomeWpp));
             }
           }
         }
@@ -277,6 +323,77 @@ function iniciarAdmin(porta) {
 
   // Painel
   // (a rota "/" pública já foi definida acima — landing/painel conforme login)
+
+  // ---- Conexão do WhatsApp (Embedded Signup / Coexistência) ----
+  // Página do fluxo de conexão (abre a janela oficial da Meta).
+  app.get("/conectar-whatsapp", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "conectar-whatsapp.html")));
+
+  // Config pública pro front iniciar o SDK do Facebook (sem o App Secret).
+  app.get("/api/wa/config", (req, res) => res.json(onboard.configPublica()));
+
+  // Status atual da conexão (mostra número conectado, se está por coexistência, etc.).
+  app.get("/api/wa/status", (req, res) => {
+    const c = onboard.getCredenciais();
+    res.json({
+      conectado: !!(c && c.token && c.phoneId),
+      numero: (c && c.numero) || "",
+      nomeVerificado: (c && c.nomeVerificado) || "",
+      coexistencia: !!(c && c.coexistencia),
+      conectadoEm: (c && c.conectadoEm) || null,
+      embeddedPronto: onboard.embeddedPronto(),
+      envFallback: !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_ID),
+    });
+  });
+
+  // Gera a URL do OAuth dialog (popup abre diretamente aqui, sem SDK do Facebook).
+  app.get("/api/wa/oauth-url", (req, res) => {
+    try { res.json({ url: onboard.gerarUrlOAuth() }); }
+    catch (e) { res.status(400).json({ erro: e.message }); }
+  });
+
+  // Meta redireciona aqui com o code após o usuário autorizar no popup.
+  app.get("/api/wa/oauth-callback", async (req, res) => {
+    const { code, waba_id, phone_number_id, error, error_description } = req.query;
+    if (!code) {
+      return res.send(paginaCallback(false, error_description || error || "Autorização negada."));
+    }
+    try {
+      const creds = await onboard.conectar({ code, wabaId: waba_id, phoneId: phone_number_id });
+      estado.whatsappConectado = wa.configurado();
+      res.send(paginaCallback(true, null, creds.numero));
+    } catch (e) {
+      res.send(paginaCallback(false, e.message));
+    }
+  });
+
+  function paginaCallback(ok, erro, numero) {
+    const payload = ok
+      ? JSON.stringify({ type: "WA_CONNECT_SUCCESS", numero: numero || "" })
+      : JSON.stringify({ type: "WA_CONNECT_ERROR", erro: erro || "Erro desconhecido." });
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>
+      <script>try{window.opener&&window.opener.postMessage(${payload},"*");}catch(_){}window.close();</script>
+      <p style="font-family:sans-serif;padding:2rem">${ok ? "✅ Conectado! Fechando…" : "❌ " + (erro || "")}</p>
+    </body></html>`;
+  }
+
+  // POST legado (mantido como fallback caso o frontend envie token diretamente).
+  app.post("/api/wa/connect", async (req, res) => {
+    try {
+      const { code, token, waba_id, phone_number_id } = req.body || {};
+      const creds = await onboard.conectar({ code, token, wabaId: waba_id, phoneId: phone_number_id });
+      estado.whatsappConectado = wa.configurado();
+      res.json({ ok: true, numero: creds.numero, nomeVerificado: creds.nomeVerificado });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
+  });
+
+  // Desconecta o número (remove as credenciais salvas; volta pro fallback do .env, se houver).
+  app.post("/api/wa/desconectar", (req, res) => {
+    onboard.limparCredenciais();
+    estado.whatsappConectado = wa.configurado();
+    res.json({ ok: true });
+  });
 
   // Configuração do bot
   app.get("/api/config", (req, res) => res.json(config.get()));

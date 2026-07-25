@@ -55,10 +55,10 @@ const aguardandoNpsComentario = new Map(); // contactId -> { id, detrator } espe
 const historicoConversa = new Map(); // contactId -> [últimas mensagens do cliente] (pro resumo do handoff)
 const ausenciaEnviada = new Map(); // contactId -> instante do último aviso de ausência
 const AUSENCIA_THROTTLE_MS = 60 * 60 * 1000; // não repete a ausência mais de 1x/h por contato
+const inatividade = new Map(); // contactId -> timer de silêncio (reengaja/encerra a conversa do bot)
 
-const PAUSA_SILENCIO_MS = 60 * 60 * 1000; // 1h de silêncio do cliente → "posso ajudar?"
-const SEM_RESPOSTA_MS = 2 * 60 * 60 * 1000; // sem resposta em 2h → finaliza
-const LIMITE_REENGAJAR_MS = 24 * 60 * 60 * 1000; // não reengaja conversas paradas há +24h
+const PAUSA_SILENCIO_MS = 60 * 60 * 1000; // 1h SEM novas mensagens (do cliente OU do bot) → "ainda por aí?"
+const SEM_RESPOSTA_MS = 2 * 60 * 60 * 1000; // sem resposta em 2h após o reengajamento → finaliza
 
 const FECHO_PALAVRAS = ["nao", "no", "obrigado", "obrigada", "obg", "vlw", "valeu", "era so isso", "so isso", "so isso mesmo", "era isso", "isso mesmo", "tudo certo", "ok", "blz", "beleza", "nada mais", "agradecido", "grato", "grata", "por enquanto so"];
 
@@ -164,27 +164,38 @@ function foraDoHorario(dados) {
   return !(agora >= abre && agora < fecha);
 }
 
+// Agenda/renova o timer de silêncio: 1h SEM novas mensagens (do cliente OU do bot) →
+// reengaja ("ainda por aí?") e, se continuar mudo por +2h, encerra. Chamado ao FINAL de
+// toda resposta do bot, pra o atendimento nunca ficar parado sem solução.
+function agendarInatividade(contactId) {
+  const t = inatividade.get(contactId);
+  if (t) clearTimeout(t);
+  inatividade.set(contactId, setTimeout(() => aoSilenciar(contactId), PAUSA_SILENCIO_MS));
+}
+function limparInatividade(contactId) {
+  const t = inatividade.get(contactId);
+  if (t) clearTimeout(t);
+  inatividade.delete(contactId);
+}
+
 function pausar(contactId) {
-  const atual = pausados.get(contactId);
-  if (atual && atual.timer) clearTimeout(atual.timer);
-  const timer = setTimeout(() => aoSilenciar(contactId), PAUSA_SILENCIO_MS);
-  pausados.set(contactId, { timer, ultimaMsg: Date.now() });
+  pausados.set(contactId, { ultimaMsg: Date.now() }); // atendimento humano em andamento (bot fica quieto)
+  agendarInatividade(contactId);
 }
 
 async function aoSilenciar(contactId) {
-  const p = pausados.get(contactId);
-  pausados.delete(contactId);
-  if (!p || Date.now() - p.ultimaMsg > LIMITE_REENGAJAR_MS) return;
+  inatividade.delete(contactId);
+  pausados.delete(contactId); // se vinha de atendimento humano, encerra o modo "quieto"
   try {
-    await enviar(contactId, "Posso te ajudar em mais alguma coisa? 😊");
-    const timer = setTimeout(() => finalizar(contactId, true), SEM_RESPOSTA_MS);
-    aguardandoFecho.set(contactId, { timer });
+    await enviar(contactId, "Ainda por aí? 😊 Se precisar de mais alguma coisa, é só me chamar!");
+    aguardandoFecho.set(contactId, { timer: setTimeout(() => finalizar(contactId, true), SEM_RESPOSTA_MS) });
   } catch (e) {
     console.error("Falha ao reengajar:", e.message);
   }
 }
 
 async function finalizar(contactId, enviarDespedida) {
+  limparInatividade(contactId);
   const f = aguardandoFecho.get(contactId);
   if (f && f.timer) clearTimeout(f.timer);
   aguardandoFecho.delete(contactId);
@@ -212,6 +223,11 @@ async function processar(from, texto, nomeWpp) {
   if (!dados.botAtivo) return;
 
   metricas.inc("recebida"); // métrica: mensagem recebida
+
+  // Cliente respondeu → cancela o reengajamento pendente. A MEMÓRIA da conversa é mantida
+  // até o atendimento ser realmente finalizado (despedida do cliente ou silêncio prolongado),
+  // mesmo que ele fique horas parado — assim o bot lembra o assunto (ex.: remédio de verme).
+  limparInatividade(from);
 
   // Guarda as últimas mensagens do cliente (em memória) pra montar o resumo no handoff.
   if (texto && String(texto).trim()) {
@@ -274,14 +290,18 @@ async function processar(from, texto, nomeWpp) {
     return;
   }
 
-  // Resposta ao "Posso te ajudar em mais alguma coisa?".
+  // Resposta ao "Ainda por aí?".
   if (aguardandoFecho.has(from)) {
     if (ehFecho(texto)) {
       await finalizar(from, false);
       await encerrarComNps(from, "Atendimento finalizado, qualquer coisa é só chamar! 🐾");
       return;
     }
-    await finalizar(from, false); // trouxe algo novo → começa um atendimento novo
+    // Trouxe algo novo → cancela só o encerramento pendente e CONTINUA a conversa com a
+    // memória intacta (o bot ainda lembra o assunto que estava em andamento).
+    const f = aguardandoFecho.get(from);
+    if (f && f.timer) clearTimeout(f.timer);
+    aguardandoFecho.delete(from);
   }
 
   // Cliente se despediu/agradeceu (ex.: "obrigada", "era só isso") → encerra e pede a nota (NPS).
@@ -301,6 +321,7 @@ async function processar(from, texto, nomeWpp) {
       const menu = menuPrincipal(nome);
       menuContexto.set(from, { opcoes: config.intents(), texto: menu, sub: false });
       await enviar(from, menu);
+      agendarInatividade(from);
       return;
     }
     // não parece um nome → segue o fluxo normal (não trava o atendimento)
@@ -356,15 +377,28 @@ async function processar(from, texto, nomeWpp) {
       registrarTurno(from, texto, nota + r.resposta);
       if (r.titulo) metricas.registrarServico(r.titulo); // métrica: serviço mais procurado
     }
+    agendarInatividade(from); // conversa segue aberta → programa o follow-up de silêncio
     return;
   }
 
   // tipo === "ia": pergunta livre.
+  // SAUDAÇÃO SEMPRE no primeiro contato — mas SEM o menu quando o cliente já chegou
+  // perguntando ou enviando arquivo (aí só damos as boas-vindas e já respondemos).
+  let saudacao = "";
+  if (!jaSaudou.has(from)) {
+    jaSaudou.add(from);
+    metricas.inc("atendimento"); // métrica: nova conversa/atendimento iniciado
+    const cli = clientes.get(from);
+    const loja = dados.negocio && dados.negocio.nome ? " à " + dados.negocio.nome : "";
+    saudacao = (cli && cli.nome) ? `Oi, ${cli.nome}! 🐾 ` : `Olá! 🐾 Seja muito bem-vindo(a)${loja}! `;
+  }
   const resp = await responder(from, texto);
-  await enviar(from, resp.texto);
+  await enviar(from, (saudacao + (resp.texto || "")).trim());
   if (resp.encaminhar) { // a IA pediu um atendente humano
     pausar(from);
     await abrirHandoff(from, resp.motivo || "A IA encaminhou para um atendente.");
+  } else {
+    agendarInatividade(from); // conversa segue aberta → 1h de silêncio reengaja/encerra
   }
   if (resp.produtos && resp.produtos.length) await enviarProdutos(from, resp.produtos); // catálogo com foto
 }
