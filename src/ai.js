@@ -8,6 +8,8 @@
 const { GoogleGenAI } = require("@google/genai");
 const config = require("./config");
 const geo = require("./geo");
+const clientes = require("./clientes");
+const equipe = require("./equipe");
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const MODELO = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -25,10 +27,36 @@ const TOOLS = [
           properties: {
             endereco: {
               type: "string",
-              description: "Endereço completo informado pelo cliente, ex.: 'Rua das Carnaúbas, 777, Passaré'.",
+              description: "Endereço completo informado pelo cliente, ex.: 'Rua das Flores, 123, Centro'.",
             },
           },
           required: ["endereco"],
+        },
+      },
+      {
+        name: "salvar_dados_cliente",
+        description:
+          "Guarda na memória os dados do cliente (nome e/ou endereço) para lembrar nas próximas conversas. Chame SEMPRE que o cliente informar o nome dele ou um endereço. Passe só o que ele disse.",
+        parameters: {
+          type: "object",
+          properties: {
+            nome: { type: "string", description: "Nome do cliente, se ele informou." },
+            endereco: { type: "string", description: "Endereço do cliente (rua, número, bairro), se ele informou." },
+          },
+          required: [],
+        },
+      },
+      {
+        name: "salvar_pet",
+        description:
+          "Guarda na memória um PET do cliente (nome e raça). Chame quando o cliente informar o nome e/ou a raça do pet — especialmente em assuntos de banho, tosa ou consulta. Assim nas próximas vezes você já sabe o nome do pet.",
+        parameters: {
+          type: "object",
+          properties: {
+            nome: { type: "string", description: "Nome do pet (ex.: 'Belinha')." },
+            raca: { type: "string", description: "Raça do pet, se informada (ex.: 'Poodle', 'SRD/vira-lata')." },
+          },
+          required: ["nome"],
         },
       },
       {
@@ -42,6 +70,7 @@ const TOOLS = [
             subgrupo: { type: "string", description: "Para qual animal/tipo (use um dos subgrupos do contexto, ex.: 'Cão', 'Gato')." },
             especificacao: { type: "string", description: "Detalhe de idade/porte/linha (use uma das especificações do contexto, ex.: 'Filhote', 'Adulto porte médio', 'Premium')." },
             texto: { type: "string", description: "Busca livre por nome/descrição, se o cliente citar marca ou termo específico." },
+            ordenarPor: { type: "string", enum: ["preco"], description: "Use 'preco' quando o cliente pedir o MAIS BARATO / mais em conta — ordena do menor para o maior preço." },
           },
           required: [],
         },
@@ -49,7 +78,7 @@ const TOOLS = [
       {
         name: "encaminhar_para_atendente",
         description:
-          "Use quando o atendimento precisar de um ATENDENTE HUMANO. Exemplos: exames (precisa da guia do veterinário), pedido de remédio com nome/receita/foto, fechar valor de pacote de banho de cliente frequente, venda de aves/animais (ex.: calopsita), reclamações, ou qualquer caso fora do seu conhecimento. Ao chamar esta função, escreva TAMBÉM uma mensagem curta e simpática avisando o cliente que você já vai chamar um atendente.",
+          "Use quando o atendimento precisar de um ATENDENTE HUMANO. Exemplos: AGENDAR/MARCAR/TRAZER pet pro BANHO ou TOSA (confirmar vaga e horário), exames (precisa da guia do veterinário), fechar valor de pacote de banho de cliente frequente, venda de aves/animais (ex.: calopsita), reclamações, ENTREGA de medicamento/pedido a fechar, ou qualquer caso fora do seu conhecimento. NÃO use só porque o cliente mandou uma receita — primeiro busque os medicamentos no catálogo e passe os valores. Ao chamar esta função, escreva TAMBÉM uma mensagem curta e simpática avisando o cliente que você já vai chamar um atendente.",
         parameters: {
           type: "object",
           properties: {
@@ -71,10 +100,17 @@ function norm(s) {
 }
 
 // Busca produtos ativos no catálogo por grupo / subgrupo / especificação / texto livre.
-function buscarProdutos({ grupo, subgrupo, especificacao, texto } = {}) {
+function precoNum(p) {
+  const s = String(p || "").replace(/[^\d,]/g, "").replace(",", ".");
+  const n = parseFloat(s);
+  return isNaN(n) || n <= 0 ? Infinity : n; // sem preço/sob consulta vai pro fim
+}
+
+function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = {}) {
   const cat = config.get().catalogo || {};
   const produtos = (cat.produtos || []).filter((p) => p && p.ativo !== false);
   const g = norm(grupo), sg = norm(subgrupo), esp = norm(especificacao), tx = norm(texto);
+  const palavrasTx = tx.split(/\s+/).filter(Boolean); // texto livre casa por PALAVRA (qualquer ordem)
   const casa = (valor, alvo) => valor && (norm(valor).includes(alvo) || alvo.includes(norm(valor)));
   const casaLista = (lista, alvo) => Array.isArray(lista) && lista.some((x) => casa(x, alvo));
 
@@ -82,9 +118,15 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto } = {}) {
     if (g && !casa(p.grupo, g)) return false;
     if (sg && !casaLista(p.subgrupos, sg)) return false;
     if (esp && !casaLista(p.especificacoes, esp)) return false;
-    if (tx && !(norm(p.nome).includes(tx) || norm(p.descricao).includes(tx))) return false;
+    if (palavrasTx.length) {
+      // casa também contra as tags (grupo/subgrupos/especificações), não só nome/descrição
+      const alvo = [p.nome, p.descricao, p.grupo, ...(p.subgrupos || []), ...(p.especificacoes || [])].map(norm).join(" ");
+      if (!palavrasTx.every((w) => alvo.includes(w))) return false;
+    }
     return true;
   });
+
+  if (ordenarPor === "preco") achados.sort((a, b) => precoNum(a.preco) - precoNum(b.preco)); // mais barato primeiro
 
   return {
     total: achados.length,
@@ -95,13 +137,24 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto } = {}) {
       grupo: p.grupo,
       subgrupos: p.subgrupos || [],
       especificacoes: p.especificacoes || [],
+      imagem: p.imagem || "",
     })),
   };
 }
 
-async function executarFuncao(nome, args) {
+async function executarFuncao(nome, args, contactId) {
   if (nome === "consultar_taxa_entrega") {
-    return await geo.consultarTaxaPorEndereco((args && args.endereco) || "");
+    const endereco = (args && args.endereco) || "";
+    if (endereco && contactId) clientes.salvar(contactId, { endereco }); // memoriza o endereço
+    return await geo.consultarTaxaPorEndereco(endereco);
+  }
+  if (nome === "salvar_dados_cliente") {
+    if (contactId) clientes.salvar(contactId, { nome: args && args.nome, endereco: args && args.endereco });
+    return { ok: true };
+  }
+  if (nome === "salvar_pet") {
+    if (contactId && args && args.nome) clientes.salvarPet(contactId, { nome: args.nome, raca: args.raca });
+    return { ok: true };
   }
   if (nome === "buscar_produtos") {
     return buscarProdutos(args || {});
@@ -114,11 +167,20 @@ async function executarFuncao(nome, args) {
 
 // Monta a "system instruction" com o contexto do negócio. Reconstruída a cada
 // chamada para refletir edições feitas no painel sem reiniciar o bot.
-function montarContexto() {
+function montarContexto(cliente) {
   const dados = config.get();
   const n = dados.negocio;
   const g = (dados.entrega && dados.entrega.gratis) || {}; // regra de entrega grátis
   const cat = dados.catalogo || {}; // catálogo (grupos/subgrupos/especificações/produtos)
+  const pets = (cliente && Array.isArray(cliente.pets) ? cliente.pets : [])
+    .map((p) => p.nome + (p.raca ? " (" + p.raca + ")" : ""))
+    .join(", ");
+  const linhasCliente = cliente && (cliente.nome || cliente.endereco || pets)
+    ? "DADOS DO CLIENTE (já conhecidos — NÃO pergunte de novo, use direto):"
+        + (cliente.nome ? "\nNome: " + cliente.nome : "")
+        + (cliente.endereco ? "\nEndereço: " + cliente.endereco : "")
+        + (pets ? "\nPets: " + pets : "")
+    : "DADOS DO CLIENTE: ainda não temos o nome/endereço/pet deste cliente.";
 
   const extras = (dados.mensagensExtras || [])
     .map((x) => `- ${x.titulo}: ${(x.resposta || "").replace(/\n+/g, " ").replace(/\*/g, "")}`)
@@ -131,13 +193,20 @@ function montarContexto() {
   return [
     `Você é o atendente virtual da ${n.nome}, um(a) ${n.tipo}.`,
     "Seu papel é responder dúvidas de clientes pelo WhatsApp de forma simpática, curta e objetiva (no máximo ~4 linhas).",
-    "Use português brasileiro informal e no máximo um emoji por mensagem.",
+    "Use português brasileiro informal, com tom SIMPÁTICO e BRINCALHÃO (leve, descontraído) — mas com CUIDADO pra nunca insultar, forçar intimidade nem constranger o cliente. No máximo um emoji por mensagem.",
     "",
     "INFORMAÇÕES DO NEGÓCIO:",
     `Endereço: ${n.endereco}`,
+    n.mapsLink ? `Link do Google Maps: ${n.mapsLink}` : "",
     `Telefone: ${n.telefone}`,
     `Horário: ${n.horarioSemana}; ${n.horarioSabado}; ${n.horarioDomingo}`,
     `Pagamento: ${n.pagamento}`,
+    "- ENDEREÇO: sempre que informar o endereço da loja, INCLUA o link do Google Maps acima (o endereço sozinho pode levar o cliente ao lugar errado). Não use um estabelecimento vizinho como ponto de referência.",
+    "",
+    equipe.resumoParaIA()
+      ? "NOSSA EQUIPE (reconheça quando o cliente perguntar por uma pessoa pelo nome ou por uma função, ex.: 'a Dra. Ana está?', 'tem veterinário?'):\n" + equipe.resumoParaIA()
+        + "\nSe o colaborador existe, confirme que faz parte da equipe e, se o cliente quiser falar/agendar com ele, use encaminhar_para_atendente. Se a pessoa NÃO estiver na lista, diga gentilmente que não temos esse nome na equipe."
+      : "",
     "",
     "SERVIÇOS E INFORMAÇÕES:",
     linhasServicos,
@@ -151,24 +220,40 @@ function montarContexto() {
     "",
     "REGRAS:",
     "- MEMÓRIA: o histórico da conversa inclui as escolhas que o cliente fez no MENU (ex.: o serviço de entrega) e tudo que ele já informou. NUNCA pergunte de novo algo que o cliente já escolheu ou já disse — use o que já está na conversa. Ex.: se ele escolheu 'Entrega (moto)' no menu e mandou o endereço, calcule direto, sem perguntar o serviço outra vez.",
+    "- CLIENTE (memória entre conversas): se a seção DADOS DO CLIENTE já tiver o nome ou o endereço, USE-os e NÃO pergunte de novo (nem em conversas futuras). Sempre que o cliente informar o NOME ou um ENDEREÇO, CHAME a função salvar_dados_cliente para guardar.",
+    `- PRIMEIRO CONTATO COM PERGUNTA: se o cliente JÁ começa a conversa com uma pergunta e você não sabe o nome dele, NÃO mande menu. Comece com uma saudação simpática e curta, pergunte o nome dele UMA vez e JÁ responda a pergunta na MESMA mensagem. Ex.: 'Oi! 🐾 Seja bem-vindo(a) à ${n.nome}! Como posso te chamar? Sobre o que você perguntou: ...'. Quando ele disser o nome, CHAME salvar_dados_cliente.`,
+    "- PET (banho/tosa/consulta/vacina): quando o assunto for banho, tosa, consulta ou vacina e você ainda NÃO souber o pet do cliente (seção DADOS DO CLIENTE), pergunte o NOME e a RAÇA do pet e CHAME salvar_pet para guardar. Se você JÁ souber o pet (ex.: 'Belinha'), use o nome dele e seja mais simpático — ex.: 'É o banho da Belinha? 🐾'. Não pergunte de novo o que já sabe.",
     "- Responda APENAS com base nas informações acima. Não invente preços, serviços, horários ou taxas.",
     "- Se a pergunta for sobre algo que você não tem (ex.: preço específico, disponibilidade, caso clínico), diga que vai verificar com um atendente e peça os dados necessários.",
     "- Nunca dê diagnóstico ou orientação médica veterinária; em emergências, oriente a ligar para o telefone do negócio.",
-    "- Banho e tosa PODEM ser agendados: peça os dados que faltam (nome do pet, porte, dia e horário).",
-    "- A CONSULTA VETERINÁRIA NÃO é agendada — é por ORDEM DE CHEGADA, dentro do horário do veterinário (segunda a sexta das 8h às 17h, sábado das 8h às 12h). Não peça dia/horário para a consulta; oriente o cliente a comparecer dentro desse horário.",
-    "- Quando precisar de um atendente humano (exames com guia, remédio com nome/receita/foto, fechar valor de pacote de cliente frequente, venda de aves/animais, reclamações, ou algo fora do seu conhecimento), CHAME a função encaminhar_para_atendente e avise o cliente que vai chamar alguém. Não invente que já resolveu.",
+    "- BANHO E TOSA: NUNCA diga que 'não precisa agendar'. O banho/tosa PODE LOTAR e fecha às 17h. Quando o cliente perguntar de banho OU quiser AGENDAR/MARCAR/TRAZER o pet, PRIMEIRO pergunte se é *só banho* ou *banho e tosa*. Se for COM TOSA, peça pra ele DESCREVER como é a tosa do pet. Ex.: 'Certo! Você quer agendar o banho da Malu pra amanhã — ela vai precisar de tosa também? Se sim, me descreve como é a tosa dela 🐾'. SÓ DEPOIS que o cliente responder (só banho, ou banho+tosa com a descrição), CHAME encaminhar_para_atendente — é o ATENDENTE que confirma vaga e horário. Antes de encaminhar, se ainda não souber, pegue o NOME e a RAÇA do pet (salvar_pet).",
+    "- PREÇO DE BANHO/TOSA: alguns valores são fixos e outros dependem de AVALIAÇÃO presencial do pet. Informe conforme a base de conhecimento (Sobre o negócio); quando o preço depender de avaliação, diga isso e NÃO invente valor.",
+    "- CONSULTAS E SERVIÇOS DO CONSULTÓRIO (consulta, retirada de pontos, corte de unha, curativos, etc.): quando forem por ORDEM DE CHEGADA, não peça dia/horário. Informe valores, horários e detalhes conforme a base de conhecimento; se não tiver a informação, encaminhe para um atendente.",
+    "- EXAMES: se o cliente perguntar VALOR de exames ou informações sobre exames, NÃO responda com preço — CHAME encaminhar_para_atendente.",
+    "- DESCONTOS: siga a política de descontos da base de conhecimento; se pedirem desconto, responda com gentileza conforme essa política.",
+    "- O QUE VENDEMOS — ANIMAIS: vendemos apenas calopsita, periquito australiano e hamster. NÃO vendemos cachorro, gato nem nenhum outro animal além desses três. Se perguntarem por outro animal, diga gentilmente que não trabalhamos com a venda dele. (Para preço/disponibilidade desses que vendemos, encaminhe para um atendente.)",
+    "- O QUE VENDEMOS — PRODUTOS: vendemos artigos para animais aquáticos, répteis, roedores e aves (comida, comedouros, gaiolas, aquários, acessórios, etc.).",
+    "- Quando precisar de um atendente humano (exames com guia, fechar valor de pacote de cliente frequente, venda de aves/animais, reclamações, ou algo fora do seu conhecimento), CHAME a função encaminhar_para_atendente e avise o cliente que vai chamar alguém. Não invente que já resolveu.",
+    "- RECEITA / MEDICAMENTOS: quando o cliente mandar uma receita (lista de medicamentos), BUSQUE cada item no catálogo com buscar_produtos e informe os que TEMOS com o VALOR. Se tivermos PELO MENOS UM, NÃO encaminhe — passe os valores dos que temos e, para os que faltarem, diga que confirma com um atendente. Só encaminhe para o atendente se NENHUM dos medicamentos da receita estiver no catálogo, OU quando o cliente pedir a ENTREGA do medicamento (aí o atendente finaliza).",
     "",
     "PRODUTOS / CATÁLOGO (vale para QUALQUER produto: ração, petisco, brinquedo, acessório, areia, cosmético...):",
-    "- IMPORTANTE: pergunta sobre produto NUNCA é respondida com o menu de saudação nem pedindo para o cliente escolher 1/2/3. SEMPRE use a função buscar_produtos.",
-    "- Se o cliente JÁ deu detalhes (ex.: 'tem urinária pra gato?', 'ração premium pra cão filhote', cita uma marca), busque DIRETO com buscar_produtos usando o que ele disse — não fique perguntando à toa.",
-    "- Só faça o mini-questionário (UMA pergunta por vez: 'É para cão ou gato?', 'Filhote ou adulto?', 'Qual o porte?') quando FALTAR informação para a busca.",
-    "- Use só as opções que existem no CATÁLOGO acima (grupos/subgrupos/especificações). Quando tiver as respostas, CHAME a função buscar_produtos com grupo/subgrupo/especificacao.",
-    "- Apresente os produtos retornados de forma curta — nome e preço (ex.: '• Ração X Adulto — R$ 90'). Liste no máximo uns 5; se houver mais, diga que tem outras opções.",
-    "- Se buscar_produtos retornar 0 produtos, NÃO invente: diga que vai confirmar a disponibilidade com um atendente e CHAME encaminhar_para_atendente.",
+    "- PEDIDO (LISTA DE ITENS): se o cliente JÁ manda uma LISTA de itens com quantidades (um pedido para fechar — ex.: '1kg de X, 2kg de Y, 1 fardo de areia'), NÃO fique buscando item por item. Diga que vai te encaminhar para um atendente FINALIZAR o pedido e CHAME encaminhar_para_atendente.",
+    "- IMPORTANTE: pergunta sobre UM produto NUNCA é respondida com o menu de saudação nem pedindo para o cliente escolher 1/2/3. SEMPRE use a função buscar_produtos.",
+    "- RAÇÃO (e itens com variação, como vermífugo): ANTES de mandar o catálogo, você PRECISA saber (1) cão ou gato, (2) adulto ou filhote, (3) alguma necessidade especial (castrado, controle de peso/acima do peso, idoso, porte). Pergunte UMA coisa por vez, só o que faltar — comece por 'É para cão ou gato?'. NÃO pergunte o NOME nem a RAÇA do pet pra ração/produto (isso é só pra banho/tosa/consulta/vacina). SÓ depois de ter essas infos, CHAME buscar_produtos com o texto montado (ex.: 'racao gato castrado').",
+    "- A GRANEL / POR KG / POR QUILO: quando o cliente pedir ração a granel, por KG ou por QUILO (ex.: 'tem ração a quilo?', '1kg de ração'), ele se refere aos produtos que começam com 'GRANEL' no catálogo. Busque incluindo a palavra 'granel' no texto (ex.: 'granel cachorro').",
+    "- MARCAS DE UMA ESPÉCIE SÓ: algumas marcas de ração são só de cão ou só de gato (veja a base de conhecimento). Se o cliente citar uma dessas marcas, NÃO pergunte 'cão ou gato' — busque DIRETO pela marca e mande o valor.",
+    "- AREIA (FARDO): se o cliente falar em 'fardo', use a quantidade por fardo informada na base de conhecimento.",
+    "- MAIS BARATO / MAIS EM CONTA: se o cliente pedir o item mais barato ou 'mais em conta' (ex.: 'qual a areia mais em conta?'), CHAME buscar_produtos com ordenarPor='preco' e indique o de MENOR preço entre os resultados.",
+    "- ROUPA CIRÚRGICA: temos para cães e gatos. PERGUNTE o PESO do pet e busque no catálogo com buscar_produtos por 'roupa cirurgica' + o peso (os nomes dos produtos trazem o peso). Mostre a que corresponde ao peso informado.",
+    "- VERMÍFUGO (remédio de verme): PERGUNTE se é cão ou gato e busque com buscar_produtos usando o termo do animal + 'verme' (ex.: texto 'verme cao' ou 'verme gato'). Os produtos estão marcados com as tags medicamento / cão-ou-gato / verme.",
+    "- Se o cliente JÁ deu os detalhes necessários (ex.: 'ração premium pra cão filhote', cita uma marca), busque DIRETO — não fique perguntando à toa.",
+    "- Quando buscar_produtos retornar produtos, dê uma resposta CURTA de introdução (ex.: 'Achei essas opções pra você 🐾'). NÃO liste os produtos em texto: as FOTOS de cada produto (com nome e preço) são enviadas automaticamente logo depois da sua mensagem.",
+    "- Se NÃO TEMOS exatamente o que o cliente pediu (buscar_produtos voltou 0), NÃO encaminhe logo: diga 'Não temos essa(e) [ração/produto], mas vou te enviar algumas opções parecidas 🐾' e CHAME buscar_produtos DE NOVO com uma busca MAIS AMPLA (sem a marca — ex.: 'racao gato filhote') pra mandar alternativas. Vale pra qualquer produto (ração, vermífugo, etc.). Só se mesmo assim não achar nada, CHAME encaminhar_para_atendente.",
     "- Nunca invente produtos, marcas ou preços — use exclusivamente o que a função retornar.",
     "",
     "TAXA DE ENTREGA / TÁXI DOG:",
-    "- Quando o cliente informar um ENDEREÇO, use a função consultar_taxa_entrega (não calcule distância sozinho).",
+    "- Se você JÁ TEM o endereço do cliente (seção DADOS DO CLIENTE), antes de calcular CONFIRME esse endereço com ele (ex.: 'A entrega seria pra esse endereço: <endereço>? 🛵'). Só CHAME consultar_taxa_entrega DEPOIS que ele confirmar. Se ele confirmar que é outro, use o novo. Se não souber o endereço, peça.",
+    "- Quando o cliente informar (ou confirmar) um ENDEREÇO, use a função consultar_taxa_entrega (não calcule distância sozinho).",
     "- Apresente a cotação EXATAMENTE neste formato (mesmos emojis e * para negrito):",
     "Segue a cotação da sua taxa:",
     "",
@@ -179,8 +264,13 @@ function montarContexto() {
     "💰 *Valor da taxa:* *R$ <valor>*",
     "",
     `- ENTREGA GRÁTIS (vale APENAS para o serviço *Entrega moto* — NÃO vale para táxi dog): até ${g.km || 2} km, se o valor do pedido for acima de R$ ${g.valor || 50}, a Entrega moto é GRÁTIS (R$ 0). Se for até ${g.km || 2} km e o cliente não disse o valor do pedido, avise que, acima de R$ ${g.valor || 50}, a entrega moto sai de graça. Táxi dog sempre cobra a taxa normal.`,
+    "- Fora da faixa de entrega grátis pode haver PEDIDO MÍNIMO, conforme a base de conhecimento. A TAXA NÃO é fixa — é sempre calculada pela DISTÂNCIA (use consultar_taxa_entrega). Se houver pedido mínimo para a distância informada, avise o cliente.",
     "- Táxi Dog é sempre ida e volta. Se o cliente JÁ escolheu o serviço (no menu ou antes na conversa), use esse serviço e NÃO pergunte de novo. Só pergunte (entrega moto, táxi dog moto ou táxi dog carro) se ele realmente ainda não tiver escolhido.",
     "- Se a função não encontrar o endereço, ou a distância passar da área de cobertura, diga que um atendente confirma o valor exato.",
+    "",
+    // Dados do cliente ficam por ÚLTIMO (de propósito): assim todo o resto do prompt é IGUAL
+    // para qualquer cliente e o Gemini reaproveita esse "prefixo" (cache de contexto = mais barato).
+    linhasCliente,
   ].join("\n");
 }
 
@@ -209,7 +299,7 @@ async function responder(contactId, mensagem) {
   const working = [...historico, { role: "user", parts: [{ text: mensagem }] }];
 
   const cfg = {
-    systemInstruction: montarContexto(),
+    systemInstruction: montarContexto(clientes.get(contactId)),
     maxOutputTokens: 600,
     temperature: 0.3,
     tools: TOOLS,
@@ -220,6 +310,7 @@ async function responder(contactId, mensagem) {
 
   let encaminhar = false;
   let motivo = "";
+  let produtos = []; // produtos achados na última busca (pra enviar com foto)
 
   // Loop de function calling (até 3 rodadas).
   for (let i = 0; i < 3; i++) {
@@ -233,7 +324,8 @@ async function responder(contactId, mensagem) {
         encaminhar = true;
         motivo = (chamada.args && chamada.args.motivo) || "";
       }
-      const resultado = await executarFuncao(chamada.name, chamada.args);
+      const resultado = await executarFuncao(chamada.name, chamada.args, contactId);
+      if (chamada.name === "buscar_produtos" && resultado && Array.isArray(resultado.produtos)) produtos = resultado.produtos;
       partesResposta.push({ functionResponse: { name: chamada.name, response: resultado } });
     }
     working.push({ role: "user", parts: partesResposta });
@@ -252,11 +344,88 @@ async function responder(contactId, mensagem) {
   historico.push({ role: "model", parts: [{ text: texto }] });
   if (historico.length > MAX_TURNOS) historico.splice(0, historico.length - MAX_TURNOS);
 
-  return { texto, encaminhar, motivo };
+  return { texto, encaminhar, motivo, produtos };
 }
 
 function limparHistorico(contactId) {
   historicos.delete(contactId);
 }
 
-module.exports = { responder, limparHistorico, registrarTurno, buscarProdutos };
+// Resumo curto da conversa pro atendente assumir rápido (usado no handoff).
+async function resumirConversa(mensagens, motivo) {
+  const linhas = (mensagens || []).filter(Boolean).map((m) => `- ${m}`).join("\n");
+  if (!linhas) return motivo || "Cliente pediu atendimento humano.";
+  const prompt =
+    "Você ajuda um atendente de pet shop a assumir uma conversa do WhatsApp. " +
+    "Resuma em no máximo 2 frases curtas e diretas (em português, sem saudação) o que o cliente quer e em que ponto está.\n\n" +
+    "Mensagens do cliente:\n" + linhas + (motivo ? "\n\nMotivo do encaminhamento: " + motivo : "");
+  try {
+    const cfg = { maxOutputTokens: 200, temperature: 0.2 };
+    if (MODELO.includes("2.5")) cfg.thinkingConfig = { thinkingBudget: 0 };
+    const resp = await ai.models.generateContent({ model: MODELO, contents: [{ role: "user", parts: [{ text: prompt }] }], config: cfg });
+    return (resp.text || "").trim() || (motivo || "Cliente pediu atendimento humano.");
+  } catch (e) {
+    console.error("Falha ao resumir conversa:", e.message);
+    return motivo || "Cliente pediu atendimento humano.";
+  }
+}
+
+// Transcreve um áudio (base64) em texto, usando o Gemini (multimodal).
+async function transcreverAudio(base64, mimeType) {
+  try {
+    const cfg = { maxOutputTokens: 600, temperature: 0 };
+    if (MODELO.includes("2.5")) cfg.thinkingConfig = { thinkingBudget: 0 };
+    const resp = await ai.models.generateContent({
+      model: MODELO,
+      contents: [{ role: "user", parts: [
+        { text: "Transcreva este áudio em português, exatamente o que a pessoa falou. Responda apenas com a transcrição, sem comentários nem aspas." },
+        { inlineData: { mimeType: String(mimeType || "audio/ogg").split(";")[0].trim(), data: base64 } },
+      ] }],
+      config: cfg,
+    });
+    return (resp.text || "").trim();
+  } catch (e) {
+    console.error("Falha ao transcrever áudio:", e.message);
+    return "";
+  }
+}
+
+// Lê um documento (ex.: PDF de receita) e extrai os nomes dos medicamentos/produtos.
+async function lerDocumento(base64, mimeType) {
+  try {
+    const cfg = { maxOutputTokens: 500, temperature: 0 };
+    if (MODELO.includes("2.5")) cfg.thinkingConfig = { thinkingBudget: 0 };
+    const resp = await ai.models.generateContent({
+      model: MODELO,
+      contents: [{ role: "user", parts: [
+        { text: "Este documento é provavelmente uma receita veterinária. Liste APENAS os nomes dos medicamentos/produtos que aparecem nele, separados por vírgula, sem dosagem nem instruções de uso. Se não houver nenhum, responda exatamente 'NENHUM'." },
+        { inlineData: { mimeType: String(mimeType || "application/pdf").split(";")[0].trim(), data: base64 } },
+      ] }],
+      config: cfg,
+    });
+    return (resp.text || "").trim();
+  } catch (e) {
+    console.error("Falha ao ler documento:", e.message);
+    return "";
+  }
+}
+
+// Identifica o produto/marca numa foto que o cliente enviou (ex.: print de anúncio do Instagram).
+async function identificarProdutoImagem(base64, mimeType, legenda) {
+  try {
+    const cfg = { maxOutputTokens: 200, temperature: 0 };
+    if (MODELO.includes("2.5")) cfg.thinkingConfig = { thinkingBudget: 0 };
+    const partes = [
+      { text: "Esta é uma foto enviada por um cliente de pet shop (provavelmente de um produto que ele viu num anúncio/publicação). Diga em poucas palavras QUAL produto e marca aparecem na imagem (ex.: 'Antipulgas NexGard', 'Ração Golden cães adultos', 'Areia Pipicat'). Responda só o nome do produto. Se não der pra identificar um produto, responda exatamente 'NENHUM'." },
+      { inlineData: { mimeType: String(mimeType || "image/jpeg").split(";")[0].trim(), data: base64 } },
+    ];
+    if (legenda) partes.push({ text: "Legenda escrita pelo cliente: " + legenda });
+    const resp = await ai.models.generateContent({ model: MODELO, contents: [{ role: "user", parts: partes }], config: cfg });
+    return (resp.text || "").trim();
+  } catch (e) {
+    console.error("Falha ao identificar imagem:", e.message);
+    return "";
+  }
+}
+
+module.exports = { responder, limparHistorico, registrarTurno, buscarProdutos, resumirConversa, transcreverAudio, lerDocumento, identificarProdutoImagem };

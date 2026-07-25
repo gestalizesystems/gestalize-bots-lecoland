@@ -9,8 +9,76 @@ const config = require("./config");
 const conta = require("./conta");
 const estado = require("./estado");
 const conversa = require("./conversa");
+const clientes = require("./clientes");
+const nps = require("./nps");
+const atendimentos = require("./atendimentos");
+const equipe = require("./equipe");
+const metricas = require("./metricas");
+const campanhas = require("./campanhas");
+const wa = require("./wa");
+const ai = require("./ai");
 
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
+
+// Baixa o áudio recebido, transcreve com a IA e processa como se fosse texto.
+async function processarAudio(from, mediaId, nomeWpp) {
+  try {
+    const { buffer, mimeType } = await wa.baixarMidia(mediaId);
+    const texto = await ai.transcreverAudio(buffer.toString("base64"), mimeType);
+    if (texto && texto.trim()) {
+      // Eco da transcrição: confirma o que o bot entendeu (visível pra cliente e atendente no chat).
+      try { await wa.enviarTexto(from, `🎤 _Entendi seu áudio:_ "${texto.trim()}"`); } catch (_) {}
+      await conversa.processar(from, texto.trim(), nomeWpp);
+    } else {
+      try { await wa.enviarTexto(from, "Desculpa, não consegui entender o áudio 🙏 Pode me mandar por texto?"); } catch (_) {}
+    }
+  } catch (e) {
+    console.error("Falha ao processar áudio:", e.message);
+  }
+}
+
+// Lê um documento recebido (ex.: PDF de receita), extrai os medicamentos e processa como texto.
+async function processarDocumento(from, mediaId, mimeType, nomeWpp) {
+  try {
+    const { buffer, mimeType: mt } = await wa.baixarMidia(mediaId);
+    try { await wa.enviarTexto(from, "📄 Recebi seu documento! Já vou verificar os itens. 🐾"); } catch (_) {}
+    const lista = await ai.lerDocumento(buffer.toString("base64"), mt || mimeType);
+    if (lista && lista.toUpperCase() !== "NENHUM") {
+      await conversa.processar(from, `Mandei uma receita com estes itens: ${lista}. Quais vocês têm e quanto custa cada um?`, nomeWpp);
+    } else {
+      await conversa.processar(from, "Enviei um documento (receita). Vocês conseguem ver e me passar os valores?", nomeWpp);
+    }
+  } catch (e) {
+    console.error("Falha ao processar documento:", e.message);
+  }
+}
+
+// Cliente mandou uma FOTO (ex.: print de anúncio do Instagram): identifica o produto e responde.
+async function processarImagem(from, mediaId, caption, nomeWpp) {
+  try {
+    const { buffer, mimeType } = await wa.baixarMidia(mediaId);
+    const produto = await ai.identificarProdutoImagem(buffer.toString("base64"), mimeType, caption);
+    let texto;
+    if (produto && produto.toUpperCase() !== "NENHUM") {
+      texto = `O cliente enviou uma FOTO de um produto: ${produto}.${caption ? ` Ele escreveu: "${caption}".` : ""} Busque no catálogo e passe as informações/valor. Se não tiver exatamente, mande opções parecidas.`;
+    } else if (caption && caption.trim()) {
+      texto = caption.trim();
+    } else {
+      texto = "O cliente mandou uma foto mas não deu pra identificar o produto. Pergunte gentilmente o que ele procura.";
+    }
+    await conversa.processar(from, texto, nomeWpp);
+  } catch (e) {
+    console.error("Falha ao processar imagem:", e.message);
+  }
+}
+
+// Monta um aviso de contexto quando a mensagem vem de um anúncio (Instagram/Facebook).
+function contextoAnuncio(ref) {
+  if (!ref) return "";
+  const ad = [ref.headline, ref.body].filter(Boolean).join(" — ");
+  if (!ad) return "";
+  return `(O cliente veio de um anúncio do Instagram/Facebook sobre: "${ad}". Reconheça o produto/serviço do anúncio e passe as informações.) `;
+}
 // Em produção (Railway) as imagens vão para o Volume persistente; local usa public/uploads.
 const UPLOAD_DIR = process.env.DATA_DIR ? path.join(process.env.DATA_DIR, "uploads") : path.join(PUBLIC_DIR, "uploads");
 
@@ -108,11 +176,16 @@ function iniciarAdmin(porta) {
   semearUploads();
 
   // A logo e a imagem do robô são públicas (aparecem na tela de login).
-  app.use("/uploads", express.static(UPLOAD_DIR));
+  // Nomes de arquivo são únicos por upload → pode cachear forte (carrega 1x e não "some" mais).
+  app.use("/uploads", express.static(UPLOAD_DIR, { maxAge: "30d", immutable: true }));
   app.get("/robot.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "robot.png")));
   app.get("/favicon.ico", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "robot.png")));
   app.get("/og-gestalize.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "og-gestalize.png")));
   app.get("/og-gestalize-wide.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "og-gestalize-wide.png")));
+  // Ícone de "adicionar à tela inicial" (PWA): manifest + ícones, públicos.
+  app.get("/manifest.webmanifest", (req, res) => { res.type("application/manifest+json"); res.sendFile(path.join(PUBLIC_DIR, "manifest.webmanifest")); });
+  app.get("/icon-192.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "icon-192.png")));
+  app.get("/icon-512.png", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "icon-512.png")));
 
   // ---- Rotas públicas (login) ----
   app.get("/login", (req, res) => {
@@ -159,9 +232,21 @@ function iniciarAdmin(porta) {
     try {
       for (const entry of (req.body && req.body.entry) || []) {
         for (const ch of entry.changes || []) {
-          for (const msg of (ch.value && ch.value.messages) || []) {
-            if (msg.type !== "text" || !msg.text) continue;
-            conversa.processar(msg.from, msg.text.body || "").catch((e) => console.error("Erro ao processar mensagem:", e.message));
+          const val = ch.value || {};
+          const nomes = {};
+          for (const ct of val.contacts || []) if (ct.wa_id) nomes[ct.wa_id] = ct.profile && ct.profile.name;
+          for (const msg of val.messages || []) {
+            const nomeWpp = nomes[msg.from] || Object.values(nomes)[0]; // nome do perfil do WhatsApp
+            const ctxAd = contextoAnuncio(msg.referral); // veio de anúncio do Instagram/Facebook?
+            if (msg.type === "text" && msg.text) {
+              conversa.processar(msg.from, ctxAd + (msg.text.body || ""), nomeWpp).catch((e) => console.error("Erro ao processar mensagem:", e.message));
+            } else if (msg.type === "image" && msg.image && msg.image.id) {
+              processarImagem(msg.from, msg.image.id, (ctxAd + (msg.image.caption || "")).trim(), nomeWpp).catch((e) => console.error("Erro na imagem:", e.message));
+            } else if (msg.type === "audio" && msg.audio && msg.audio.id) {
+              processarAudio(msg.from, msg.audio.id, nomeWpp).catch((e) => console.error("Erro no áudio:", e.message));
+            } else if (msg.type === "document" && msg.document && msg.document.id) {
+              processarDocumento(msg.from, msg.document.id, msg.document.mime_type, nomeWpp).catch((e) => console.error("Erro no documento:", e.message));
+            }
           }
         }
       }
@@ -236,6 +321,138 @@ function iniciarAdmin(porta) {
         produtos: Array.isArray(cat.produtos) ? cat.produtos : [],
       };
       config.salvar(c);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
+  });
+
+  // Garante a estrutura do catálogo no config em memória.
+  function catalogoDe(c) {
+    if (!c.catalogo || typeof c.catalogo !== "object") c.catalogo = { grupos: [], subgrupos: [], especificacoes: [], produtos: [] };
+    if (!Array.isArray(c.catalogo.produtos)) c.catalogo.produtos = [];
+    return c.catalogo;
+  }
+
+  // Salva/atualiza UM produto (evita reenviar o catálogo inteiro).
+  app.post("/api/catalogo/produto", (req, res) => {
+    try {
+      const prod = req.body && req.body.produto;
+      if (!prod || !prod.id || !prod.nome) throw new Error("Produto inválido.");
+      const c = config.get();
+      const cat = catalogoDe(c);
+      const i = cat.produtos.findIndex((p) => p.id === prod.id);
+      if (i > -1) cat.produtos[i] = prod;
+      else cat.produtos.unshift(prod);
+      config.salvar(c);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
+  });
+
+  // Remove UM produto.
+  app.post("/api/catalogo/produto/remover", (req, res) => {
+    try {
+      const id = req.body && req.body.id;
+      const c = config.get();
+      const cat = catalogoDe(c);
+      cat.produtos = cat.produtos.filter((p) => p.id !== id);
+      config.salvar(c);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
+  });
+
+  // Atualiza só a taxonomia (grupos/subgrupos/especificações) — preserva os produtos.
+  app.post("/api/catalogo/taxonomia", (req, res) => {
+    try {
+      const { grupos, subgrupos, especificacoes } = req.body || {};
+      const c = config.get();
+      const cat = catalogoDe(c);
+      if (Array.isArray(grupos)) cat.grupos = grupos;
+      if (Array.isArray(subgrupos)) cat.subgrupos = subgrupos;
+      if (Array.isArray(especificacoes)) cat.especificacoes = especificacoes;
+      config.salvar(c);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
+  });
+
+  // ---- Clientes (memória do bot: nome, telefone, endereço) ----
+  app.get("/api/clientes", (req, res) => res.json({ ok: true, clientes: clientes.listar() }));
+  app.post("/api/clientes", (req, res) => {
+    try {
+      const { telefone, nome, endereco, pets, tags, notas, etapa, cpf } = req.body || {};
+      const tel = String(telefone || "").replace(/\D/g, "");
+      if (!tel) throw new Error("Telefone obrigatório.");
+      res.json({ ok: true, cliente: clientes.definir(tel, { nome, endereco, pets, tags, notas, etapa, cpf }) });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
+  });
+  // ---- NPS (satisfação) ----
+  app.get("/api/nps", (req, res) => {
+    const raw = Number(req.query.dias);
+    const desde = raw === 0 ? 0 : Date.now() - Math.max(1, Math.min(3650, raw || 90)) * 24 * 60 * 60 * 1000;
+    const respostas = nps.listar(desde).map((r) => {
+      const cli = clientes.get(r.telefone);
+      return { id: r.id, telefone: r.telefone, nome: (cli && cli.nome) || "", nota: r.nota, comentario: r.comentario || "", data: r.data };
+    });
+    res.json({ ok: true, resumo: nps.resumo(desde), respostas });
+  });
+
+  // ---- Atendimentos (fila de handoff com resumo da IA) ----
+  app.get("/api/atendimentos", (req, res) => {
+    res.json({ ok: true, pendentes: atendimentos.pendentes() });
+  });
+  app.post("/api/atendimentos/resolver", (req, res) => {
+    atendimentos.resolver((req.body && req.body.id) || "");
+    res.json({ ok: true, pendentes: atendimentos.pendentes() });
+  });
+
+  // ---- Equipe / colaboradores ----
+  app.get("/api/equipe", (req, res) => res.json({ ok: true, equipe: equipe.listar() }));
+  app.post("/api/equipe", (req, res) => {
+    try {
+      const { id, nome, cargo, obs } = req.body || {};
+      if (!String(nome || "").trim()) throw new Error("Informe o nome do colaborador.");
+      res.json({ ok: true, membro: equipe.salvar({ id, nome, cargo, obs }) });
+    } catch (e) { res.status(400).json({ ok: false, erro: e.message }); }
+  });
+  app.post("/api/equipe/remover", (req, res) => {
+    equipe.remover((req.body && req.body.id) || "");
+    res.json({ ok: true, equipe: equipe.listar() });
+  });
+
+  // ---- Métricas reais (dashboard) ----
+  app.get("/api/metricas", (req, res) => {
+    res.json({ ok: true, ...metricas.resumo(req.query.dias) });
+  });
+
+  // ---- Campanhas (mensagens ativas) ----
+  app.get("/api/campanhas", (req, res) => res.json({ ok: true, campanhas: campanhas.listar() }));
+  app.post("/api/campanhas/contar", (req, res) => {
+    res.json({ ok: true, total: campanhas.audiencia((req.body && req.body.audiencia) || {}).length });
+  });
+  app.post("/api/campanhas/enviar", (req, res) => {
+    try {
+      const { modo, mensagem, template, idioma, audiencia } = req.body || {};
+      if (!wa.configurado()) throw new Error("WhatsApp Cloud API não configurado.");
+      if (modo === "template") { if (!String(template || "").trim()) throw new Error("Informe o nome do template aprovado."); }
+      else if (!String(mensagem || "").trim()) throw new Error("Escreva a mensagem da campanha.");
+      const camp = campanhas.enviar({ modo, mensagem, template, idioma, audiencia });
+      res.json({ ok: true, campanha: camp });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
+  });
+
+  app.post("/api/clientes/remover", (req, res) => {
+    try {
+      clientes.remover(String((req.body && req.body.telefone) || "").replace(/\D/g, ""));
       res.json({ ok: true });
     } catch (e) {
       res.status(400).json({ ok: false, erro: e.message });

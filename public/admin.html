@@ -3,9 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lecoland — Painel do Bot</title>
+  <title>Painel — Gestalize Bots</title>
   <link rel="icon" type="image/png" href="/robot.png" />
-  <link rel="apple-touch-icon" href="/robot.png" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#1f3a5f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Gestalize Bots" />
   <style>
     :root {
       --amarelo: #f9c72c;        /* amarelo da marca (sidebar) */
@@ -61,6 +66,7 @@
     .nav-item .ic { width: 18px; text-align: center; }
     .nav-item:hover { background: rgba(31,58,95,.10); }
     .nav-item.active { background: var(--azul-logo); color: #fff; }
+    .nav-badge { margin-left: auto; background: #dc2626; color: #fff; font-size: 11px; font-weight: 800; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; }
 
     .side-foot { padding: 14px 10px 4px; border-top: 1px solid rgba(31,58,95,.18); }
     .side-foot .nome { font-weight: 700; font-size: 14px; }
@@ -85,9 +91,12 @@
     /* ===== Main ===== */
     .main { margin-left: 250px; flex: 1; min-width: 0; display: flex; flex-direction: column; }
     .topbar {
-      background: #fff; border-bottom: 1px solid var(--borda); padding: 16px 26px;
-      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      background: #fff; border-bottom: 1px solid var(--borda); padding: 0;
       position: sticky; top: 0; z-index: 10;
+    }
+    .topbar-inner {
+      max-width: 1120px; width: 100%; padding: 16px 26px; position: relative;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
     }
     .topbar h1 { margin: 0; font-size: 20px; color: var(--navy); }
     .topbar p { margin: 3px 0 0; font-size: 13px; color: var(--suave); }
@@ -109,7 +118,7 @@
       .backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 90; }
       .backdrop.aberto { display: block; }
       .menu-hamb { display: inline-flex; }
-      .topbar { padding: 12px 16px; gap: 10px; flex-wrap: wrap; }
+      .topbar-inner { padding: 12px 16px; gap: 10px; flex-wrap: wrap; }
       .topbar h1 { font-size: 19px; }
       .topbar p { font-size: 12.5px; }
       .topbar-actions { gap: 8px; flex-wrap: wrap; }
@@ -124,6 +133,7 @@
       .btn-data { font-size: 11.5px; padding: 6px 10px; gap: 5px; border-radius: 8px; white-space: nowrap; }
       .data-full { display: none; }
       .data-curta { display: inline; }
+      .topbar-inner { padding: 12px; }
       .content { padding: 12px; }
       .dash-kpis { grid-template-columns: 1fr; }
       .cat-stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -170,6 +180,12 @@
     .lixeira { background: none; border: none; color: var(--vermelho); cursor: pointer; font-size: 13px; font-weight: 600; padding: 6px; }
     .taxa-linha { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
     .taxa-linha input { flex: 1; }
+    /* km/R$ dentro da própria caixa: o wrapper vira o campo, o input fica transparente */
+    .tx-unidade { display: flex; align-items: center; gap: 4px; padding: 0 11px; border: 1px solid var(--borda); border-radius: 9px; background: #fbfcfe; transition: border .15s, box-shadow .15s; }
+    .tx-unidade:focus-within { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(31,58,95,.12); background: #fff; }
+    .tx-unidade input { width: 100%; min-width: 0; border: none; background: transparent; padding: 9px 0; }
+    .tx-unidade input:focus { border: none; background: transparent; box-shadow: none; }
+    .tx-sufixo, .tx-prefixo { color: var(--suave); font-weight: 700; font-size: 13px; flex: 0 0 auto; }
 
     button.add { background: #fff; border: 1px dashed var(--navy); color: var(--navy); border-radius: 9px; padding: 9px 14px; cursor: pointer; font-size: 13px; font-weight: 600; }
     button.add:hover { background: rgba(31,58,95,.05); }
@@ -242,6 +258,22 @@
     .cat-topo { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
     .cat-topo input.busca { flex: 1; min-width: 200px; padding: 11px 14px; border: 1px solid var(--borda); border-radius: 10px; font-size: 14px; font-family: inherit; }
     .prod { display: flex; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--borda); border-radius: 14px; margin-bottom: 12px; background: #fff; }
+    .prod.inativo { opacity: .6; }
+    .prod-toggle { position: relative; width: 42px; height: 24px; flex: 0 0 auto; cursor: pointer; display: inline-block; }
+    .prod-toggle input { opacity: 0; width: 0; height: 0; }
+    .prod-toggle .sl { position: absolute; inset: 0; background: #cbd5e1; border-radius: 24px; transition: .2s; }
+    .prod-toggle .sl::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+    .prod-toggle input:checked + .sl { background: var(--azul-logo); }
+    .prod-toggle input:checked + .sl::before { transform: translateX(18px); }
+    .cat-filtro { padding: 11px 12px; border: 1px solid var(--borda); border-radius: 10px; font-size: 14px; font-family: inherit; background: #fff; cursor: pointer; color: var(--texto); }
+    .catpager { margin-top: 8px; }
+    .catpager .pg-info { text-align: center; color: var(--suave); font-size: 13px; margin-bottom: 8px; }
+    .catpager .pager { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; }
+    .catpager .pg { min-width: 36px; height: 36px; padding: 0 8px; border: 1px solid var(--borda); background: #fff; border-radius: 9px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--texto); }
+    .catpager .pg:hover:not(:disabled) { border-color: var(--azul-logo); }
+    .catpager .pg.ativo { background: var(--azul-logo); color: #fff; border-color: var(--azul-logo); }
+    .catpager .pg:disabled { opacity: .4; cursor: default; }
+    .catpager .pg-dots { color: var(--suave); padding: 0 2px; }
     .prod img.pimg, .prod .semimg { width: 66px; height: 66px; border-radius: 10px; object-fit: cover; flex: 0 0 auto; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #94a3b8; }
     .prod .pinfo { flex: 1; min-width: 0; }
     .prod .pnome { font-weight: 700; color: var(--navy); font-size: 15px; }
@@ -349,7 +381,7 @@
           </div>
           <span class="logo-edit" aria-hidden="true">✏️</span>
         </div>
-        <div class="brand-text"><strong id="hNome">Lecoland</strong><span>Painel do Bot</span></div>
+        <div class="brand-text"><strong id="hNome">Gestalize Bots</strong><span>Painel do Bot</span></div>
         <button class="brand-seta" id="contaBtn" onclick="toggleContas(event)" aria-label="Conta">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
@@ -366,12 +398,17 @@
 
       <nav class="nav" id="nav">
         <a class="nav-item active" data-target="page-dashboard" data-titulo="Dashboard" data-sub="Resumo do seu atendimento automatizado."><span class="ic">📊</span> Dashboard</a>
+        <a class="nav-item" data-target="page-atendimentos" data-titulo="Atendimentos" data-sub="Clientes esperando um atendente humano, com o resumo da conversa."><span class="ic">🔔</span> Atendimentos <span id="navAtBadge" class="nav-badge" style="display:none"></span></a>
         <a class="nav-item" data-target="page-negocio" data-titulo="Dados do negócio" data-sub="Informações que aparecem nas respostas do bot."><span class="ic">🏪</span> Dados do negócio</a>
         <a class="nav-item" data-target="page-mensagens" data-titulo="Mensagens" data-sub="Personalize as mensagens que o bot envia."><span class="ic">💬</span> Mensagens</a>
         <a class="nav-item" data-target="page-opcoes" data-titulo="Menus" data-sub="Menu de saudação (enviado com a saudação) e sub-menus por palavra-chave."><span class="ic">🗂️</span> Menus</a>
         <a class="nav-item" data-target="page-faq" data-titulo="Respostas rápidas (FAQ)" data-sub="Respostas para dúvidas comuns dos clientes."><span class="ic">❓</span> Respostas rápidas</a>
         <a class="nav-item" data-target="page-entrega" data-titulo="Taxas e serviços" data-sub="Entrega e Táxi Dog, com cálculo por distância."><span class="ic">🛵</span> Taxas e serviços</a>
         <a class="nav-item" data-target="page-catalogo" data-titulo="Catálogo" data-sub="Produtos, grupos e subgrupos que o bot envia aos clientes."><span class="ic">🛍️</span> Catálogo</a>
+        <a class="nav-item" data-target="page-clientes" data-titulo="Clientes" data-sub="Memória do bot: nome, telefone e endereço de cada cliente."><span class="ic">👥</span> Clientes</a>
+        <a class="nav-item" data-target="page-equipe" data-titulo="Equipe" data-sub="Colaboradores que o bot reconhece (por nome ou função)."><span class="ic">👨‍⚕️</span> Equipe</a>
+        <a class="nav-item" data-target="page-satisfacao" data-titulo="Satisfação (NPS)" data-sub="Avaliações dos clientes e comentários."><span class="ic">⭐</span> Satisfação</a>
+        <a class="nav-item" data-target="page-campanhas" data-titulo="Campanhas" data-sub="Mensagens ativas para grupos de clientes."><span class="ic">📢</span> Campanhas</a>
         <a class="nav-item" data-target="page-gatilhos" data-titulo="Palavras-chave gerais" data-sub="Atalhos para o bot entender comandos importantes."><span class="ic">⚙️</span> Palavras-chave</a>
         <a class="nav-item" data-target="page-conta" data-titulo="Configurações gerais" data-sub="Gerencie seus dados de acesso ao painel."><span class="ic">👤</span> Configurações gerais</a>
       </nav>
@@ -386,7 +423,7 @@
       </div>
 
       <div class="side-foot">
-        <div class="nome" id="botNome">Lecoland Pet Shop</div>
+        <div class="nome" id="botNome">Meu Negócio</div>
         <small><span class="dot">●</span> Painel local</small>
       </div>
     </aside>
@@ -395,6 +432,7 @@
     <!-- ===== Main ===== -->
     <div class="main">
       <header class="topbar">
+        <div class="topbar-inner">
         <div style="display:flex; align-items:center; gap:12px; min-width:0">
           <button class="menu-hamb" onclick="toggleMenu()" aria-label="Abrir menu">☰</button>
           <div style="min-width:0">
@@ -412,11 +450,12 @@
           </div>
           <button class="btn-primary" id="btnSalvar" onclick="salvar()">💾 Salvar tudo</button>
         </div>
+        </div>
       </header>
 
       <main class="content">
         <div class="page ativa" id="page-dashboard">
-          <div class="dash-aviso">ℹ️ Os números abaixo são <b>demonstrativos</b> por enquanto. Os <b>serviços</b> e o <b>status</b> são reais; os totais e gráficos passam a ser reais quando o bot estiver conectado ao WhatsApp e registrando métricas.</div>
+          <div class="dash-aviso">ℹ️ Os números abaixo são <b>reais</b> e começam a contar conforme o bot atende. Quanto mais conversas, mais completo fica o painel.</div>
           <div class="dash-kpis" id="dashKpis"></div>
           <div class="dash-2">
             <div class="bloco">
@@ -450,7 +489,19 @@
               <div id="dashStatus"></div>
             </div>
           </div>
+
+          <div class="bloco" style="margin-top:18px">
+            <div class="cab"><h3>⭐ Satisfação dos clientes (NPS)</h3></div>
+            <div id="dashNps"></div>
+          </div>
         </div>
+
+        <section class="card page" id="page-atendimentos">
+          <h2>🔔 Atendimentos aguardando</h2>
+          <p class="dica">Clientes que o bot encaminhou para um humano. Cada um vem com um <b>resumo da conversa feito pela IA</b>, pra você assumir rápido. Responda pelo WhatsApp e clique em “Atendido”.</p>
+          <div id="listaAtendimentos"></div>
+          <div id="atPager" class="catpager"></div>
+        </section>
 
         <section class="card page" id="page-negocio">
           <h2>🏪 Dados do negócio</h2>
@@ -461,12 +512,16 @@
             <div><label>Nome</label><input type="text" id="n_nome" /></div>
             <div><label>Tipo (ex.: Pet Shop e Clínica Veterinária)</label><input type="text" id="n_tipo" /></div>
             <div><label>Endereço</label><input type="text" id="n_endereco" /></div>
-            <div><label>Telefone</label><input type="text" id="n_telefone" /></div>
+            <div><label>Link do Google Maps</label><input type="text" id="n_mapsLink" placeholder="https://maps.app.goo.gl/..." /></div>
+            <div><label>Telefone</label><input type="text" id="n_telefone" oninput="mascaraTel(this)" placeholder="(85) 99999-9999" /></div>
             <div><label>Horário (segunda a sexta)</label><input type="text" id="n_horarioSemana" /></div>
             <div><label>Horário (sábado)</label><input type="text" id="n_horarioSabado" /></div>
             <div><label>Horário (domingo/feriados)</label><input type="text" id="n_horarioDomingo" /></div>
             <div><label>Formas de pagamento</label><input type="text" id="n_pagamento" /></div>
+            <div><label>📸 Link do Instagram</label><input type="text" id="n_instagram" placeholder="https://instagram.com/lecolandpet" /></div>
+            <div><label>⭐ Link de avaliação no Google</label><input type="text" id="n_googleReview" placeholder="https://g.page/r/.../review" /></div>
           </div>
+          <p class="dica" style="margin-top:-4px">📸⭐ Esses dois links o bot envia ao cliente junto com a pesquisa de satisfação (no máx. 1x a cada 30 dias).</p>
           <label style="margin-top:18px;">🧠 Sobre o negócio (para a IA responder melhor)</label>
           <p class="dica">Tudo que você escrever aqui o bot usa para responder perguntas livres (políticas, filial, vacinas, regras, diferenciais...). Quanto mais detalhado, melhor.</p>
           <textarea id="n_infoIA" style="min-height:220px;"></textarea>
@@ -476,6 +531,8 @@
             <h2>💬 Mensagens</h2>
             <p class="dica">Use <code>*texto*</code> para <b>negrito</b> no WhatsApp e Enter para pular linha.</p>
             <label>Saudação — linha 1</label><textarea id="m_saudacaoIntro"></textarea>
+            <label>Pergunta de nome (cliente novo)</label><textarea id="m_saudacaoNome"></textarea>
+            <p class="dica">Enviada a quem ainda não tem nome salvo. Quando ele responde, o bot guarda o nome e, nas próximas vezes, já saúda com ele (ex.: “Olá, Ana!”).</p>
             <label>Saudação — rodapé</label><textarea id="m_saudacaoRodape"></textarea>
             <label>Resposta ao pedir atendente humano</label><textarea id="m_atendente"></textarea>
 
@@ -552,10 +609,16 @@
 
           <div class="cat-sub ativo" id="catsub-produtos">
             <div class="cat-topo">
-              <input class="busca" id="catBusca" placeholder="🔎 Buscar produto..." oninput="renderProdutos()" />
+              <input class="busca" id="catBusca" placeholder="🔎 Buscar (nome ou código)..." oninput="catPagina=1;renderProdutos()" />
+              <select class="cat-filtro" id="catFiltro" onchange="catPagina=1;renderProdutos()">
+                <option value="todos">Todos</option>
+                <option value="ativos">✅ Ativos</option>
+                <option value="inativos">🚫 Inativos (em falta)</option>
+              </select>
               <button class="btn-primary" onclick="abrirProduto()">+ Adicionar produto</button>
             </div>
             <div id="catProdutos"></div>
+            <div id="catPager" class="catpager"></div>
           </div>
 
           <div class="cat-sub" id="catsub-grupos">
@@ -589,6 +652,7 @@
                 </div>
               </div>
               <label>Nome</label><input type="text" id="prodNome" />
+              <label>Código</label><input type="text" id="prodCodigo" placeholder="Ex.: 343794" />
               <label>Descrição</label><textarea id="prodDesc"></textarea>
               <label>Preço (R$)</label><input type="text" id="prodPreco" placeholder="Ex.: 129,90" />
               <label>Grupo</label><select id="prodGrupo"></select>
@@ -603,6 +667,141 @@
           </div>
         </div>
 
+        <section class="card page" id="page-clientes">
+          <h2>👥 Clientes</h2>
+          <p class="dica">A memória do bot: nome, telefone e endereço de cada cliente. O bot preenche sozinho durante as conversas e reusa depois (ex.: já calcula a entrega sem pedir o endereço de novo).</p>
+          <div class="cat-topo">
+            <input class="busca" id="cliBusca" placeholder="🔎 Buscar (nome ou telefone)..." oninput="cliPagina=1;renderClientes()" />
+            <select class="cat-filtro" id="cliEtapaFiltro" onchange="cliPagina=1;renderClientes()">
+              <option value="">Todas as etapas</option>
+              <option value="lead">🆕 Lead</option>
+              <option value="negociando">💬 Em atendimento</option>
+              <option value="cliente">✅ Cliente</option>
+              <option value="perdido">❌ Perdido</option>
+            </select>
+            <button class="btn-primary" onclick="abrirCliente()">+ Adicionar cliente</button>
+          </div>
+          <div id="cliFunil" style="display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 14px"></div>
+          <div id="listaClientes"></div>
+          <div id="cliPager" class="catpager"></div>
+        </section>
+
+        <div class="modal-bg" id="modalCliente">
+          <div class="modal">
+            <h3 id="cliModalTitulo" style="margin:0 0 16px">Cliente</h3>
+            <label>Nome</label><input type="text" id="cliNome" />
+            <label>Telefone (com DDD, só números — ex.: 5585999999999)</label><input type="text" id="cliTelefone" oninput="mascaraTel(this)" />
+            <label>CPF</label><input type="text" id="cliCpf" oninput="mascaraCpf(this)" placeholder="000.000.000-00" />
+            <label>Endereço</label><textarea id="cliEndereco"></textarea>
+            <label>Pets (um por linha — Nome, Raça)</label><textarea id="cliPets" placeholder="Belinha, Poodle&#10;Rex, Vira-lata"></textarea>
+            <label>Etapa do funil</label>
+            <select id="cliEtapa">
+              <option value="lead">🆕 Lead</option>
+              <option value="negociando">💬 Em atendimento</option>
+              <option value="cliente">✅ Cliente</option>
+              <option value="perdido">❌ Perdido</option>
+            </select>
+            <label>Tags (separadas por vírgula)</label><input type="text" id="cliTags" placeholder="vip, atacado, ração premium" />
+            <label>Anotações internas (só você vê — o bot não usa)</label><textarea id="cliNotas" placeholder="Observações sobre o cliente..."></textarea>
+            <div class="modal-acoes">
+              <button class="btn-sec" onclick="fecharCliente()">Cancelar</button>
+              <button class="btn-primary" onclick="salvarCliente()">Salvar</button>
+            </div>
+          </div>
+        </div>
+
+        <section class="card page" id="page-equipe">
+          <h2>👨‍⚕️ Equipe</h2>
+          <p class="dica">Cadastre os colaboradores (com a função). O bot usa isso pra reconhecer quando o cliente pergunta por uma pessoa pelo <b>nome</b> (ex.: "a Dra. Ana está?") ou pela <b>função</b> (ex.: "tem veterinário?") e responder do jeito certo.</p>
+          <div class="cat-topo">
+            <input class="busca" id="eqBusca" placeholder="🔎 Buscar (nome ou função)..." oninput="eqPagina=1;renderEquipe()" />
+            <button class="btn-primary" onclick="abrirMembro()">+ Adicionar colaborador</button>
+          </div>
+          <div id="listaEquipe"></div>
+          <div id="eqPager" class="catpager"></div>
+        </section>
+
+        <div class="modal-bg" id="modalMembro">
+          <div class="modal">
+            <h3 id="eqModalTitulo" style="margin:0 0 16px">Colaborador</h3>
+            <label>Nome</label><input type="text" id="eqNome" placeholder="ex.: Dra. Ana Souza" />
+            <label>Função / cargo</label><input type="text" id="eqCargo" list="cargosSugeridos" placeholder="ex.: Veterinária" />
+            <datalist id="cargosSugeridos">
+              <option>Veterinário(a)</option><option>Banhista / Tosador(a)</option><option>Atendente</option>
+              <option>Gerente</option><option>Recepcionista</option><option>Auxiliar</option>
+            </datalist>
+            <label>Observação (opcional — especialidade, horário...)</label><textarea id="eqObs" placeholder="ex.: Atende de segunda a sexta, à tarde."></textarea>
+            <div class="modal-acoes">
+              <button class="btn-sec" onclick="fecharMembro()">Cancelar</button>
+              <button class="btn-primary" onclick="salvarMembro()">Salvar</button>
+            </div>
+          </div>
+        </div>
+
+        <section class="card page" id="page-satisfacao">
+          <h2>⭐ Satisfação (NPS)</h2>
+          <p class="dica">O bot pergunta a nota (0–10) e um comentário ao encerrar o atendimento. Aqui você vê o resultado.</p>
+          <div class="cat-topo">
+            <select class="cat-filtro" id="npsPeriodo" onchange="npsPagina=1;carregarSatisfacao()">
+              <option value="7">Últimos 7 dias</option>
+              <option value="30">Últimos 30 dias</option>
+              <option value="90" selected>Últimos 90 dias</option>
+              <option value="365">Último ano</option>
+              <option value="0">Tudo</option>
+            </select>
+          </div>
+          <div id="npsResumo"></div>
+          <h3 style="margin:18px 0 8px; font-size:15px; color:var(--navy)">💬 Comentários e notas</h3>
+          <div id="npsLista"></div>
+          <div id="npsPager" class="catpager"></div>
+        </section>
+
+        <section class="card page" id="page-campanhas">
+          <h2>📢 Campanhas</h2>
+          <p class="dica">Envie uma mensagem para um grupo de clientes (ex.: promoção, lembrete de vacina). O envio é feito aos poucos (~1 por segundo).</p>
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;font-size:13px;color:#92400e;margin-bottom:16px">
+            ⚠️ <b>Regra do WhatsApp:</b> mensagem de <b>texto livre</b> só chega a quem te mandou mensagem nas <b>últimas 24h</b>. Para alcançar todos a qualquer hora, use um <b>template aprovado</b> na Meta.
+          </div>
+          <div class="grid-2">
+            <div>
+              <label>Tipo de envio</label>
+              <select id="campModo" onchange="campToggleModo()">
+                <option value="texto">Texto livre (janela de 24h)</option>
+                <option value="template">Template aprovado (qualquer hora)</option>
+              </select>
+            </div>
+            <div>
+              <label>Audiência</label>
+              <select id="campAudTipo" onchange="campRenderAudValor();campContar()">
+                <option value="todos">Todos os clientes</option>
+                <option value="etapa">Por etapa do funil</option>
+                <option value="tag">Por tag</option>
+              </select>
+            </div>
+          </div>
+          <div id="campAudValorBox" style="display:none;margin-top:8px"></div>
+
+          <div id="campTextoBox" style="margin-top:12px">
+            <label>Mensagem</label>
+            <textarea id="campMensagem" placeholder="Ex.: 🐾 Promoção de banho essa semana! Agende já." oninput="campContar()"></textarea>
+          </div>
+          <div id="campTemplateBox" style="display:none;margin-top:12px">
+            <div class="grid-2">
+              <div><label>Nome do template (aprovado na Meta)</label><input type="text" id="campTemplate" placeholder="ex.: promo_banho" /></div>
+              <div><label>Idioma</label><input type="text" id="campIdioma" value="pt_BR" /></div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:14px;margin-top:16px;flex-wrap:wrap">
+            <button class="btn-primary" onclick="enviarCampanha()">📤 Enviar campanha</button>
+            <span id="campContador" class="dica" style="margin:0"></span>
+          </div>
+          <div id="campMsg" style="margin-top:10px;font-size:13px;font-weight:600"></div>
+
+          <h3 style="margin:22px 0 8px;font-size:15px;color:var(--navy)">📜 Histórico</h3>
+          <div id="listaCampanhas"></div>
+        </section>
+
         <section class="card page" id="page-gatilhos">
           <h2>⚙️ Palavras-chave gerais</h2>
           <p class="dica">Atalhos para o bot entender comandos importantes. Digite e clique em <b>Adicionar</b> (ou Enter).</p>
@@ -612,12 +811,6 @@
           <label style="margin-top:18px">👋 Abrir o menu / saudação</label>
           <div class="tax-add"><input type="text" id="novoGatSaudacao" placeholder="Ex.: oi, menu, ajuda..." onkeydown="if(event.key==='Enter'){event.preventDefault();addGatilho('saudacao')}" /><button class="btn-primary" type="button" onclick="addGatilho('saudacao')">Adicionar</button></div>
           <div class="tax-lista" id="listaGatSaudacao"></div>
-
-          <hr style="border:none;border-top:1px solid var(--borda);margin:24px 0 16px" />
-          <h3 style="margin:0 0 2px; font-size:16px; color:var(--navy)">📌 Comandos personalizados (grupos de palavras-chave)</h3>
-          <p class="dica">Crie um <b>grupo de palavras-chave</b> com um nome. Quando o cliente usar qualquer uma delas, o bot envia a resposta que você definir.</p>
-          <div id="lista_msgs"></div>
-          <button class="add" onclick="addMsg()">+ Adicionar novo grupo</button>
         </section>
 
         <section class="card page" id="page-conta">
@@ -625,7 +818,7 @@
           <p class="dica">Dados de acesso ao painel. A senha nunca é exibida.</p>
           <div class="grid-2">
             <div><label>Nome de usuário</label><input type="text" id="ct_nomeUsuario" /></div>
-            <div><label>Telefone</label><input type="text" id="ct_telefone" /></div>
+            <div><label>Telefone</label><input type="text" id="ct_telefone" oninput="mascaraTel(this)" placeholder="(85) 99999-9999" /></div>
             <div><label>E-mail (login)</label><input type="text" id="ct_email" /></div>
             <div><label>Senha</label><input type="text" value="••••••••" disabled /></div>
           </div>
@@ -645,7 +838,7 @@
         </section>
       </main>
 
-      <footer class="rodape">© <span id="ano"></span> Lecoland — Painel do Bot</footer>
+      <footer class="rodape">© <span id="ano"></span> Gestalize Bots</footer>
     </div>
   </div>
 
@@ -670,6 +863,28 @@
     }
     function listaParaTexto(arr) { return (arr || []).join(", "); }
     function textoParaLista(t) { return (t || "").split(",").map(s => s.trim()).filter(Boolean); }
+    // ===== Máscaras (telefone BR e CEP) — formatam o que aparece; o valor é limpo ao salvar =====
+    function mascaraTel(elx) {
+      let v = elx.value.replace(/\D/g, "").slice(0, 13), ddi = "", resto = v;
+      if (v.length > 11 && v.startsWith("55")) { ddi = "+55 "; resto = v.slice(2); }
+      let r = "";
+      if (resto.length > 10) r = "(" + resto.slice(0, 2) + ") " + resto.slice(2, 7) + "-" + resto.slice(7, 11);
+      else if (resto.length > 6) r = "(" + resto.slice(0, 2) + ") " + resto.slice(2, resto.length - 4) + "-" + resto.slice(resto.length - 4);
+      else if (resto.length > 2) r = "(" + resto.slice(0, 2) + ") " + resto.slice(2);
+      else if (resto.length) r = "(" + resto;
+      elx.value = ddi + r;
+    }
+    function mascaraCep(elx) {
+      const v = elx.value.replace(/\D/g, "").slice(0, 8);
+      elx.value = v.length > 5 ? v.slice(0, 5) + "-" + v.slice(5) : v;
+    }
+    function mascaraCpf(elx) {
+      let v = elx.value.replace(/\D/g, "").slice(0, 11), r = v;
+      if (v.length > 9) r = v.slice(0, 3) + "." + v.slice(3, 6) + "." + v.slice(6, 9) + "-" + v.slice(9);
+      else if (v.length > 6) r = v.slice(0, 3) + "." + v.slice(3, 6) + "." + v.slice(6);
+      else if (v.length > 3) r = v.slice(0, 3) + "." + v.slice(3);
+      elx.value = r;
+    }
     function flash(msg, cls) { const s = el("status"); s.textContent = msg; s.className = cls || ""; if (cls === "ok") setTimeout(() => { if (s.className === "ok") s.textContent = ""; }, 5000); }
 
     // ===== Logo =====
@@ -690,7 +905,8 @@
       } catch (err) { flash("❌ " + err.message, "erro"); }
       e.target.value = "";
     });
-    function downscale(file, max) {
+    // mime: "image/png" (padrão, p/ logo com transparência) ou "image/jpeg" (fotos — bem menor).
+    function downscale(file, max, mime, q) {
       return new Promise((resolve, reject) => {
         const fr = new FileReader();
         fr.onload = () => {
@@ -699,13 +915,22 @@
             let w = img.width, h = img.height; const s = Math.min(1, max / Math.max(w, h));
             w = Math.round(w * s); h = Math.round(h * s);
             const c = document.createElement("canvas"); c.width = w; c.height = h;
-            c.getContext("2d").drawImage(img, 0, 0, w, h);
-            resolve(c.toDataURL("image/png"));
+            const ctx = c.getContext("2d");
+            if (mime === "image/jpeg") { ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h); } // fundo branco (JPEG não tem transparência)
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(c.toDataURL(mime || "image/png", q));
           };
           img.onerror = reject; img.src = fr.result;
         };
         fr.onerror = reject; fr.readAsDataURL(file);
       });
+    }
+    // Se uma imagem da lista falhar ao carregar, tenta de novo 1x (com cache-buster).
+    function imgRetry(elx) {
+      if (elx.dataset.retry) return;
+      elx.dataset.retry = "1";
+      const base = elx.src.split("?")[0];
+      setTimeout(() => { elx.src = base + "?r=" + Date.now(); }, 700);
     }
 
     // ===== Navegação por telas (cada menu abre uma página própria) =====
@@ -717,13 +942,18 @@
       el("btnData").style.display = ehDash ? "flex" : "none";
       if (el("dataPop")) el("dataPop").style.display = "none";
       if (ehDash) {
-        const nome = (cfg && cfg.negocio && cfg.negocio.nome) || "Lecoland";
+        const nome = (cfg && cfg.negocio && cfg.negocio.nome) || "Meu Negócio";
         el("topTitulo").textContent = `Olá, ${nome}! 👋`;
         el("topSub").textContent = "Aqui está o resumo do seu atendimento automatizado.";
       } else if (navEl) {
         el("topTitulo").textContent = navEl.dataset.titulo || "Configurações do Bot";
         el("topSub").textContent = navEl.dataset.sub || "";
       }
+      if (id === "page-clientes") carregarClientes();
+      if (id === "page-equipe") carregarEquipe();
+      if (id === "page-satisfacao") carregarSatisfacao();
+      if (id === "page-atendimentos") carregarAtendimentos();
+      if (id === "page-campanhas") { campRenderAudValor(); campToggleModo(); carregarCampanhas(); campContar(); }
       window.scrollTo(0, 0);
       fecharMenu(); // fecha a gaveta no mobile ao trocar de página
     }
@@ -758,55 +988,6 @@
     }
     function addServico() { el("lista_servicos").appendChild(itemHtml("sv", { titulo: "", gatilhos: [], resposta: "" })); }
     function addFaq() { el("lista_faq").appendChild(itemHtml("fq", { titulo: "", gatilhos: [], resposta: "" })); }
-    // ===== Comandos personalizados = grupos de palavras-chave (com chips) =====
-    function comandoHtml(o) {
-      const div = document.createElement("div");
-      div.className = "item comando";
-      div.__gatilhos = (o.gatilhos || []).slice();
-      div.innerHTML = `
-        <div class="titulo-linha">
-          <div style="flex:1"><label>Nome do grupo</label><input type="text" class="cmd_titulo" value="${esc(o.titulo)}" placeholder="Ex.: Segunda via de boleto" /></div>
-          <button class="lixeira" onclick="this.closest('.item').remove()">🗑 remover</button>
-        </div>
-        <label>Palavras-chave deste grupo</label>
-        <div class="tax-add"><input type="text" class="cmd_novo" placeholder="Digite e clique em Adicionar..." onkeydown="if(event.key==='Enter'){event.preventDefault();addGatilhoComando(this)}" /><button class="btn-primary" type="button" onclick="addGatilhoComando(this.previousElementSibling)">Adicionar</button></div>
-        <div class="tax-lista cmd_chips"></div>
-        <label>Resposta enviada ao cliente</label>
-        <textarea class="cmd_resposta">${esc(o.resposta)}</textarea>
-        <input type="hidden" class="cmd_chave" value="${esc(o.chave || '')}" />`;
-      renderComandoChips(div);
-      return div;
-    }
-    function renderComandoChips(card) {
-      const g = card.__gatilhos || [];
-      card.querySelector(".cmd_chips").innerHTML = g.length
-        ? g.map((v) => `<span class="tax-item">${esc(v)}<button type="button" title="Remover" onclick="removerGatilhoComando(this)">×</button></span>`).join("")
-        : '<span class="dica" style="font-size:12px">Nenhuma palavra-chave ainda.</span>';
-    }
-    function addGatilhoComando(input) {
-      const card = input.closest(".item");
-      const v = input.value.trim(); if (!v) return;
-      card.__gatilhos = card.__gatilhos || [];
-      if (!card.__gatilhos.some((x) => x.toLowerCase() === v.toLowerCase())) card.__gatilhos.push(v);
-      input.value = ""; renderComandoChips(card);
-    }
-    function removerGatilhoComando(btn) {
-      const card = btn.closest(".item");
-      const chips = [...card.querySelectorAll(".cmd_chips .tax-item")];
-      const idx = chips.indexOf(btn.closest(".tax-item"));
-      if (idx > -1) { card.__gatilhos.splice(idx, 1); renderComandoChips(card); }
-    }
-    function coletarComandos() {
-      const out = [];
-      el("lista_msgs").querySelectorAll(".item").forEach((item) => {
-        const titulo = item.querySelector(".cmd_titulo").value.trim();
-        if (!titulo) return;
-        const chave = item.querySelector(".cmd_chave").value.trim() || slug(titulo);
-        out.push({ chave, titulo, gatilhos: (item.__gatilhos || []).slice(), resposta: item.querySelector(".cmd_resposta").value });
-      });
-      return out;
-    }
-    function addMsg() { el("lista_msgs").appendChild(comandoHtml({ titulo: "", gatilhos: [], resposta: "" })); }
     function coletarItens(containerId, prefixo) {
       const out = [];
       el(containerId).querySelectorAll(".item").forEach(item => {
@@ -887,8 +1068,8 @@
       const km = (t.ate_km === null || t.ate_km === undefined) ? "" : t.ate_km;
       div.innerHTML = `
         <input type="text" class="tx_servico" list="servicos_entrega" placeholder="Serviço" value="${esc(t.servico || '')}" style="flex:2" />
-        <input type="text" class="tx_km" placeholder="até km" value="${esc(km)}" style="flex:0 0 64px" />
-        <input type="text" class="tx_valor" placeholder="Valor" value="${esc(t.valor || '')}" style="flex:0 0 80px" />
+        <div class="tx-unidade" style="flex:0 0 84px"><input type="text" class="tx_km" placeholder="0" value="${esc(km)}" /><span class="tx-sufixo">km</span></div>
+        <div class="tx-unidade" style="flex:0 0 100px"><span class="tx-prefixo">R$</span><input type="text" class="tx_valor" placeholder="0,00" value="${esc(t.valor || '')}" /></div>
         <input type="text" class="tx_obs" placeholder="Obs (bairro/ref.)" value="${esc(t.obs || '')}" style="flex:1" />
         <button class="lixeira" onclick="this.closest('.taxa-linha').remove()">🗑</button>`;
       return div;
@@ -915,11 +1096,12 @@
       const n = cfg.negocio, m = cfg.mensagens, e = cfg.entrega;
       el("hNome").textContent = n.nome; el("botNome").textContent = n.nome;
       logoAtual = n.logo || ""; setLogo(logoAtual);
-      ["nome","tipo","endereco","telefone","horarioSemana","horarioSabado","horarioDomingo","pagamento"]
+      ["nome","tipo","endereco","mapsLink","telefone","horarioSemana","horarioSabado","horarioDomingo","pagamento","instagram","googleReview"]
         .forEach(k => el("n_" + k).value = n[k] || "");
       el("n_infoIA").value = cfg.infoIA || "";
-      ["saudacaoIntro","saudacaoChamada","saudacaoRodape","atendente","ausencia"].forEach(k => el("m_" + k).value = m[k] || "");
+      ["saudacaoIntro","saudacaoChamada","saudacaoNome","saudacaoRodape","atendente","ausencia"].forEach(k => el("m_" + k).value = m[k] || "");
       if (!el("m_ausencia").value) el("m_ausencia").value = "🌙 Olá! No momento estamos fora do horário de atendimento. Assim que abrirmos, te respondemos por aqui. 🐾";
+      if (!el("m_saudacaoNome").value) el("m_saudacaoNome").value = "Olá! 🐾 Seja muito bem-vindo(a) à {nome}! Antes de começar, como posso te chamar? 😊";
       const padraoExp = { semana: { abre: "08:00", fecha: "19:00" }, sabado: { abre: "08:00", fecha: "18:00" }, domingo: { abre: "", fecha: "" } };
       el("exp_ativo").checked = cfg.expediente ? cfg.expediente.ativo === true : false;
       ["semana","sabado","domingo"].forEach(d => {
@@ -929,7 +1111,6 @@
       });
       feriados = (cfg.expediente && Array.isArray(cfg.expediente.feriados)) ? cfg.expediente.feriados.slice() : [];
       renderFeriados();
-      (cfg.mensagensExtras || []).forEach(x => el("lista_msgs").appendChild(comandoHtml(x)));
       cfg.servicos.forEach(s => el("lista_servicos").appendChild(itemHtml("sv", s)));
       cfg.faqRapido.forEach(f => el("lista_faq").appendChild(itemHtml("fq", f)));
       (cfg.menus || []).forEach(m => el("lista_menus").appendChild(menuHtml(m)));
@@ -949,7 +1130,7 @@
       const novo = {
         negocio: {},
         mensagens: {},
-        mensagensExtras: coletarComandos(),
+        mensagensExtras: (cfg && cfg.mensagensExtras) || [],
         servicos: coletarItens("lista_servicos", "sv"),
         faqRapido: coletarItens("lista_faq", "fq"),
         entrega: {
@@ -963,10 +1144,10 @@
         infoIA: el("n_infoIA").value,
         menus: coletarMenus(),
       };
-      ["nome","tipo","endereco","telefone","horarioSemana","horarioSabado","horarioDomingo","pagamento"]
+      ["nome","tipo","endereco","mapsLink","telefone","horarioSemana","horarioSabado","horarioDomingo","pagamento","instagram","googleReview"]
         .forEach(k => novo.negocio[k] = el("n_" + k).value.trim());
       novo.negocio.logo = logoAtual;
-      ["saudacaoIntro","saudacaoChamada","saudacaoRodape","atendente","ausencia"].forEach(k => novo.mensagens[k] = el("m_" + k).value);
+      ["saudacaoIntro","saudacaoChamada","saudacaoNome","saudacaoRodape","atendente","ausencia"].forEach(k => novo.mensagens[k] = el("m_" + k).value);
       novo.expediente = {
         ativo: el("exp_ativo").checked,
         timezone: (cfg.expediente && cfg.expediente.timezone) || "America/Fortaleza",
@@ -1082,59 +1263,33 @@
     function confirmarLogout(i) { const c = contas[i]; if (c && confirm('Sair da conta "' + c.nome + '"?')) sair(); }
 
     // ===== Dashboard =====
-    function serieDemo(n, base, amp, seed) {
-      const out = []; let v = base, s = (seed || 1) * 7919;
-      for (let i = 0; i < n; i++) { s = (s * 9301 + 49297) % 233280; const r = s / 233280; v += (r - 0.45) * amp; v = Math.max(base * 0.5, v); out.push(Math.round(v)); }
-      return out;
-    }
-    function svgSpark(serie, cor) {
-      const w = 260, h = 44, n = serie.length, min = Math.min(...serie), max = Math.max(...serie), rng = (max - min) || 1;
-      const X = (i) => (i / (n - 1)) * w, Y = (v) => h - 4 - ((v - min) / rng) * (h - 8);
-      let d = ""; serie.forEach((v, i) => { d += (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1) + " "; });
-      const id = "g" + Math.random().toString(36).slice(2, 7);
-      return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
-        <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${cor}" stop-opacity="0.22"/><stop offset="1" stop-color="${cor}" stop-opacity="0"/></linearGradient></defs>
-        <path d="${d}L${w} ${h} L0 ${h} Z" fill="url(#${id})"/><path d="${d}" fill="none" stroke="${cor}" stroke-width="2" stroke-linejoin="round"/></svg>`;
-    }
-    function renderKpis() {
+    function fmtNum(n) { return Number(n || 0).toLocaleString("pt-BR"); }
+    function renderKpis(m) {
+      const t = (m && m.totais) || { recebidas: 0, enviadas: 0, handoffs: 0, atendimentos: 0 };
       const cards = [
-        { rot: "Atendimentos", cor: "#16a34a", bg: "#dcfce7", ico: "💬", v: "1.248", d: "↑ 18%", up: true },
-        { rot: "Mensagens enviadas", cor: "#2563eb", bg: "#dbeafe", ico: "✈️", v: "7.982", d: "↑ 24%", up: true },
-        { rot: "Respostas automáticas", cor: "#ea580c", bg: "#ffedd5", ico: "🤖", v: "96%", d: "↑ 8%", up: true },
-        { rot: "Transferências p/ humano", cor: "#7c3aed", bg: "#ede9fe", ico: "🎧", v: "53", d: "↓ 12%", up: false },
+        { rot: "Atendimentos", cor: "#16a34a", bg: "#dcfce7", ico: "💬", v: fmtNum(t.atendimentos) },
+        { rot: "Mensagens recebidas", cor: "#2563eb", bg: "#dbeafe", ico: "📥", v: fmtNum(t.recebidas) },
+        { rot: "Mensagens enviadas", cor: "#ea580c", bg: "#ffedd5", ico: "📤", v: fmtNum(t.enviadas) },
+        { rot: "Transferências p/ humano", cor: "#7c3aed", bg: "#ede9fe", ico: "🎧", v: fmtNum(t.handoffs) },
       ];
-      el("dashKpis").innerHTML = cards.map((c, i) => `
+      el("dashKpis").innerHTML = cards.map(c => `
         <div class="kpi">
           <div class="top"><div class="rotulo" style="color:${c.cor}">${c.rot}</div><div class="ico" style="background:${c.bg}">${c.ico}</div></div>
-          <div class="valor">${c.v} <span class="delta ${c.up ? "up" : "down"}">${c.d}</span></div>
-          <div class="vs">vs período anterior</div>
-          ${svgSpark(serieDemo(24, 40, 18, i + 3), c.cor)}
+          <div class="valor">${c.v}</div>
+          <div class="vs">no período</div>
         </div>`).join("");
     }
     function renderTempoReal() {
-      const dados = [
-        { nome: "Lucas Ferreira", msg: "Gostaria de saber sobre banho e tosa", tag: "bot", t: "agora" },
-        { nome: "Juliana Santos", msg: "Qual o valor da consulta?", tag: "aguard", t: "1 min" },
-        { nome: "Rafael Costa", msg: "Quero agendar uma vacinação", tag: "bot", t: "2 min" },
-        { nome: "Mariana Oliveira", msg: "Vocês fazem entrega?", tag: "humano", t: "3 min" },
-        { nome: "Pedro Almeida", msg: "Qual o horário de funcionamento?", tag: "bot", t: "5 min" },
-      ];
-      const rot = { bot: "Atendido pelo bot", aguard: "Aguardando resposta", humano: "Transferido p/ humano" };
-      el("dashTempoReal").innerHTML = dados.map(d => `
-        <div class="rt"><div class="av">${d.nome[0]}</div>
-          <div class="info"><div class="nome">${d.nome}</div><div class="msg">${d.msg}</div></div>
-          <div class="dir"><span class="tag ${d.tag}">${rot[d.tag]}</span><div class="tempo">${d.t}</div></div></div>`).join("");
+      el("dashTempoReal").innerHTML = '<p class="dica" style="padding:10px 2px">As conversas acontecem direto no WhatsApp — o histórico completo de cada cliente fica lá. 🐾</p>';
     }
-    function renderServicos() {
-      const opcoes = [];
-      (cfg.servicos || []).forEach(s => opcoes.push(s.titulo));
-      (cfg.faqRapido || []).forEach(f => opcoes.push(f.titulo));
-      if (cfg.entrega && cfg.entrega.ativo) opcoes.push(cfg.entrega.titulo);
-      const base = [532, 398, 286, 152, 98, 64, 40], pct = ["↑ 15%", "↑ 8%", "↑ 22%", "↓ 5%", "↑ 12%", "↑ 4%", "↑ 2%"];
-      el("dashServicos").innerHTML = opcoes.slice(0, 5).map((t, i) => `
+    function renderServicos(m) {
+      const top = (m && m.topServicos) || [];
+      if (!top.length) { el("dashServicos").innerHTML = '<p class="dica" style="padding:10px 2px">Os serviços mais procurados aparecem aqui conforme os clientes usam os menus.</p>'; return; }
+      const max = top[0].qtd || 1;
+      el("dashServicos").innerHTML = top.map((s, i) => `
         <div class="sv"><div class="num">${i + 1}</div>
-          <div class="info"><div class="tit">${esc(t)}</div><div class="sub">${base[i] || 30} solicitações</div></div>
-          <div class="pct" style="color:${(pct[i] || "").includes("↓") ? "#dc2626" : "#16a34a"}">${pct[i] || "↑ 3%"}</div></div>`).join("");
+          <div class="info"><div class="tit">${esc(s.titulo)}</div><div class="sub">${s.qtd} ${s.qtd === 1 ? "vez" : "vezes"}</div></div>
+          <div class="pct" style="color:#16a34a">${Math.round((s.qtd / max) * 100)}%</div></div>`).join("");
     }
     async function renderStatus() {
       let st = { gemini: false, ors: false };
@@ -1154,27 +1309,61 @@
         </div>` +
         itens.map(i => `<div class="status-item">${i.nome}<span class="est ${i.ok ? "ativo" : "reparo"}"><span class="pt"></span>${i.ok ? "Ativo" : "Aguardando reparo"}</span></div>`).join("");
     }
-    function renderGrafico() {
-      const dias = parseInt((el("dashFiltro") && el("dashFiltro").value) || "7", 10);
-      const recebidas = serieDemo(dias, 480, 90, 7);
-      const automaticas = recebidas.map(v => Math.round(v * 0.82));
-      const transferidas = recebidas.map(v => Math.round(v * 0.14));
-      const max = Math.max(...recebidas) * 1.15;
-      const w = 720, h = 250, padL = 36, padB = 26, padT = 8, padR = 8, iw = w - padL - padR, ih = h - padT - padB;
-      const X = (i) => padL + (i / (dias - 1 || 1)) * iw, Y = (v) => padT + ih - (v / max) * ih;
+    function renderGrafico(m) {
+      const serie = (m && m.serie) || [];
+      const recebidas = serie.map(d => d.recebidas || 0), enviadas = serie.map(d => d.enviadas || 0), handoffs = serie.map(d => d.handoffs || 0);
+      const totalMov = recebidas.reduce((a, b) => a + b, 0) + enviadas.reduce((a, b) => a + b, 0);
+      if (!totalMov) { el("dashGrafico").innerHTML = '<p class="dica" style="padding:48px 2px;text-align:center">📊 Sem movimento no período ainda — o gráfico aparece conforme o bot for atendendo.</p>'; return; }
+      const n = serie.length, max = Math.max(1, ...recebidas, ...enviadas) * 1.15;
+      const w = 720, h = 250, padL = 36, padT = 8, padB = 26, padR = 8, iw = w - padL - padR, ih = h - padT - padB;
+      const X = (i) => padL + (i / (n - 1 || 1)) * iw, Y = (v) => padT + ih - (v / max) * ih;
       const path = (arr) => arr.map((v, i) => (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1)).join(" ");
       let grid = "";
       for (let g = 0; g <= 4; g++) { const yy = padT + ih - (g / 4) * ih, val = Math.round((g / 4) * max); grid += `<line x1="${padL}" y1="${yy.toFixed(0)}" x2="${w - padR}" y2="${yy.toFixed(0)}" stroke="#f1f5f9"/><text x="${padL - 6}" y="${(yy + 3).toFixed(0)}" text-anchor="end" font-size="10" fill="#94a3b8">${val}</text>`; }
-      const fimDt = window.__dashFim ? new Date(window.__dashFim + "T00:00:00") : new Date();
-      let xl = "", passo = Math.ceil(dias / 7);
-      for (let i = 0; i < dias; i += passo) { const dt = new Date(fimDt); dt.setDate(dt.getDate() - (dias - 1 - i)); const lbl = String(dt.getDate()).padStart(2, "0") + "/" + String(dt.getMonth() + 1).padStart(2, "0"); xl += `<text x="${X(i).toFixed(0)}" y="${h - 6}" text-anchor="middle" font-size="10" fill="#94a3b8">${lbl}</text>`; }
-      el("dashGrafico").innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:260px">${grid}
-        <path d="${path(recebidas)} L${X(dias - 1).toFixed(1)} ${padT + ih} L${padL} ${padT + ih} Z" fill="rgba(22,163,74,.07)"/>
+      let xl = "", passo = Math.max(1, Math.ceil(n / 7));
+      for (let i = 0; i < n; i += passo) { const p = (serie[i].dia || "").split("-"); xl += `<text x="${X(i).toFixed(0)}" y="${h - 6}" text-anchor="middle" font-size="10" fill="#94a3b8">${p[2]}/${p[1]}</text>`; }
+      el("dashGrafico").innerHTML = `
+        <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--suave);margin-bottom:6px"><span>🟢 Recebidas</span><span>🔵 Enviadas</span><span>🟣 Transferências</span></div>
+        <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:260px">${grid}
+        <path d="${path(recebidas)} L${X(n - 1).toFixed(1)} ${padT + ih} L${padL} ${padT + ih} Z" fill="rgba(22,163,74,.07)"/>
         <path d="${path(recebidas)}" fill="none" stroke="#16a34a" stroke-width="2.2"/>
-        <path d="${path(automaticas)}" fill="none" stroke="#2563eb" stroke-width="2.2"/>
-        <path d="${path(transferidas)}" fill="none" stroke="#7c3aed" stroke-width="2.2"/>${xl}</svg>`;
+        <path d="${path(enviadas)}" fill="none" stroke="#2563eb" stroke-width="2.2"/>
+        <path d="${path(handoffs)}" fill="none" stroke="#7c3aed" stroke-width="2.2"/>${xl}</svg>`;
     }
-    function renderDashboard() { if (!cfg) return; renderKpis(); renderTempoReal(); renderServicos(); renderStatus(); renderGrafico(); }
+    async function renderNps() {
+      let d = { resumo: { total: 0 } };
+      try { d = await (await fetch("/api/nps?dias=90")).json(); } catch (_) {}
+      const r = d.resumo || { total: 0 };
+      if (!r.total) { el("dashNps").innerHTML = '<p class="dica">Ainda sem avaliações. O bot pede a nota (0–10) automaticamente quando o atendimento encerra.</p>'; return; }
+      const corScore = r.score >= 50 ? "#16a34a" : (r.score >= 0 ? "#ea580c" : "#dc2626");
+      const barra = (rot, n, cor) => {
+        const pct = Math.round((n / r.total) * 100);
+        return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0">
+          <div style="width:140px;font-size:13px;color:#334155">${rot}</div>
+          <div style="flex:1;height:9px;background:#f1f5f9;border-radius:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${cor}"></div></div>
+          <div style="width:62px;text-align:right;font-size:12px;color:var(--suave)">${n} · ${pct}%</div></div>`;
+      };
+      el("dashNps").innerHTML = `
+        <div style="display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+          <div style="text-align:center"><div style="font-size:38px;font-weight:800;color:${corScore};line-height:1">${r.score}</div><div style="font-size:11px;color:var(--suave)">NPS (−100 a 100)</div></div>
+          <div style="font-size:13px;color:var(--suave)"><b>${r.total}</b> avaliações · média <b>${r.media}</b> · últimos 90 dias</div>
+        </div>
+        ${barra("😍 Promotores (9–10)", r.promotores, "#16a34a")}
+        ${barra("😐 Neutros (7–8)", r.neutros, "#ea580c")}
+        ${barra("😞 Detratores (0–6)", r.detratores, "#dc2626")}`;
+    }
+    function diasDoFiltro() {
+      const ini = el("dataIni") && el("dataIni").value, fim = el("dataFim") && el("dataFim").value;
+      if (ini && fim) { const d = Math.round((new Date(fim) - new Date(ini)) / 86400000) + 1; return Math.max(1, Math.min(365, d)); }
+      return 30;
+    }
+    async function renderDashboard() {
+      if (!cfg) return;
+      renderTempoReal(); renderStatus(); renderNps();
+      let m = { totais: {}, serie: [], topServicos: [] };
+      try { m = await (await fetch("/api/metricas?dias=" + diasDoFiltro())).json(); } catch (_) {}
+      renderKpis(m); renderServicos(m); renderGrafico(m);
+    }
     function toggleData() { const p = el("dataPop"); p.style.display = p.style.display === "block" ? "none" : "block"; }
     function fmtData(s) { const p = s.split("-"); return p[2] + "/" + p[1] + "/" + p[0]; }
     function fmtCurta(s) { const p = s.split("-"); return p[2] + "/" + p[1]; }
@@ -1184,7 +1373,7 @@
     }
     function aplicarData() {
       const ini = el("dataIni").value, fim = el("dataFim").value;
-      if (ini && fim) { window.__dashFim = fim; setDataLabels(ini, fim); renderGrafico(); }
+      if (ini && fim) { window.__dashFim = fim; setDataLabels(ini, fim); renderDashboard(); }
       el("dataPop").style.display = "none";
     }
     function initDashData() {
@@ -1196,7 +1385,7 @@
 
     // ===== Catálogo =====
     let catalogo = { grupos: [], subgrupos: [], especificacoes: [], produtos: [] };
-    let prodEditId = null, prodImagem = "";
+    let prodEditId = null, prodImagem = "", catPagina = 1;
     function normCat(t) { return String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
 
     function catTab(nome, elx) {
@@ -1211,15 +1400,32 @@
       renderTaxLista("subgrupos", "listaSubgrupos");
       renderTaxLista("especificacoes", "listaEspec");
     }
+    function toggleProdutoAtivo(id, ativo) {
+      const p = catalogo.produtos.find(x => x.id === id);
+      if (!p) return;
+      p.ativo = ativo;
+      salvarProdutoServidor(p);
+      renderProdutos();
+    }
     function renderProdutos() {
       const q = normCat(el("catBusca").value);
-      const lista = catalogo.produtos.filter(p => !q || normCat(p.nome + " " + (p.descricao || "") + " " + (p.grupo || "") + " " + (p.subgrupos || []).join(" ")).includes(q));
-      if (!lista.length) { el("catProdutos").innerHTML = `<p class="dica">Nenhum produto ${catalogo.produtos.length ? "encontrado" : "cadastrado ainda"}. Clique em “Adicionar produto”.</p>`; return; }
-      el("catProdutos").innerHTML = lista.map(p => `
-        <div class="prod">
-          ${p.imagem ? `<img class="pimg" src="${esc(p.imagem)}" />` : `<div class="semimg">📦</div>`}
+      const filtro = el("catFiltro") ? el("catFiltro").value : "todos";
+      let lista = catalogo.produtos.filter(p => !q || normCat(p.nome + " " + (p.codigo || "") + " " + (p.descricao || "") + " " + (p.grupo || "") + " " + (p.subgrupos || []).join(" ")).includes(q));
+      if (filtro === "ativos") lista = lista.filter(p => p.ativo !== false);
+      else if (filtro === "inativos") lista = lista.filter(p => p.ativo === false);
+      if (!lista.length) { el("catProdutos").innerHTML = `<p class="dica">Nenhum produto ${catalogo.produtos.length ? "encontrado" : "cadastrado ainda"}. Clique em “Adicionar produto”.</p>`; el("catPager").innerHTML = ""; return; }
+      const POR_PAG = 10, total = lista.length, totalPags = Math.ceil(total / POR_PAG);
+      catPagina = Math.min(Math.max(1, catPagina), totalPags || 1);
+      const ini = (catPagina - 1) * POR_PAG;
+      el("catProdutos").innerHTML = lista.slice(ini, ini + POR_PAG).map(p => `
+        <div class="prod ${p.ativo === false ? "inativo" : ""}">
+          <label class="prod-toggle" title="${p.ativo === false ? "Ativar (em estoque)" : "Desativar (em falta)"}">
+            <input type="checkbox" ${p.ativo !== false ? "checked" : ""} onchange="toggleProdutoAtivo('${p.id}', this.checked)" /><span class="sl"></span>
+          </label>
+          ${p.imagem ? `<img class="pimg" src="${esc(p.imagem)}" loading="lazy" decoding="async" width="66" height="66" onerror="imgRetry(this)" />` : `<div class="semimg">📦</div>`}
           <div class="pinfo">
             <div class="pnome">${esc(p.nome)} ${p.ativo === false ? '<span style="color:#dc2626;font-size:12px">(inativo)</span>' : ""}</div>
+            ${p.codigo ? `<div class="pcod" style="font-size:12px;color:var(--suave);font-weight:600">cód ${esc(p.codigo)}</div>` : ""}
             <div class="pdesc">${esc(p.descricao || "")}</div>
             <div class="chips">
               ${p.grupo ? `<span class="chipg">${esc(p.grupo)}</span>` : ""}
@@ -1234,7 +1440,322 @@
             <button class="iconbtn del" title="Excluir" onclick="excluirProduto('${p.id}')">🗑️</button>
           </div>
         </div>`).join("");
+      el("catPager").innerHTML = montarPager(catPagina, totalPags, total);
     }
+    function irPagina(n) { catPagina = n; renderProdutos(); const c = el("catProdutos"); if (c) c.scrollIntoView({ block: "start" }); }
+    function montarPager(atual, total, qtd, fn, rotulo) {
+      fn = fn || "irPagina"; rotulo = rotulo || "produtos";
+      if (total <= 1) return `<div class="pg-info">${qtd} ${rotulo}</div>`;
+      const set = new Set([1, total, atual, atual - 1, atual + 1, atual - 2, atual + 2]);
+      const nums = [...set].filter(n => n >= 1 && n <= total).sort((a, b) => a - b);
+      let botoes = `<button class="pg" ${atual <= 1 ? "disabled" : ""} onclick="${fn}(${atual - 1})">‹</button>`;
+      let prev = 0;
+      for (const n of nums) {
+        if (n - prev > 1) botoes += `<span class="pg-dots">…</span>`;
+        botoes += `<button class="pg ${n === atual ? "ativo" : ""}" onclick="${fn}(${n})">${n}</button>`;
+        prev = n;
+      }
+      botoes += `<button class="pg" ${atual >= total ? "disabled" : ""} onclick="${fn}(${atual + 1})">›</button>`;
+      return `<div class="pg-info">${qtd} ${rotulo} · página ${atual} de ${total}</div><div class="pager">${botoes}</div>`;
+    }
+
+    // ===== Clientes (memória do bot + funil/tags/anotações) =====
+    let clientesLista = [], cliPagina = 1, cliEditTel = null;
+    const ETAPAS = {
+      lead: { rot: "🆕 Lead", cor: "#2563eb", bg: "#dbeafe" },
+      negociando: { rot: "💬 Em atendimento", cor: "#ea580c", bg: "#ffedd5" },
+      cliente: { rot: "✅ Cliente", cor: "#16a34a", bg: "#dcfce7" },
+      perdido: { rot: "❌ Perdido", cor: "#dc2626", bg: "#fee2e2" },
+    };
+    function etapaInfo(e) { return ETAPAS[e] || ETAPAS.lead; }
+    async function carregarClientes() {
+      try { const d = await (await fetch("/api/clientes")).json(); clientesLista = d.clientes || []; renderClientes(); }
+      catch (_) { el("listaClientes").innerHTML = '<p class="dica">Erro ao carregar clientes.</p>'; }
+    }
+    function cliIrPagina(n) { cliPagina = n; renderClientes(); const c = el("listaClientes"); if (c) c.scrollIntoView({ block: "start" }); }
+    function renderFunil() {
+      const cont = {}; Object.keys(ETAPAS).forEach(k => cont[k] = 0);
+      clientesLista.forEach(c => { const e = ETAPAS[c.etapa] ? c.etapa : "lead"; cont[e]++; });
+      el("cliFunil").innerHTML = Object.keys(ETAPAS).map(k => {
+        const i = ETAPAS[k];
+        return `<span style="background:${i.bg};color:${i.cor};font-weight:700;font-size:12px;padding:5px 10px;border-radius:8px">${i.rot}: ${cont[k]}</span>`;
+      }).join("");
+    }
+    function renderClientes() {
+      renderFunil();
+      const q = normCat(el("cliBusca").value);
+      const fEtapa = el("cliEtapaFiltro") ? el("cliEtapaFiltro").value : "";
+      const lista = clientesLista.filter(c => {
+        if (fEtapa && (c.etapa || "lead") !== fEtapa) return false;
+        return !q || normCat((c.nome || "") + " " + (c.telefone || "") + " " + (c.endereco || "") + " " + (c.tags || []).join(" ")).includes(q);
+      });
+      if (!lista.length) { el("listaClientes").innerHTML = `<p class="dica">${clientesLista.length ? "Nenhum cliente encontrado." : "Nenhum cliente ainda — o bot vai preenchendo conforme conversa."}</p>`; el("cliPager").innerHTML = ""; return; }
+      const POR = 10, total = lista.length, totalPags = Math.ceil(total / POR);
+      cliPagina = Math.min(Math.max(1, cliPagina), totalPags || 1);
+      const ini = (cliPagina - 1) * POR;
+      el("listaClientes").innerHTML = lista.slice(ini, ini + POR).map(c => {
+        const et = etapaInfo(c.etapa);
+        return `
+        <div class="prod">
+          <div class="semimg">👤</div>
+          <div class="pinfo">
+            <div class="pnome">${esc(c.nome || "(sem nome)")} <span style="background:${et.bg};color:${et.cor};font-size:11px;font-weight:700;padding:2px 7px;border-radius:7px">${et.rot}</span></div>
+            <div class="pcod" style="font-size:12px;color:var(--suave);font-weight:600">📞 ${esc(c.telefone || "")}${c.cpf ? " · 🪪 " + esc(c.cpf) : ""}</div>
+            <div class="pdesc">📍 ${esc(c.endereco || "(sem endereço)")}</div>
+            ${(c.pets && c.pets.length) ? `<div class="pdesc">🐾 ${c.pets.map(p => esc(p.nome) + (p.raca ? " (" + esc(p.raca) + ")" : "")).join(", ")}</div>` : ""}
+            ${(c.tags && c.tags.length) ? `<div class="chips" style="margin-top:4px">${c.tags.map(t => `<span class="chipg">${esc(t)}</span>`).join("")}</div>` : ""}
+            ${c.notas ? `<div class="pdesc" style="color:var(--suave);font-style:italic">📝 ${esc(c.notas)}</div>` : ""}
+          </div>
+          <div class="pacoes">
+            <button class="iconbtn" title="Editar" onclick="abrirCliente('${esc(c.telefone)}')">✏️</button>
+            <button class="iconbtn del" title="Excluir" onclick="excluirCliente('${esc(c.telefone)}')">🗑️</button>
+          </div>
+        </div>`;
+      }).join("");
+      el("cliPager").innerHTML = montarPager(cliPagina, totalPags, total, "cliIrPagina", "clientes");
+    }
+    function abrirCliente(tel) {
+      const c = tel ? clientesLista.find(x => x.telefone === tel) : null;
+      cliEditTel = tel || null;
+      el("cliModalTitulo").textContent = c ? "Editar cliente" : "Novo cliente";
+      el("cliNome").value = c ? (c.nome || "") : "";
+      el("cliTelefone").value = c ? (c.telefone || "") : "";
+      el("cliTelefone").disabled = !!c; // telefone é a chave: não muda na edição
+      el("cliCpf").value = (c && c.cpf) || "";
+      el("cliEndereco").value = c ? (c.endereco || "") : "";
+      el("cliPets").value = c && Array.isArray(c.pets) ? c.pets.map(p => p.nome + (p.raca ? ", " + p.raca : "")).join("\n") : "";
+      el("cliEtapa").value = (c && c.etapa) || "lead";
+      el("cliTags").value = c && Array.isArray(c.tags) ? c.tags.join(", ") : "";
+      el("cliNotas").value = (c && c.notas) || "";
+      el("modalCliente").classList.add("aberto");
+    }
+    function fecharCliente() { el("modalCliente").classList.remove("aberto"); }
+    async function salvarCliente() {
+      const telefone = (cliEditTel || el("cliTelefone").value).replace(/\D/g, "");
+      if (!telefone) { alert("Informe o telefone (com DDD)."); return; }
+      const pets = el("cliPets").value.split("\n").map(l => l.trim()).filter(Boolean).map(l => {
+        const p = l.split(/[,\-–|]/).map(s => s.trim());
+        return { nome: p[0], raca: p.slice(1).join(" ").trim() };
+      }).filter(p => p.nome);
+      const tags = el("cliTags").value.split(",").map(t => t.trim()).filter(Boolean);
+      try {
+        await apiCat("/api/clientes", { telefone, nome: el("cliNome").value.trim(), cpf: el("cliCpf").value.trim(), endereco: el("cliEndereco").value.trim(), pets, tags, notas: el("cliNotas").value.trim(), etapa: el("cliEtapa").value });
+        fecharCliente(); await carregarClientes();
+      } catch (e) { alert("Erro ao salvar: " + e.message); }
+    }
+    async function excluirCliente(tel) {
+      const c = clientesLista.find(x => x.telefone === tel);
+      if (!confirm(`Excluir o cliente ${c && c.nome ? "“" + c.nome + "”" : tel}?`)) return;
+      try { await apiCat("/api/clientes/remover", { telefone: tel }); await carregarClientes(); }
+      catch (e) { alert("Erro ao excluir: " + e.message); }
+    }
+
+    // ===== Equipe / colaboradores =====
+    let equipeLista = [], eqPagina = 1, eqEditId = null;
+    async function carregarEquipe() {
+      try { const d = await (await fetch("/api/equipe")).json(); equipeLista = d.equipe || []; renderEquipe(); }
+      catch (_) { el("listaEquipe").innerHTML = '<p class="dica">Erro ao carregar a equipe.</p>'; }
+    }
+    function eqIrPagina(n) { eqPagina = n; renderEquipe(); const c = el("listaEquipe"); if (c) c.scrollIntoView({ block: "start" }); }
+    function renderEquipe() {
+      const q = normCat(el("eqBusca").value);
+      const lista = equipeLista.filter(m => !q || normCat((m.nome || "") + " " + (m.cargo || "") + " " + (m.obs || "")).includes(q));
+      if (!lista.length) { el("listaEquipe").innerHTML = `<p class="dica">${equipeLista.length ? "Nenhum colaborador encontrado." : "Nenhum colaborador ainda. Clique em “Adicionar colaborador”."}</p>`; el("eqPager").innerHTML = ""; return; }
+      const POR = 15, total = lista.length, totalPags = Math.ceil(total / POR);
+      eqPagina = Math.min(Math.max(1, eqPagina), totalPags || 1);
+      const ini = (eqPagina - 1) * POR;
+      el("listaEquipe").innerHTML = lista.slice(ini, ini + POR).map(m => `
+        <div class="prod">
+          <div class="semimg">👤</div>
+          <div class="pinfo">
+            <div class="pnome">${esc(m.nome)}${m.cargo ? ` <span style="background:#dbeafe;color:#2563eb;font-size:11px;font-weight:700;padding:2px 7px;border-radius:7px">${esc(m.cargo)}</span>` : ""}</div>
+            ${m.obs ? `<div class="pdesc">${esc(m.obs)}</div>` : ""}
+          </div>
+          <div class="pacoes">
+            <button class="iconbtn" title="Editar" onclick="abrirMembro('${m.id}')">✏️</button>
+            <button class="iconbtn del" title="Excluir" onclick="excluirMembro('${m.id}')">🗑️</button>
+          </div>
+        </div>`).join("");
+      el("eqPager").innerHTML = montarPager(eqPagina, totalPags, total, "eqIrPagina", "colaboradores");
+    }
+    function abrirMembro(id) {
+      const m = id ? equipeLista.find(x => x.id === id) : null;
+      eqEditId = id || null;
+      el("eqModalTitulo").textContent = m ? "Editar colaborador" : "Novo colaborador";
+      el("eqNome").value = m ? (m.nome || "") : "";
+      el("eqCargo").value = m ? (m.cargo || "") : "";
+      el("eqObs").value = m ? (m.obs || "") : "";
+      el("modalMembro").classList.add("aberto");
+    }
+    function fecharMembro() { el("modalMembro").classList.remove("aberto"); }
+    async function salvarMembro() {
+      const nome = el("eqNome").value.trim();
+      if (!nome) { alert("Informe o nome do colaborador."); return; }
+      try {
+        await apiCat("/api/equipe", { id: eqEditId, nome, cargo: el("eqCargo").value.trim(), obs: el("eqObs").value.trim() });
+        fecharMembro(); await carregarEquipe();
+      } catch (e) { alert("Erro ao salvar: " + e.message); }
+    }
+    async function excluirMembro(id) {
+      const m = equipeLista.find(x => x.id === id);
+      if (!confirm(`Excluir ${m && m.nome ? "“" + m.nome + "”" : "este colaborador"}?`)) return;
+      try { await apiCat("/api/equipe/remover", { id }); await carregarEquipe(); }
+      catch (e) { alert("Erro ao excluir: " + e.message); }
+    }
+
+    // ===== Satisfação (NPS) — página dedicada =====
+    let npsRespostas = [], npsPagina = 1;
+    function corNota(n) { return n >= 9 ? "#16a34a" : (n >= 7 ? "#ea580c" : "#dc2626"); }
+    function fmtDataHora(ms) { const d = new Date(ms), p = x => String(x).padStart(2, "0"); return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+    async function carregarSatisfacao() {
+      const dias = el("npsPeriodo").value;
+      let d = { resumo: { total: 0 }, respostas: [] };
+      try { d = await (await fetch("/api/nps?dias=" + dias)).json(); } catch (_) {}
+      npsRespostas = d.respostas || [];
+      const r = d.resumo || { total: 0 };
+      if (!r.total) {
+        el("npsResumo").innerHTML = '<p class="dica">Nenhuma avaliação neste período ainda.</p>';
+      } else {
+        const corScore = r.score >= 50 ? "#16a34a" : (r.score >= 0 ? "#ea580c" : "#dc2626");
+        const barra = (rot, n, cor) => { const pct = Math.round((n / r.total) * 100); return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0"><div style="width:150px;font-size:13px;color:#334155">${rot}</div><div style="flex:1;height:9px;background:#f1f5f9;border-radius:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${cor}"></div></div><div style="width:62px;text-align:right;font-size:12px;color:var(--suave)">${n} · ${pct}%</div></div>`; };
+        el("npsResumo").innerHTML = `<div class="bloco">
+          <div style="display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <div style="text-align:center"><div style="font-size:40px;font-weight:800;color:${corScore};line-height:1">${r.score}</div><div style="font-size:11px;color:var(--suave)">NPS (−100 a 100)</div></div>
+            <div style="font-size:13px;color:var(--suave)"><b>${r.total}</b> avaliações · média <b>${r.media}</b></div>
+          </div>
+          ${barra("😍 Promotores (9–10)", r.promotores, "#16a34a")}
+          ${barra("😐 Neutros (7–8)", r.neutros, "#ea580c")}
+          ${barra("😞 Detratores (0–6)", r.detratores, "#dc2626")}</div>`;
+      }
+      renderSatisfacao();
+    }
+    function satIrPagina(n) { npsPagina = n; renderSatisfacao(); const c = el("npsLista"); if (c) c.scrollIntoView({ block: "start" }); }
+    function renderSatisfacao() {
+      const lista = npsRespostas;
+      if (!lista.length) { el("npsLista").innerHTML = '<p class="dica">Sem avaliações neste período.</p>'; el("npsPager").innerHTML = ""; return; }
+      const POR = 15, total = lista.length, totalPags = Math.ceil(total / POR);
+      npsPagina = Math.min(Math.max(1, npsPagina), totalPags || 1);
+      const ini = (npsPagina - 1) * POR;
+      el("npsLista").innerHTML = lista.slice(ini, ini + POR).map(c => `
+        <div class="prod">
+          <div class="semimg" style="background:${corNota(c.nota)};color:#fff;font-weight:800;font-size:18px">${c.nota}</div>
+          <div class="pinfo">
+            <div class="pnome">${esc(c.nome || "(sem nome)")} <span style="font-size:12px;color:var(--suave);font-weight:600">📞 ${esc(c.telefone)}</span></div>
+            <div class="pdesc">${c.comentario ? "💬 " + esc(c.comentario) : '<span style="color:var(--suave)">(sem comentário)</span>'}</div>
+            <div class="pcod" style="font-size:12px;color:var(--suave)">${fmtDataHora(c.data)}</div>
+          </div>
+        </div>`).join("");
+      el("npsPager").innerHTML = montarPager(npsPagina, totalPags, total, "satIrPagina", "avaliações");
+    }
+
+    // ===== Atendimentos (fila de handoff com resumo da IA) =====
+    let atendimentosPend = [], atPagina = 1;
+    function atIrPagina(n) { atPagina = n; renderAtendimentos(); const c = el("listaAtendimentos"); if (c) c.scrollIntoView({ block: "start" }); }
+    function tempoRel(ms) {
+      const s = Math.floor((Date.now() - ms) / 1000);
+      if (s < 60) return "agora";
+      const m = Math.floor(s / 60); if (m < 60) return m + " min";
+      const h = Math.floor(m / 60); if (h < 24) return h + "h";
+      return Math.floor(h / 24) + "d";
+    }
+    function pintarBadgeAtendimentos() {
+      const b = el("navAtBadge"); if (!b) return;
+      const n = atendimentosPend.length;
+      b.textContent = n; b.style.display = n ? "inline-flex" : "none";
+    }
+    async function carregarAtendimentos() {
+      try { const d = await (await fetch("/api/atendimentos")).json(); atendimentosPend = d.pendentes || []; }
+      catch (_) { atendimentosPend = []; }
+      pintarBadgeAtendimentos(); renderAtendimentos();
+    }
+    function renderAtendimentos() {
+      const c = el("listaAtendimentos"); if (!c) return;
+      if (!atendimentosPend.length) { c.innerHTML = '<p class="dica">Nenhum cliente aguardando atendimento. 🎉</p>'; if (el("atPager")) el("atPager").innerHTML = ""; return; }
+      const POR = 15, total = atendimentosPend.length, totalPags = Math.ceil(total / POR);
+      atPagina = Math.min(Math.max(1, atPagina), totalPags || 1);
+      const ini = (atPagina - 1) * POR;
+      c.innerHTML = atendimentosPend.slice(ini, ini + POR).map(a => `
+        <div class="prod" style="align-items:flex-start">
+          <div class="semimg" style="background:#fee2e2">🔔</div>
+          <div class="pinfo">
+            <div class="pnome">${esc(a.nome || "(sem nome)")} <span style="font-size:12px;color:var(--suave);font-weight:600">📞 ${esc(a.telefone)} · há ${tempoRel(a.atualizadoEm)}</span></div>
+            <div class="pdesc" style="color:#334155">📝 ${esc(a.resumo || a.motivo || "")}</div>
+          </div>
+          <div class="pacoes">
+            <a class="iconbtn" title="Abrir no WhatsApp" href="https://wa.me/${esc(a.telefone)}" target="_blank">💬</a>
+            <button class="btn-primary" style="padding:7px 12px;white-space:nowrap" onclick="resolverAtendimento('${a.id}')">✓ Atendido</button>
+          </div>
+        </div>`).join("");
+      if (el("atPager")) el("atPager").innerHTML = montarPager(atPagina, totalPags, total, "atIrPagina", "aguardando");
+    }
+    async function resolverAtendimento(id) {
+      try { const d = await (await fetch("/api/atendimentos/resolver", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })).json(); atendimentosPend = d.pendentes || []; }
+      catch (_) {}
+      pintarBadgeAtendimentos(); renderAtendimentos();
+    }
+
+    // ===== Campanhas (mensagens ativas) =====
+    function campToggleModo() {
+      const t = el("campModo").value;
+      el("campTextoBox").style.display = t === "template" ? "none" : "block";
+      el("campTemplateBox").style.display = t === "template" ? "block" : "none";
+    }
+    function campRenderAudValor() {
+      const tipo = el("campAudTipo").value, box = el("campAudValorBox");
+      if (tipo === "etapa") {
+        box.style.display = "block";
+        box.innerHTML = `<label>Etapa</label><select id="campAudValor" onchange="campContar()"><option value="lead">🆕 Lead</option><option value="negociando">💬 Em atendimento</option><option value="cliente">✅ Cliente</option><option value="perdido">❌ Perdido</option></select>`;
+      } else if (tipo === "tag") {
+        box.style.display = "block";
+        box.innerHTML = `<label>Tag</label><input type="text" id="campAudValor" placeholder="ex.: vip" oninput="campContar()" />`;
+      } else { box.style.display = "none"; box.innerHTML = ""; }
+    }
+    function campAudiencia() {
+      const tipo = el("campAudTipo").value;
+      if (tipo === "todos") return { tipo: "todos" };
+      return { tipo, valor: el("campAudValor") ? el("campAudValor").value : "" };
+    }
+    async function campContar() {
+      try {
+        const d = await (await fetch("/api/campanhas/contar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ audiencia: campAudiencia() }) })).json();
+        el("campContador").textContent = "👥 " + (d.total || 0) + " destinatário(s)";
+      } catch (_) { el("campContador").textContent = ""; }
+    }
+    async function enviarCampanha() {
+      const modo = el("campModo").value;
+      const body = { modo, audiencia: campAudiencia(), mensagem: el("campMensagem").value.trim(), template: el("campTemplate").value.trim(), idioma: el("campIdioma").value.trim() || "pt_BR" };
+      if (modo === "template" ? !body.template : !body.mensagem) { el("campMsg").innerHTML = '<span style="color:#dc2626">Preencha a mensagem/template.</span>'; return; }
+      const n = (el("campContador").textContent.match(/\d+/) || ["?"])[0];
+      if (!confirm("Enviar esta campanha para " + n + " cliente(s)?")) return;
+      el("campMsg").textContent = "Iniciando envio...";
+      try {
+        const d = await (await fetch("/api/campanhas/enviar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json();
+        if (!d.ok) throw new Error(d.erro || "falha");
+        el("campMsg").innerHTML = `<span style="color:#16a34a">✅ Campanha iniciada para ${d.campanha.total} cliente(s). Acompanhe no histórico abaixo.</span>`;
+        el("campMensagem").value = ""; carregarCampanhas();
+      } catch (e) { el("campMsg").innerHTML = `<span style="color:#dc2626">❌ ${e.message}</span>`; }
+    }
+    let campanhasTimer = null;
+    async function carregarCampanhas() {
+      try { const d = await (await fetch("/api/campanhas")).json(); renderCampanhas(d.campanhas || []); } catch (_) {}
+    }
+    function renderCampanhas(lista) {
+      const c = el("listaCampanhas"); if (!c) return;
+      if (!lista.length) { c.innerHTML = '<p class="dica">Nenhuma campanha ainda.</p>'; return; }
+      c.innerHTML = lista.map(x => {
+        const cor = x.status === "concluida" ? "#16a34a" : (x.status === "erro" ? "#dc2626" : "#ea580c");
+        const txt = x.modo === "template" ? "Template: " + esc(x.template) : esc(x.mensagem);
+        return `<div class="prod"><div class="semimg">📢</div>
+          <div class="pinfo">
+            <div class="pnome">${esc(x.audiencia)} <span style="font-size:11px;color:${cor};font-weight:700">● ${esc(x.status)}</span></div>
+            <div class="pdesc">${txt}</div>
+            <div class="pcod" style="font-size:12px;color:var(--suave)">✅ ${x.enviados} enviadas · ❌ ${x.falhas} falhas · de ${x.total}</div>
+          </div></div>`;
+      }).join("");
+      clearTimeout(campanhasTimer);
+      if (lista.some(x => x.status === "enviando")) campanhasTimer = setTimeout(carregarCampanhas, 3000);
+    }
+
     function renderTaxLista(tipo, alvo) {
       el(alvo).innerHTML = (catalogo[tipo] || []).map((v, i) =>
         `<span class="tax-item">${esc(v)}<button title="Excluir" onclick="removerTax('${tipo}', ${i})">×</button></span>`
@@ -1244,17 +1765,18 @@
       const inp = el({ grupos: "novoGrupo", subgrupos: "novoSubgrupo", especificacoes: "novoEspec" }[tipo]);
       const v = inp.value.trim(); if (!v) return;
       if (!catalogo[tipo].some(x => normCat(x) === normCat(v))) catalogo[tipo].push(v);
-      inp.value = ""; salvarCatalogo(); renderCatalogo();
+      inp.value = ""; salvarTaxonomia(); renderCatalogo();
     }
     function removerTax(tipo, i) {
       if (!confirm(`Excluir “${catalogo[tipo][i]}”?`)) return;
-      catalogo[tipo].splice(i, 1); salvarCatalogo(); renderCatalogo();
+      catalogo[tipo].splice(i, 1); salvarTaxonomia(); renderCatalogo();
     }
     function abrirProduto(id) {
       prodEditId = id || null;
       const p = id ? catalogo.produtos.find(x => x.id === id) : null;
       el("modalTitulo").textContent = p ? "Editar produto" : "Novo produto";
       el("prodNome").value = p ? p.nome : "";
+      el("prodCodigo").value = p ? (p.codigo || "") : "";
       el("prodDesc").value = p ? (p.descricao || "") : "";
       el("prodPreco").value = p ? (p.preco || "") : "";
       el("prodAtivo").checked = p ? p.ativo !== false : true;
@@ -1272,7 +1794,7 @@
       const f = input.files[0]; if (!f) return;
       el("prodImgStatus").textContent = "Enviando...";
       try {
-        const dataUrl = await downscale(f, 800); // redimensiona antes (evita upload gigante do celular)
+        const dataUrl = await downscale(f, 800, "image/jpeg", 0.82); // JPEG: foto fica bem menor → carrega rápido e confiável
         const res = await fetch("/api/catalogo/imagem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dataUrl }) });
         const d = await res.json(); if (!d.ok) throw new Error(d.erro || "falha");
         prodImagem = d.path;
@@ -1280,37 +1802,40 @@
         el("prodImgStatus").textContent = "Imagem enviada ✓";
       } catch (e) { el("prodImgStatus").textContent = "Erro: " + e.message; }
     }
+    async function apiCat(url, body) {
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const d = await res.json(); if (!d.ok) throw new Error(d.erro || "falha");
+    }
+    async function salvarProdutoServidor(p) { try { await apiCat("/api/catalogo/produto", { produto: p }); } catch (e) { alert("Erro ao salvar produto: " + e.message); } }
+    async function removerProdutoServidor(id) { try { await apiCat("/api/catalogo/produto/remover", { id }); } catch (e) { alert("Erro ao excluir: " + e.message); } }
+    async function salvarTaxonomia() { try { await apiCat("/api/catalogo/taxonomia", { grupos: catalogo.grupos, subgrupos: catalogo.subgrupos, especificacoes: catalogo.especificacoes }); } catch (e) { alert("Erro ao salvar: " + e.message); } }
+
     async function salvarProduto() {
       const nome = el("prodNome").value.trim();
       if (!nome) { alert("Informe o nome do produto."); return; }
       const dados = {
-        nome, descricao: el("prodDesc").value.trim(), preco: el("prodPreco").value.trim(),
+        nome, codigo: el("prodCodigo").value.trim(),
+        descricao: el("prodDesc").value.trim(), preco: el("prodPreco").value.trim(),
         imagem: prodImagem, grupo: el("prodGrupo").value,
         subgrupos: coletarChecks("prodSubgrupos"), especificacoes: coletarChecks("prodEspec"),
         ativo: el("prodAtivo").checked,
       };
-      if (prodEditId) { Object.assign(catalogo.produtos.find(x => x.id === prodEditId), dados); }
+      if (prodEditId) { dados.id = prodEditId; const i = catalogo.produtos.findIndex(x => x.id === prodEditId); if (i > -1) catalogo.produtos[i] = dados; }
       else { dados.id = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); catalogo.produtos.unshift(dados); }
-      await salvarCatalogo(); fecharProduto(); renderCatalogo();
+      await salvarProdutoServidor(dados); fecharProduto(); renderProdutos();
     }
     function duplicarProduto(id) {
       const p = catalogo.produtos.find(x => x.id === id); if (!p) return;
       const c = JSON.parse(JSON.stringify(p));
       c.id = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
       c.nome = p.nome + " (cópia)";
-      catalogo.produtos.unshift(c); salvarCatalogo(); renderCatalogo();
+      catalogo.produtos.unshift(c); salvarProdutoServidor(c); renderProdutos();
     }
     function excluirProduto(id) {
       const p = catalogo.produtos.find(x => x.id === id); if (!p) return;
       if (!confirm(`Excluir o produto “${p.nome}”?`)) return;
       catalogo.produtos = catalogo.produtos.filter(x => x.id !== id);
-      salvarCatalogo(); renderCatalogo();
-    }
-    async function salvarCatalogo() {
-      try {
-        const res = await fetch("/api/catalogo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(catalogo) });
-        const d = await res.json(); if (!d.ok) throw new Error(d.erro || "falha");
-      } catch (e) { alert("Erro ao salvar o catálogo: " + e.message); }
+      removerProdutoServidor(id); renderProdutos();
     }
 
     // ===== Liga/desliga do bot =====
@@ -1375,6 +1900,8 @@
     carregarConta();
     carregarBot();
     setInterval(carregarBot, 15000); // mantém o status de conexão atualizado
+    carregarAtendimentos(); // fila de handoff + badge
+    setInterval(carregarAtendimentos, 20000);
   </script>
 </body>
 </html>

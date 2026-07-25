@@ -28,14 +28,21 @@ function casaAlgumGatilho(textoNormalizado, gatilhos) {
   return (gatilhos || []).some((g) => contemGatilho(textoNormalizado, g));
 }
 
-function menuPrincipal() {
+function menuPrincipal(nome) {
   const { mensagens } = config.get();
   const linhas = config
     .intents()
     .map((opcao, i) => `${i + 1} - ${opcao.titulo}`)
     .join("\n");
+  let intro = config.preencher(mensagens.saudacaoIntro);
+  if (nome) {
+    // Personaliza: troca o "Olá!" inicial por "Olá, <nome>!".
+    intro = /^\s*ol[aá]/i.test(intro)
+      ? intro.replace(/^\s*ol[aá]\s*[!,.]?\s*/i, `Olá, ${nome}! `)
+      : `Olá, ${nome}! ` + intro;
+  }
   return (
-    config.preencher(mensagens.saudacaoIntro) +
+    intro +
     "\n\n" +
     config.preencher(mensagens.saudacaoChamada) +
     "\n" +

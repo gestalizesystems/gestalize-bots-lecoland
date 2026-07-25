@@ -1,4 +1,4 @@
-// Bot da Lecoland — WhatsApp Cloud API (oficial da Meta).
+// Bot de atendimento — WhatsApp Cloud API (oficial da Meta).
 // 1) Sobe o servidor (painel + webhook) — a Meta envia as mensagens pro /webhook.
 // 2) Triagem por palavra-chave / menus; perguntas livres caem na IA (Gemini).
 
@@ -17,7 +17,10 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 // As respostas saem pela Cloud API.
-conversa.configurar((para, texto) => wa.enviarTexto(para, texto));
+conversa.configurar(
+  (para, texto) => wa.enviarTexto(para, texto),
+  (para, link, legenda) => wa.enviarImagem(para, link, legenda)
+);
 estado.whatsappConectado = wa.configurado();
 
 iniciarAdmin(PORTA).then(() => {

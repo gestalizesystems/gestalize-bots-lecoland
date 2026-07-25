@@ -45,4 +45,23 @@ async function enviarImagem(para, link, legenda) {
   return enviar({ to: normalizarNumero(para), type: "image", image });
 }
 
-module.exports = { configurado, enviarTexto, enviarImagem };
+// Envia um TEMPLATE aprovado na Meta (chega a qualquer hora, fora da janela de 24h).
+async function enviarTemplate(para, nome, idioma, componentes) {
+  const template = { name: nome, language: { code: idioma || "pt_BR" } };
+  if (Array.isArray(componentes) && componentes.length) template.components = componentes;
+  return enviar({ to: normalizarNumero(para), type: "template", template });
+}
+
+// Baixa uma mídia recebida (áudio/imagem) pela Graph API. Retorna { buffer, mimeType }.
+async function baixarMidia(mediaId) {
+  if (!configurado()) throw new Error("WhatsApp Cloud API não configurado.");
+  const meta = await fetch(`https://graph.facebook.com/${VERSAO}/${mediaId}`, { headers: { Authorization: `Bearer ${TOKEN}` } });
+  if (!meta.ok) throw new Error("Falha ao obter mídia (" + meta.status + ")");
+  const info = await meta.json();
+  const bin = await fetch(info.url, { headers: { Authorization: `Bearer ${TOKEN}` } });
+  if (!bin.ok) throw new Error("Falha ao baixar mídia (" + bin.status + ")");
+  const buffer = Buffer.from(await bin.arrayBuffer());
+  return { buffer, mimeType: info.mime_type || "audio/ogg" };
+}
+
+module.exports = { configurado, enviarTexto, enviarImagem, enviarTemplate, baixarMidia };

@@ -11,10 +11,24 @@ const CAMINHO = path.join(DIR, "config.json");
 
 let dados = carregar();
 
+// Configuração inicial neutra (sem dados de nenhum negócio) — usada quando não há semente.
+function configPadrao() {
+  return {
+    negocio: { nome: "Meu Negócio", tipo: "Pet Shop", endereco: "", mapsLink: "", telefone: "", horarioSemana: "", horarioSabado: "", horarioDomingo: "", pagamento: "", instagram: "", googleReview: "" },
+    mensagens: { saudacaoIntro: "Olá! Seja bem-vindo(a).", saudacaoChamada: "Como posso ajudar?", saudacaoNome: "Olá! Antes de começar, como posso te chamar?", saudacaoRodape: "", atendente: "Vou te encaminhar para um atendente.", ausencia: "No momento estamos fora do horário de atendimento." },
+    servicos: [], faqRapido: [],
+    entrega: { ativo: false, origem: {}, taxas: [], gratis: { km: "2", valor: "50" } },
+    gatilhosAtendente: ["atendente", "humano"], gatilhosSaudacao: ["oi", "ola", "menu"],
+    menus: [], infoIA: "", catalogo: { grupos: [], subgrupos: [], especificacoes: [], produtos: [] },
+    botAtivo: false, expediente: { ativo: false },
+  };
+}
+
 function carregar() {
   if (!fs.existsSync(CAMINHO)) {
     fs.mkdirSync(DIR, { recursive: true });
-    fs.copyFileSync(SEMENTE, CAMINHO); // 1ª vez no Volume: semeia a partir do repo
+    if (fs.existsSync(SEMENTE)) fs.copyFileSync(SEMENTE, CAMINHO); // 1ª vez: semeia a partir do repo, se houver
+    else fs.writeFileSync(CAMINHO, JSON.stringify(configPadrao(), null, 2), "utf8"); // sem semente → começa neutro
   }
   const d = JSON.parse(fs.readFileSync(CAMINHO, "utf8"));
   if (migrar(d)) fs.writeFileSync(CAMINHO, JSON.stringify(d, null, 2), "utf8");
@@ -79,6 +93,7 @@ function preencher(texto) {
     .replace(/{horarioSemana}/g, n.horarioSemana)
     .replace(/{horarioSabado}/g, n.horarioSabado)
     .replace(/{horarioDomingo}/g, n.horarioDomingo)
+    .replace(/{maps}/g, n.mapsLink || "")
     .replace(/{pagamento}/g, n.pagamento);
 }
 

@@ -1,122 +1,155 @@
-# Lecoland — Bot de atendimento do WhatsApp 🐾
+<p align="center">
+  <img src="./banner.png" alt="Gestalize Bots Banner" width="100%">
+</p>
 
-Bot de atendimento para pet shop / clínica veterinária, integrado à **WhatsApp Cloud API**
-(oficial da Meta). Ele:
+<h1 align="center">Gestalize Bots</h1>
 
-- Recebe mensagens por **webhook** oficial da Meta (sem QR code, sem navegador, sem risco de ban).
-- Faz **triagem por palavra-chave**: reconhece intenções como *banho*, *veterinário*, *vacina*,
-  *horário*, *endereço*, *pagamento*, *entrega* e responde na hora com respostas prontas.
-- Tem um **menu de saudação** numerado e **sub-menus** próprios por palavra-chave
-  (ex.: "carrapaticida" abre um menu com as opções de carrapaticida).
-- Responde **perguntas livres** com a IA **Google Gemini** (`gemini-2.5-flash`), ancorada nos
-  dados do negócio — sem inventar preço, horário ou serviço.
-- Faz **handoff para humano** de forma inteligente: por pedido do cliente (*atendente*) **ou**
-  quando a própria IA decide encaminhar; depois reengaja/encerra sozinho (ver abaixo).
-- **Calcula a taxa de entrega / táxi dog pelo endereço do cliente**: geolocaliza, mede a
-  **distância de carro** a partir da loja (OpenRouteService, gratuito) e responde o valor da faixa.
-- Tem um **painel de administração no navegador** (com login) pra editar tudo por formulários —
-  saudação, menus, FAQ, preços, taxas, catálogo e a base de conhecimento da IA. Mudanças valem na hora.
-- Tem um **interruptor liga/desliga** do bot, pra preparar tudo com ele em silêncio e só ativar quando quiser.
+<p align="center">
+  AI-Powered WhatsApp Business Platform
+</p>
 
-## Como o handoff funciona
-1. Handoff (cliente pede *atendente* ou a IA encaminha) → o bot fica em silêncio para aquele contato.
-2. A cada mensagem do cliente, o cronômetro reinicia (não interrompe um atendimento ativo).
-3. Após **1h de silêncio** → o bot pergunta *"Posso te ajudar em mais alguma coisa?"*.
-4. Se o cliente disser que não (ou ficar **2h** sem responder) → encerra com uma despedida.
-   Se trouxer algo novo → começa um atendimento novo.
-A conversa **não é apagada** — o atendente lê todo o histórico no WhatsApp.
+<p align="center">
+  Automate conversations, customer service, sales and business workflows using AI.
+</p>
 
-## Requisitos
-- **Node.js 18+**.
-- **Chave da API do Google Gemini** — gratuita: https://aistudio.google.com/apikey
-  (para produção, ative o faturamento no Google para sair do limite gratuito de 5 req/min).
-- **Credenciais da WhatsApp Cloud API** (Phone Number ID + token) — ver "Configurar o WhatsApp" abaixo.
-- *(Opcional)* Chave gratuita do **OpenRouteService** — só para calcular a taxa pelo **endereço**
-  do cliente. Sem ela, o bot ainda calcula pela **distância (km)** informada.
+<p align="center">
+  <img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=000000" alt="JavaScript"/>
+  <img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js"/>
+  <img src="https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express"/>
+  <img src="https://img.shields.io/badge/WhatsApp_Cloud_API-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="WhatsApp Cloud API"/>
+  <img src="https://img.shields.io/badge/Google_Gemini-886FBF?style=for-the-badge&logo=googlegemini&logoColor=white" alt="Google Gemini"/>
+</p>
 
-## Como rodar (local)
-```bash
-# 1. Instale as dependências
-npm install
+<br>
 
-# 2. Configure as variáveis
-cp .env.example .env
-#   edite o .env e preencha GEMINI_API_KEY, ADMIN_EMAIL/ADMIN_SENHA e (depois) as WHATSAPP_*
+<p align="center">
+  Developed by <strong>Gestalize Systems</strong>
+</p>
 
-# 3. (opcional) Teste a triagem sem WhatsApp nem API
-node test-triagem.js
+---
 
-# 4. Suba o servidor (painel + webhook)
-npm start
-```
-- O painel abre em **http://localhost:4500** (faça login com ADMIN_EMAIL / ADMIN_SENHA).
-- O bot só responde de verdade depois do **deploy + webhook** (precisa de URL pública). Localmente, dá pra editar tudo no painel e testar a triagem com `node test-triagem.js`.
+## Overview
 
-## Configurar o WhatsApp Cloud API (passo a passo)
-O guia detalhado com prints/etapas está em **MIGRACAO.md**. Em resumo:
+Gestalize Bots is an AI-powered WhatsApp automation platform that enables businesses to automate customer communication, streamline support, qualify leads, manage conversations and integrate intelligent workflows into their daily operations.
 
-**Na Meta (uma vez):**
-1. Crie um app em **developers.facebook.com** usando o caso de uso **"Conectar-se com clientes pelo WhatsApp"** (isso já adiciona o produto WhatsApp).
-2. Em **WhatsApp → Configuração da API**, pegue o **Phone Number ID** e gere um **token**
-   (o temporário serve para testar; gere um **permanente** via *Usuário do sistema* para produção).
-3. Adicione **seu celular** como destinatário de teste.
+Designed for organizations of all sizes, the platform combines conversational AI, business automation and a configurable administration panel, enabling organizations to configure conversations, workflows and business knowledge without writing code.
 
-**No projeto (`.env`):**
-```
-WHATSAPP_TOKEN=<token>
-WHATSAPP_PHONE_ID=<phone number id>
-WHATSAPP_VERIFY_TOKEN=<uma senha que você inventa>
-```
+## Use Cases
 
-**Deploy + webhook:** o webhook precisa de uma **URL pública (HTTPS)**. Suba no Railway
-(guia em **DEPLOY-RAILWAY.md**) e, na Meta, cadastre o webhook:
-- **Callback URL:** `https://SUA-URL/webhook`
-- **Verify token:** o mesmo `WHATSAPP_VERIFY_TOKEN`
-- Assine o campo **`messages`**.
+Gestalize Bots can be adapted to a wide range of industries, including:
 
-Por fim, **ligue o bot** no painel e mande uma mensagem para o número. 🎉
+- Retail & E-commerce
+- Healthcare
+- Veterinary Clinics
+- Restaurants
+- Professional Services
+- Education
+- Real Estate
+- Customer Support
+- Internal Business Operations
 
-## Painel de administração
-Faça login e edite tudo por formulários (clique em **Salvar tudo** — vale na hora):
-- **Dashboard** — visão geral (métricas demonstrativas + status real da automação).
-- **Dados do negócio** — nome, endereço, telefone, horários, pagamento e a **base de conhecimento da IA**.
-- **Mensagens** — saudação e mensagem de atendente.
-- **Menu de saudação** — opções numeradas + **sub-menus** por palavra-chave.
-- **Respostas rápidas (FAQ)**.
-- **Taxas e serviços** — entrega/táxi dog por **faixa de km** + endereço de partida da loja.
-- **Catálogo** — produtos (nome, imagem, descrição, preço) com **grupos/subgrupos/especificações**.
-- **Palavras-chave** (atendente, saudação).
-- **Configurações gerais** — dados de acesso ao painel e troca de senha.
+## Business Problem
 
-Em qualquer texto dá pra usar `{nome}`, `{telefone}`, `{endereco}`, `{pagamento}`, `{horarioSemana}` etc.
+Businesses receive a high volume of repetitive customer requests every day through WhatsApp.
 
-## Estrutura
-```
-data/
-  config.json     → TODA a configuração (editada pelo painel)
-src/
-  config.js       → carrega/salva o config.json e monta as respostas
-  triage.js       → triagem por palavra-chave, menu e sub-menus
-  conversa.js     → lógica da conversa (handoff, timers) — independente do transporte
-  ai.js           → respostas livres via Google Gemini (+ cálculo de taxa por endereço)
-  geo.js          → geolocalização e distância de carro (OpenRouteService)
-  wa.js           → cliente da WhatsApp Cloud API (envio de mensagens)
-  admin.js        → servidor do painel + webhook do WhatsApp
-  conta.js        → conta de acesso ao painel (e-mail + senha com hash)
-  estado.js       → estado de runtime (conexão)
-  index.js        → entrada: sobe painel + webhook (Cloud API)
-  painel-only.js  → abre só o painel (npm run painel)
-public/
-  admin.html      → painel  ·  login.html → tela de login
-test-triagem.js   → teste offline da triagem
-MIGRACAO.md       → setup do WhatsApp Cloud API (passo a passo)
-DEPLOY-RAILWAY.md → deploy no Railway + webhook
-MULTICONTA.md     → plano de multi-conta/multi-bot (futuro)
-```
+Questions about products, services, appointments, pricing, availability and support consume valuable staff time, increase response delays and often result in inconsistent customer experiences.
 
-## Observações
-- **Custo do Gemini:** só perguntas livres chamam a IA — menu e palavras-chave são instantâneos e não
-  consomem cota. O plano gratuito limita ~5 req/min; para produção, ative o faturamento (custo baixíssimo por mensagem).
-- **Estado em memória:** handoff, contexto de menu e histórico vivem na RAM e somem ao reiniciar.
-  No Railway o disco também é efêmero — para produção, use um **Volume** ou um **banco** (ver MULTICONTA.md).
-- **Sem atribuição externa:** o código é próprio do projeto.
+As organizations grow, maintaining fast, personalized and scalable communication becomes increasingly difficult without automation.
+
+## Solution
+
+Gestalize Bots provides an intelligent automation layer for WhatsApp that handles routine conversations, retrieves organization-specific knowledge, executes predefined workflows and escalates complex requests to human operators whenever necessary.
+
+The platform combines AI-powered conversations with configurable business rules, ensuring responses remain accurate, consistent and aligned with each organization's data and processes.
+
+## Key Features
+
+### AI
+
+- Natural-language conversations
+- Voice and document understanding
+- AI-powered image analysis
+
+### Customer Engagement
+
+- Audience segmentation
+- Broadcast campaigns
+- Customer satisfaction surveys
+
+### Business Operations
+
+- CRM
+- Catalog and service management
+- Smart team routing
+- Operational dashboard
+
+## Architecture Overview
+
+Gestalize Bots is built around a modular architecture that separates messaging, business logic, artificial intelligence and administration into independent layers.
+
+Incoming WhatsApp conversations are processed by the conversation engine, which combines configurable business rules with AI-powered responses to deliver accurate, context-aware interactions. When a request requires human intervention, the platform seamlessly transfers the conversation while preserving its context.
+
+The administration panel allows organizations to manage business information, knowledge bases, products, services, workflows and AI behavior through an intuitive interface, eliminating the need for direct code changes.
+
+This architecture enables the platform to remain scalable, maintainable and adaptable to different industries while keeping communication channels independent from the core business logic.
+
+## Technology Stack
+
+| Layer | Technology |
+| --- | --- |
+| Runtime | Node.js |
+| Web framework | Express |
+| Messaging | WhatsApp Cloud API |
+| Natural language | Google Gemini |
+| Geolocation and routing | OpenRouteService |
+| Administration panel | Server-rendered HTML, CSS, and JavaScript |
+
+## Platform Modules
+
+- Messaging Layer
+- AI Engine
+- Administration Panel
+- Business Logic
+- Data Management
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="Administration dashboard" width="85%" />
+  <br />
+  <sub><b>Administration dashboard</b></sub>
+</p>
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/screenshots/catalog.png" alt="Product catalog" />
+      <br />
+      <sub><b>Product catalog</b></sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/screenshots/team.png" alt="Team management" />
+      <br />
+      <sub><b>Team management</b></sub>
+    </td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/screenshots/conversation.png" alt="WhatsApp conversation" width="300" />
+  <br />
+  <sub><b>WhatsApp conversation</b></sub>
+</p>
+
+## Future Improvements
+
+- Multi-language support
+- Shared multi-agent inbox with assignment and routing
+- Expanded analytics and reporting
+- Additional third-party integrations
+- Role-based access control for larger teams
+- Multi-channel messaging support
+
+## License
+
+Gestalize Bots is proprietary software developed and maintained by Gestalize Systems. All rights reserved.
