@@ -5,7 +5,7 @@
 require("dotenv").config();
 const { iniciarAdmin } = require("./admin");
 
-const ADMIN_PORT = process.env.ADMIN_PORT || 3000;
+const ADMIN_PORT = process.env.PORT || process.env.ADMIN_PORT || 4500;
 
 iniciarAdmin(ADMIN_PORT).then(() => {
   console.log("✏️  Painel aberto. Acesse no navegador o endereço acima.");

@@ -4,19 +4,55 @@
 const fs = require("fs");
 const path = require("path");
 
-const CAMINHO = path.join(__dirname, "..", "data", "config.json");
+// Em produção (Railway) o DATA_DIR aponta para um Volume persistente; local usa data/.
+const DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
+const SEMENTE = path.join(__dirname, "..", "data", "config.json"); // versão inicial (no repo)
+const CAMINHO = path.join(DIR, "config.json");
 
 let dados = carregar();
 
 function carregar() {
-  const bruto = fs.readFileSync(CAMINHO, "utf8");
-  return JSON.parse(bruto);
+  if (!fs.existsSync(CAMINHO)) {
+    fs.mkdirSync(DIR, { recursive: true });
+    fs.copyFileSync(SEMENTE, CAMINHO); // 1ª vez no Volume: semeia a partir do repo
+  }
+  const d = JSON.parse(fs.readFileSync(CAMINHO, "utf8"));
+  if (migrar(d)) fs.writeFileSync(CAMINHO, JSON.stringify(d, null, 2), "utf8");
+  return d;
 }
 
-// Relê o arquivo do disco (chamado após salvar pelo painel).
-function reload() {
-  dados = carregar();
-  return dados;
+// Migrações pontuais aplicadas ao config persistido (ex.: no Volume do Railway).
+function migrar(d) {
+  let mudou = false;
+  if (d.entrega && !d.entrega.gratis) { d.entrega.gratis = { km: "2", valor: "50" }; mudou = true; }
+  if (!d._entregaSubmenu) {
+    if (d.entrega) d.entrega.ativo = false; // entrega vira sub-menu (sai do menu principal)
+    if (!Array.isArray(d.menus)) d.menus = [];
+    if (!d.menus.some((m) => m.id === "entrega")) {
+      d.menus.push({
+        id: "entrega",
+        nome: "Entrega / Táxi Dog",
+        gatilhos: ["entrega", "delivery", "frete", "taxa", "taxa de entrega", "taxi dog", "taxidog", "leva e traz", "buscar", "buscam", "entregam"],
+        intro: "🛵 *Entrega / Táxi Dog* — qual serviço você quer?",
+        opcoes: [
+          { titulo: "Entrega (moto)", resposta: "Beleza! 🛵 Me diga seu *endereço completo* (rua, número e bairro) que eu calculo o valor da entrega. 🐾" },
+          { titulo: "Táxi Dog moto (ida e volta)", resposta: "Show! 🐕 Me diga seu *endereço completo* que eu calculo o valor do táxi dog (moto). 🐾" },
+          { titulo: "Táxi Dog carro (ida e volta)", resposta: "Combinado! 🚗 Me diga seu *endereço completo* que eu calculo o valor do táxi dog (carro). 🐾" },
+        ],
+      });
+    }
+    d._entregaSubmenu = true; mudou = true;
+  }
+  // Remove gatilhos de saudação amplos demais que sequestravam pedidos reais
+  // (ex.: "queria pedir uma ração" batia em "pedir" e mandava o menu).
+  if (!d._gatilhosLimpos) {
+    if (Array.isArray(d.gatilhosSaudacao)) {
+      const remover = ["quero", "pedir", "queria"];
+      d.gatilhosSaudacao = d.gatilhosSaudacao.filter((g) => !remover.includes(String(g).toLowerCase().trim()));
+    }
+    d._gatilhosLimpos = true; mudou = true;
+  }
+  return mudou;
 }
 
 // Retorna os dados atuais em memória.
@@ -112,4 +148,4 @@ function intents() {
   return lista;
 }
 
-module.exports = { get, reload, salvar, preencher, respostaEntrega, intents, calcularTaxas, CAMINHO };
+module.exports = { get, salvar, preencher, respostaEntrega, intents, calcularTaxas, CAMINHO };

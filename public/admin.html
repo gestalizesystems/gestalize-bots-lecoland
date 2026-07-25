@@ -4,12 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lecoland — Painel do Bot</title>
+  <link rel="icon" type="image/png" href="/robot.png" />
+  <link rel="apple-touch-icon" href="/robot.png" />
   <style>
     :root {
       --amarelo: #f9c72c;        /* amarelo da marca (sidebar) */
       --amarelo-escuro: #edb81b;
       --navy: #1f3a5f;           /* azul-marinho da marca */
       --navy-escuro: #16294a;
+      --azul-logo: #144372;      /* azul exato da logo do pet shop */
       --vermelho: #e0392b;       /* vermelho da marca */
       --fundo: #eef1f6;
       --card: #ffffff;
@@ -30,6 +33,8 @@
       padding: 18px 14px; gap: 6px; overflow-y: auto;
     }
     .brand { display: flex; align-items: center; gap: 12px; padding: 6px 6px 16px; }
+    .brand-seta { margin-left: auto; flex: 0 0 auto; background: none; border: none; cursor: pointer; color: var(--navy); display: flex; align-items: center; justify-content: center; padding: 6px; border-radius: 8px; }
+    .brand-seta:hover { background: rgba(31,58,95,.12); }
     .logo-wrap { width: 50px; height: 50px; cursor: pointer; position: relative; flex: 0 0 auto; }
     .logo-inner {
       width: 100%; height: 100%; border-radius: 14px; background: #fff; overflow: hidden;
@@ -55,12 +60,27 @@
     }
     .nav-item .ic { width: 18px; text-align: center; }
     .nav-item:hover { background: rgba(31,58,95,.10); }
-    .nav-item.active { background: var(--navy); color: #fff; }
+    .nav-item.active { background: var(--azul-logo); color: #fff; }
 
-    .side-foot { margin-top: auto; padding: 14px 10px 4px; border-top: 1px solid rgba(31,58,95,.18); }
+    .side-foot { padding: 14px 10px 4px; border-top: 1px solid rgba(31,58,95,.18); }
     .side-foot .nome { font-weight: 700; font-size: 14px; }
     .side-foot small { color: var(--navy); opacity: .7; }
     .dot { color: #1a7f37; }
+
+    /* Liga/desliga do bot */
+    .bot-toggle { margin: auto 4px 0; background: var(--azul-logo); color: #fff; border-radius: 12px; padding: 12px 14px; }
+    .bt-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .bt-title { font-size: 13px; font-weight: 700; }
+    .bt-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; margin-top: 10px; }
+    .bt-badge.on { background: rgba(34,197,94,.22); color: #4ade80; }
+    .bt-badge.off { background: rgba(255,255,255,.16); color: #cbd5e1; }
+    .bt-conn { font-size: 12px; opacity: .85; margin-top: 9px; display: flex; align-items: center; gap: 6px; }
+    .toggle-sw { position: relative; width: 44px; height: 24px; flex: 0 0 auto; cursor: pointer; display: inline-block; }
+    .toggle-sw input { opacity: 0; width: 0; height: 0; }
+    .toggle-sw .sl { position: absolute; inset: 0; background: rgba(255,255,255,.3); border-radius: 24px; transition: .2s; }
+    .toggle-sw .sl::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+    .toggle-sw input:checked + .sl { background: #22c55e; }
+    .toggle-sw input:checked + .sl::before { transform: translateX(20px); }
 
     /* ===== Main ===== */
     .main { margin-left: 250px; flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -79,7 +99,52 @@
     .rodape { padding: 18px 26px; color: var(--suave); font-size: 12px; border-top: 1px solid var(--borda); }
 
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-    @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } .sidebar { position: static; width: 100%; height: auto; } .main { margin-left: 0; } .layout { flex-direction: column; } }
+    /* ===== Responsivo (mobile/tablet) — afeta só telas pequenas; o desktop fica intacto ===== */
+    .menu-hamb { display: none; background: #fff; border: 1px solid var(--borda); border-radius: 9px; width: 40px; height: 40px; cursor: pointer; font-size: 19px; align-items: center; justify-content: center; flex: 0 0 auto; color: var(--navy); }
+    .backdrop { display: none; }
+    @media (max-width: 900px) {
+      .sidebar { transform: translateX(-100%); transition: transform .25s ease; z-index: 100; width: 264px; box-shadow: 2px 0 22px rgba(0,0,0,.28); }
+      .sidebar.aberto { transform: translateX(0); }
+      .main { margin-left: 0; }
+      .backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 90; }
+      .backdrop.aberto { display: block; }
+      .menu-hamb { display: inline-flex; }
+      .topbar { padding: 12px 16px; gap: 10px; flex-wrap: wrap; }
+      .topbar h1 { font-size: 19px; }
+      .topbar p { font-size: 12.5px; }
+      .topbar-actions { gap: 8px; flex-wrap: wrap; }
+      .content { padding: 16px; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .dash-2, .dash-2b { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      .topbar h1 { font-size: 17px; }
+      .topbar p { display: none; }
+      .topbar-actions { justify-content: flex-end; }
+      .btn-data { font-size: 11.5px; padding: 6px 10px; gap: 5px; border-radius: 8px; white-space: nowrap; }
+      .data-full { display: none; }
+      .data-curta { display: inline; }
+      .content { padding: 12px; }
+      .dash-kpis { grid-template-columns: 1fr; }
+      .cat-stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .cat-stat { padding: 11px 13px; }
+      .cat-stat .n { font-size: 20px; }
+      .cat-stat .r { font-size: 11.5px; }
+      .conta-nome { max-width: 84px; }
+      .conta-pop { width: min(272px, calc(100vw - 24px)); }
+      .data-pop { right: -4px; }
+      .prod { flex-wrap: wrap; }
+      .prod .pinfo { flex: 1 1 100%; order: 3; }
+      .prod .ppreco { order: 2; }
+      .prod .pacoes { order: 4; width: 100%; justify-content: flex-end; }
+      .taxa-linha { flex-wrap: wrap; }
+      .taxa-linha input { min-width: 0; }
+      .exp-linha { flex-wrap: wrap; }
+      .opcao-linha { flex-wrap: wrap; }
+      .modal { padding: 18px; }
+      .cat-tabs { flex-wrap: nowrap; overflow-x: auto; gap: 2px; -webkit-overflow-scrolling: touch; }
+      .cat-tab { padding: 9px 10px; font-size: 13px; white-space: nowrap; }
+    }
 
     /* Cada menu abre uma tela própria */
     .page { display: none; }
@@ -115,6 +180,161 @@
     .switch { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; margin-bottom: 8px; }
     code { background: #eef2ff; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
     .pill { display:inline-block; background:#eef2ff; color: var(--navy); padding:2px 7px; border-radius:6px; font-size:11px; font-weight:600; }
+    /* ===== Dashboard ===== */
+    .dash-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 18px; }
+    .kpi { background: #fff; border: 1px solid var(--borda); border-radius: 14px; padding: 16px 18px; }
+    .kpi .top { display: flex; align-items: flex-start; justify-content: space-between; }
+    .kpi .rotulo { font-size: 13px; font-weight: 700; }
+    .kpi .ico { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex: 0 0 auto; }
+    .kpi .valor { font-size: 26px; font-weight: 800; color: var(--navy); margin: 8px 0 2px; }
+    .kpi .delta { font-size: 12px; font-weight: 700; }
+    .kpi .delta.up { color: #16a34a; } .kpi .delta.down { color: #dc2626; }
+    .kpi .vs { font-size: 11px; color: var(--suave); margin-left: 6px; }
+    .kpi svg.spark { display: block; width: 100%; height: 44px; margin-top: 6px; }
+    .dash-2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; margin-bottom: 18px; }
+    .dash-2b { display: grid; grid-template-columns: 1.7fr 1fr; gap: 16px; }
+    @media (max-width: 1000px) { .dash-kpis { grid-template-columns: repeat(2, 1fr); } .dash-2, .dash-2b { grid-template-columns: 1fr; } }
+    .bloco { background: #fff; border: 1px solid var(--borda); border-radius: 14px; padding: 18px; }
+    .bloco .cab { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .bloco .cab h3 { margin: 0; font-size: 15px; color: var(--navy); }
+    .rt { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+    .rt:last-child { border-bottom: none; }
+    .rt .av { width: 38px; height: 38px; border-radius: 50%; background: var(--amarelo); color: var(--navy); display: flex; align-items: center; justify-content: center; font-weight: 700; flex: 0 0 auto; }
+    .rt .info { flex: 1; min-width: 0; }
+    .rt .nome { font-weight: 600; font-size: 14px; }
+    .rt .msg { font-size: 12.5px; color: var(--suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rt .dir { text-align: right; flex: 0 0 auto; }
+    .tag { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+    .tag.bot { background: #dcfce7; color: #166534; } .tag.aguard { background: #fef3c7; color: #92400e; } .tag.humano { background: #e0e7ff; color: #3730a3; }
+    .rt .tempo { font-size: 11px; color: var(--suave); margin-top: 4px; }
+    .sv { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid #f1f5f9; }
+    .sv:last-child { border-bottom: none; }
+    .sv .num { width: 30px; height: 30px; border-radius: 9px; background: #eef2ff; color: var(--navy); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex: 0 0 auto; }
+    .sv .info { flex: 1; } .sv .tit { font-weight: 600; font-size: 14px; } .sv .sub { font-size: 12px; color: var(--suave); }
+    .sv .pct { font-size: 12px; font-weight: 700; }
+    .status-item { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 600; }
+    .status-item:last-child { border-bottom: none; }
+    .est { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .est.ativo { color: #16a34a; } .est.reparo { color: #dc2626; }
+    .est .pt { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .status-topo { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+    .status-topo .cir { width: 54px; height: 54px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; flex: 0 0 auto; }
+    .leg { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 4px; font-size: 13px; font-weight: 600; color: #475569; }
+    .leg span { display: flex; align-items: center; gap: 7px; }
+    .leg .pt { width: 11px; height: 11px; border-radius: 50%; }
+    select.filtro { padding: 7px 10px; border: 1px solid var(--borda); border-radius: 9px; font-size: 13px; font-family: inherit; background: #fff; cursor: pointer; }
+    .btn-data { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--borda); border-radius: 9px; padding: 9px 14px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--texto); }
+    .data-curta { display: none; }
+    .data-pop { position: absolute; top: 70px; right: 26px; background: #fff; border: 1px solid var(--borda); border-radius: 12px; padding: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.14); z-index: 20; display: none; width: 230px; }
+    .data-pop label { margin-top: 8px; }
+    .dash-aviso { font-size: 12px; color: var(--suave); background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 9px 12px; margin-bottom: 16px; }
+
+    /* ===== Catálogo ===== */
+    .cat-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--borda); margin-bottom: 18px; flex-wrap: wrap; }
+    .cat-tab { padding: 10px 16px; cursor: pointer; font-weight: 600; font-size: 14px; color: var(--suave); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .cat-tab.ativo { color: var(--navy); border-bottom-color: var(--amarelo); }
+    .cat-sub { display: none; } .cat-sub.ativo { display: block; }
+    .cat-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+    @media (max-width: 900px) { .cat-stats { grid-template-columns: repeat(2, 1fr); } }
+    .cat-stat { background: #fff; border: 1px solid var(--borda); border-radius: 12px; padding: 14px 16px; }
+    .cat-stat .n { font-size: 24px; font-weight: 800; color: var(--navy); }
+    .cat-stat .r { font-size: 12.5px; color: var(--suave); font-weight: 600; }
+    .cat-topo { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    .cat-topo input.busca { flex: 1; min-width: 200px; padding: 11px 14px; border: 1px solid var(--borda); border-radius: 10px; font-size: 14px; font-family: inherit; }
+    .prod { display: flex; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--borda); border-radius: 14px; margin-bottom: 12px; background: #fff; }
+    .prod img.pimg, .prod .semimg { width: 66px; height: 66px; border-radius: 10px; object-fit: cover; flex: 0 0 auto; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #94a3b8; }
+    .prod .pinfo { flex: 1; min-width: 0; }
+    .prod .pnome { font-weight: 700; color: var(--navy); font-size: 15px; }
+    .prod .pdesc { font-size: 13px; color: var(--suave); margin: 2px 0 7px; }
+    .prod .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chipg { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; background: #eef2ff; color: var(--navy); }
+    .chipg.sg { background: #ecfeff; color: #0e7490; } .chipg.esp { background: #fef9c3; color: #854d0e; }
+    .prod .ppreco { font-weight: 700; color: var(--navy); font-size: 15px; white-space: nowrap; }
+    .prod .pacoes { display: flex; gap: 6px; flex: 0 0 auto; }
+    .iconbtn { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--borda); background: #fff; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; }
+    .iconbtn.del { color: #dc2626; border-color: #fecaca; }
+    .tax-add { display: flex; gap: 8px; margin-bottom: 14px; }
+    .tax-add input { flex: 1; padding: 11px 14px; border: 1px solid var(--borda); border-radius: 10px; font-size: 14px; font-family: inherit; }
+    .tax-lista { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tax-item { display: flex; align-items: center; gap: 8px; background: #f8fafc; border: 1px solid var(--borda); border-radius: 20px; padding: 7px 8px 7px 14px; font-size: 14px; font-weight: 600; color: var(--navy); }
+    .tax-item button { border: none; background: #fee2e2; color: #dc2626; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; font-size: 13px; line-height: 1; }
+    .modal-bg { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: none; align-items: flex-start; justify-content: center; z-index: 50; padding: 30px 16px; overflow-y: auto; }
+    .modal-bg.aberto { display: flex; }
+    .modal { background: #fff; border-radius: 18px; width: 100%; max-width: 560px; padding: 24px; }
+    .modal h3 { margin: 0 0 4px; color: var(--navy); }
+    .modal label { display: block; font-weight: 600; font-size: 13px; margin: 12px 0 6px; color: #334155; }
+    .modal input[type=text], .modal textarea, .modal select { width: 100%; padding: 11px 13px; border: 1px solid var(--borda); border-radius: 10px; font-size: 14px; font-family: inherit; }
+    .modal textarea { min-height: 70px; resize: vertical; }
+    .checks { display: flex; flex-wrap: wrap; gap: 8px; max-height: 140px; overflow-y: auto; border: 1px solid var(--borda); border-radius: 10px; padding: 10px; }
+    .checks label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 500; font-size: 13px; background: #f8fafc; padding: 5px 10px; border-radius: 16px; cursor: pointer; }
+    .checks input { width: auto; }
+    .modal-img { display: flex; align-items: center; gap: 14px; }
+    .modal-img .prev { width: 70px; height: 70px; border-radius: 10px; object-fit: cover; background: #f1f5f9; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 22px; }
+    .modal-acoes { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+    .btn-sec { background: #fff; border: 1px solid var(--borda); border-radius: 10px; padding: 11px 18px; font-weight: 600; cursor: pointer; font-family: inherit; font-size: 14px; }
+    .switch-l { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-weight: 600; font-size: 14px; }
+    .menu-card { border: 1.5px solid var(--borda) !important; }
+    .opcao-linha { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; background: #f8fafc; border: 1px solid var(--borda); border-radius: 10px; padding: 10px; }
+    .opcao-linha .op-campos { flex: 1; }
+    .opcao-linha .op-campos input, .opcao-linha .op-campos textarea { width: 100%; }
+    .opcao-linha .op-campos input { margin-bottom: 6px; }
+    .opcao-linha textarea { min-height: 46px; }
+
+    /* Seletor de contas (topo direito) */
+    .conta-wrap { position: relative; }
+    .conta-btn { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--borda); border-radius: 10px; padding: 5px 10px 5px 5px; cursor: pointer; font-family: inherit; }
+    .conta-btn:hover { background: #f8fafc; }
+    .conta-av { width: 30px; height: 30px; border-radius: 8px; background: var(--amarelo); color: var(--navy); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex: 0 0 auto; }
+    .conta-nome { font-size: 13px; font-weight: 600; color: var(--navy); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .conta-seta { color: var(--suave); display: flex; }
+    .conta-pop { position: fixed; top: 76px; left: 14px; background: #fff; border: 1px solid var(--borda); border-radius: 14px; box-shadow: 0 12px 34px rgba(0,0,0,.18); width: 272px; padding: 8px; display: none; z-index: 110; }
+    .conta-pop.aberto { display: block; }
+    .cp-titulo { font-size: 11px; font-weight: 700; color: var(--suave); text-transform: uppercase; padding: 8px 10px 4px; letter-spacing: .03em; }
+    .cp-perfil { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; }
+    .cp-perfil .av { width: 34px; height: 34px; border-radius: 9px; background: var(--amarelo); color: var(--navy); display: flex; align-items: center; justify-content: center; font-weight: 700; flex: 0 0 auto; }
+    .cp-perfil .info { flex: 1; min-width: 0; }
+    .cp-perfil .n { font-size: 13.5px; font-weight: 600; color: var(--navy); display: block; }
+    .cp-perfil .s { font-size: 11.5px; color: var(--suave); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cp-perfil .chk { color: #16a34a; font-weight: 800; }
+    .cp-item { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--texto); border-radius: 10px; }
+    .cp-item:hover { background: #f8fafc; }
+    .cp-sep { height: 1px; background: var(--borda); margin: 6px 4px; }
+    .cp-sair { color: #dc2626; }
+    .exp-grid { margin: 4px 0 2px; }
+    .exp-linha { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .exp-linha > span:first-child { width: 84px; font-weight: 600; font-size: 14px; }
+    .exp-linha input[type=time] { padding: 8px 10px; border: 1px solid var(--borda); border-radius: 9px; font-size: 14px; font-family: inherit; }
+
+    /* ===== Overrides finais do responsivo (ficam por último p/ vencer as media queries acima) ===== */
+    @media (max-width: 1000px) {
+      .dash-grafico svg { height: 200px; }
+    }
+    @media (max-width: 900px) {
+      html, body { overflow-x: clip; }   /* impede vazamento horizontal no mobile (alinha a lateral direita) */
+      .main, .content { max-width: 100%; overflow-x: clip; }
+      .bloco { min-width: 0; overflow: hidden; }   /* item de grid: deixa encolher em vez de estourar a tela */
+      .rt .info { min-width: 0; }         /* deixa o texto da lista encolher em vez de empurrar a largura */
+      .rt .info .nome, .rt .info .msg { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .dash-grafico svg, .kpi svg { max-width: 100%; }
+    }
+    @media (max-width: 600px) {
+      .dash-kpis, .dash-2, .dash-2b { grid-template-columns: 1fr; gap: 14px; }
+      .cat-stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .kpi { padding: 16px; }
+      .kpi .ico { width: 40px; height: 40px; font-size: 20px; }
+      .kpi .valor { font-size: 30px; }
+      .bloco { padding: 16px; }
+      .dash-aviso { font-size: 13px; }
+      .data-pop { position: fixed; top: 64px; left: 12px; right: 12px; width: auto; }
+      .exp-linha > span:first-child { width: 100%; }
+      .exp-linha input[type=time] { flex: 1; }
+      .card, .bloco { border-radius: 16px; }
+      h2 { font-size: 19px; }
+    }
+    @media (max-width: 380px) {
+      .topbar h1 { font-size: 15px; }
+      .kpi .valor { font-size: 26px; }
+    }
   </style>
 </head>
 <body>
@@ -130,40 +350,109 @@
           <span class="logo-edit" aria-hidden="true">✏️</span>
         </div>
         <div class="brand-text"><strong id="hNome">Lecoland</strong><span>Painel do Bot</span></div>
+        <button class="brand-seta" id="contaBtn" onclick="toggleContas(event)" aria-label="Conta">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
         <input type="file" id="logoInput" accept="image/*" hidden />
       </div>
 
+      <div class="conta-pop" id="contaPop">
+        <div class="cp-titulo">Perfis conectados</div>
+        <div id="cpLista"></div>
+        <button class="cp-item" onclick="adicionarConta()"><span>➕</span> Adicionar conta</button>
+        <div class="cp-sep"></div>
+        <button class="cp-item cp-sair" onclick="iniciarLogout()"><span>↪</span> Logout</button>
+      </div>
+
       <nav class="nav" id="nav">
-        <a class="nav-item active" data-target="page-negocio" data-titulo="Dados do negócio" data-sub="Informações que aparecem nas respostas do bot."><span class="ic">🏪</span> Dados do negócio</a>
+        <a class="nav-item active" data-target="page-dashboard" data-titulo="Dashboard" data-sub="Resumo do seu atendimento automatizado."><span class="ic">📊</span> Dashboard</a>
+        <a class="nav-item" data-target="page-negocio" data-titulo="Dados do negócio" data-sub="Informações que aparecem nas respostas do bot."><span class="ic">🏪</span> Dados do negócio</a>
         <a class="nav-item" data-target="page-mensagens" data-titulo="Mensagens" data-sub="Personalize as mensagens que o bot envia."><span class="ic">💬</span> Mensagens</a>
-        <a class="nav-item" data-target="page-opcoes" data-titulo="Opções do Menu" data-sub="Itens numerados do menu (banho, veterinário, vacina...)."><span class="ic">🔢</span> Opções do Menu</a>
-        <a class="nav-item" data-target="page-faq" data-titulo="Respostas Rápidas (FAQ)" data-sub="Respostas para dúvidas comuns dos clientes."><span class="ic">❓</span> Respostas Rápidas</a>
-        <a class="nav-item" data-target="page-entrega" data-titulo="Taxas e Serviços" data-sub="Entrega e Táxi Dog, com cálculo por distância."><span class="ic">🛵</span> Taxas e Serviços</a>
+        <a class="nav-item" data-target="page-opcoes" data-titulo="Menus" data-sub="Menu de saudação (enviado com a saudação) e sub-menus por palavra-chave."><span class="ic">🗂️</span> Menus</a>
+        <a class="nav-item" data-target="page-faq" data-titulo="Respostas rápidas (FAQ)" data-sub="Respostas para dúvidas comuns dos clientes."><span class="ic">❓</span> Respostas rápidas</a>
+        <a class="nav-item" data-target="page-entrega" data-titulo="Taxas e serviços" data-sub="Entrega e Táxi Dog, com cálculo por distância."><span class="ic">🛵</span> Taxas e serviços</a>
+        <a class="nav-item" data-target="page-catalogo" data-titulo="Catálogo" data-sub="Produtos, grupos e subgrupos que o bot envia aos clientes."><span class="ic">🛍️</span> Catálogo</a>
         <a class="nav-item" data-target="page-gatilhos" data-titulo="Palavras-chave gerais" data-sub="Atalhos para o bot entender comandos importantes."><span class="ic">⚙️</span> Palavras-chave</a>
-        <a class="nav-item" data-target="page-conta" data-titulo="Configurações da conta" data-sub="Gerencie seus dados de acesso ao painel."><span class="ic">👤</span> Configurações da conta</a>
+        <a class="nav-item" data-target="page-conta" data-titulo="Configurações gerais" data-sub="Gerencie seus dados de acesso ao painel."><span class="ic">👤</span> Configurações gerais</a>
       </nav>
+
+      <div class="bot-toggle">
+        <div class="bt-head">
+          <span class="bt-title">Bot do WhatsApp</span>
+          <label class="toggle-sw"><input type="checkbox" id="botChk" onchange="toggleBot()" /><span class="sl"></span></label>
+        </div>
+        <span class="bt-badge off" id="botBadge">○ Inativo</span>
+        <div class="bt-conn" id="botConn">⚪ Bot desligado</div>
+      </div>
 
       <div class="side-foot">
         <div class="nome" id="botNome">Lecoland Pet Shop</div>
         <small><span class="dot">●</span> Painel local</small>
       </div>
     </aside>
+    <div class="backdrop" id="backdrop" onclick="toggleMenu()"></div>
 
     <!-- ===== Main ===== -->
     <div class="main">
       <header class="topbar">
-        <div>
-          <h1 id="topTitulo">Dados do negócio</h1>
-          <p id="topSub">Informações que aparecem nas respostas do bot.</p>
+        <div style="display:flex; align-items:center; gap:12px; min-width:0">
+          <button class="menu-hamb" onclick="toggleMenu()" aria-label="Abrir menu">☰</button>
+          <div style="min-width:0">
+            <h1 id="topTitulo">Dados do negócio</h1>
+            <p id="topSub">Informações que aparecem nas respostas do bot.</p>
+          </div>
         </div>
         <div class="topbar-actions">
           <span id="status"></span>
+          <button class="btn-data" id="btnData" onclick="toggleData()" style="display:none">📅 <span id="dataLabel" class="data-full">Período</span><span id="dataLabelCurto" class="data-curta">Período</span></button>
+          <div class="data-pop" id="dataPop">
+            <label>Data início</label><input type="date" id="dataIni" />
+            <label>Data fim</label><input type="date" id="dataFim" />
+            <div style="margin-top:12px;"><button class="btn-primary" style="width:100%" onclick="aplicarData()">Aplicar</button></div>
+          </div>
           <button class="btn-primary" id="btnSalvar" onclick="salvar()">💾 Salvar tudo</button>
         </div>
       </header>
 
       <main class="content">
-        <section class="card page ativa" id="page-negocio">
+        <div class="page ativa" id="page-dashboard">
+          <div class="dash-aviso">ℹ️ Os números abaixo são <b>demonstrativos</b> por enquanto. Os <b>serviços</b> e o <b>status</b> são reais; os totais e gráficos passam a ser reais quando o bot estiver conectado ao WhatsApp e registrando métricas.</div>
+          <div class="dash-kpis" id="dashKpis"></div>
+          <div class="dash-2">
+            <div class="bloco">
+              <div class="cab"><h3>⚡ Atendimentos em tempo real</h3></div>
+              <div id="dashTempoReal"></div>
+            </div>
+            <div class="bloco">
+              <div class="cab"><h3>⭐ Serviços mais procurados</h3></div>
+              <div id="dashServicos"></div>
+            </div>
+          </div>
+          <div class="dash-2b">
+            <div class="bloco">
+              <div class="cab">
+                <h3>📈 Desempenho do atendimento</h3>
+                <select class="filtro" id="dashFiltro" onchange="renderGrafico()">
+                  <option value="7">Últimos 7 dias</option>
+                  <option value="14">Últimos 14 dias</option>
+                  <option value="30">Últimos 30 dias</option>
+                </select>
+              </div>
+              <div class="leg">
+                <span><span class="pt" style="background:#16a34a"></span> Mensagens recebidas</span>
+                <span><span class="pt" style="background:#2563eb"></span> Respostas automáticas</span>
+                <span><span class="pt" style="background:#7c3aed"></span> Transferidas p/ humano</span>
+              </div>
+              <div id="dashGrafico"></div>
+            </div>
+            <div class="bloco">
+              <div class="cab"><h3>🟢 Status da automação</h3></div>
+              <div id="dashStatus"></div>
+            </div>
+          </div>
+        </div>
+
+        <section class="card page" id="page-negocio">
           <h2>🏪 Dados do negócio</h2>
           <p class="dica">Esses dados aparecem nas respostas. Você pode usar variáveis em qualquer texto:
             <span class="pill">{nome}</span> <span class="pill">{telefone}</span> <span class="pill">{endereco}</span>
@@ -178,46 +467,62 @@
             <div><label>Horário (domingo/feriados)</label><input type="text" id="n_horarioDomingo" /></div>
             <div><label>Formas de pagamento</label><input type="text" id="n_pagamento" /></div>
           </div>
+          <label style="margin-top:18px;">🧠 Sobre o negócio (para a IA responder melhor)</label>
+          <p class="dica">Tudo que você escrever aqui o bot usa para responder perguntas livres (políticas, filial, vacinas, regras, diferenciais...). Quanto mais detalhado, melhor.</p>
+          <textarea id="n_infoIA" style="min-height:220px;"></textarea>
         </section>
 
         <section class="card page" id="page-mensagens">
             <h2>💬 Mensagens</h2>
             <p class="dica">Use <code>*texto*</code> para <b>negrito</b> no WhatsApp e Enter para pular linha.</p>
             <label>Saudação — linha 1</label><textarea id="m_saudacaoIntro"></textarea>
-            <label>Saudação — chamada (acima do menu)</label><textarea id="m_saudacaoChamada"></textarea>
             <label>Saudação — rodapé</label><textarea id="m_saudacaoRodape"></textarea>
             <label>Resposta ao pedir atendente humano</label><textarea id="m_atendente"></textarea>
 
-            <h3 style="margin:22px 0 4px; font-size:14px; color:var(--navy);">✨ Mensagens personalizadas</h3>
-            <p class="dica">Mensagens extras que o bot envia quando o cliente usa as palavras-chave indicadas (não aparecem no menu numerado).</p>
-            <div id="lista_msgs"></div>
-            <button class="add" onclick="addMsg()">+ Adicionar mensagem</button>
+            <hr style="border:none;border-top:1px solid var(--borda);margin:22px 0 16px" />
+            <h3 style="margin:0 0 4px; font-size:14px; color:var(--navy);">🌙 Mensagem de ausência (fora do horário)</h3>
+            <p class="dica">Fora do horário, o bot <b>não</b> envia menu/saudação — só esta mensagem. Ao abrir, volta ao normal sozinho.</p>
+            <label class="switch-l" style="margin-top:6px"><input type="checkbox" id="exp_ativo" /> Ativar mensagem de ausência fora do horário</label>
+            <label>Mensagem de ausência</label><textarea id="m_ausencia"></textarea>
+            <label>Horário de atendimento do bot</label>
+            <div class="exp-grid">
+              <div class="exp-linha"><span>Seg–Sex</span><input type="time" id="exp_semana_abre" /><span>às</span><input type="time" id="exp_semana_fecha" /></div>
+              <div class="exp-linha"><span>Sábado</span><input type="time" id="exp_sabado_abre" /><span>às</span><input type="time" id="exp_sabado_fecha" /></div>
+              <div class="exp-linha"><span>Domingo</span><input type="time" id="exp_domingo_abre" /><span>às</span><input type="time" id="exp_domingo_fecha" /></div>
+            </div>
+            <p class="dica">Deixe um dia <b>em branco</b> = <b>fechado</b> (ex.: domingo).</p>
+            <label style="margin-top:10px">📅 Feriados (loja fechada — envia a ausência)</label>
+            <p class="dica">Selecione a data e clique em Adicionar. Vale todo ano (dia/mês).</p>
+            <div class="tax-add"><input type="date" id="novoFeriado" /><button class="btn-primary" type="button" onclick="addFeriado()">Adicionar</button></div>
+            <div class="tax-lista" id="listaFeriados"></div>
           </section>
 
           <section class="card page" id="page-opcoes">
-            <div class="card-head"><h2>🔢 Opções do Menu</h2></div>
-            <p class="dica">Cada item vira uma opção numerada no menu (1, 2, 3...). <b>Palavras-chave</b> separadas por vírgula.</p>
+            <h3 style="margin:2px 0 2px; font-size:16px; color:var(--navy)">📣 Menu de saudação</h3>
+            <p class="dica">Enviado junto com a saudação. As opções respondem pelo <b>número</b> ou pela <b>palavra-chave</b>.</p>
+            <label>Texto de introdução (acima das opções)</label>
+            <textarea id="m_saudacaoChamada"></textarea>
+            <label style="margin-top:8px">Opções numeradas</label>
             <div id="lista_servicos"></div>
             <button class="add" onclick="addServico()">+ Adicionar opção</button>
+
+            <hr style="border:none;border-top:1px solid var(--borda);margin:26px 0 18px" />
+            <h3 style="margin:0 0 2px; font-size:16px; color:var(--navy)">🗂️ Sub-menus (abertos por palavra-chave)</h3>
+            <p class="dica">Menus próprios abertos por palavra-chave (ex.: “carrapaticida” abre o menu de carrapaticidas). O cliente escolhe pelo número.</p>
+            <div id="lista_menus"></div>
+            <button class="add" onclick="addMenu()">+ Adicionar menu</button>
           </section>
 
         <section class="card page" id="page-faq">
-          <div class="card-head"><h2>❓ Respostas Rápidas (FAQ)</h2></div>
+          <div class="card-head"><h2>❓ Respostas rápidas (FAQ)</h2></div>
           <p class="dica">Respostas para dúvidas comuns dos clientes (horário, endereço, pagamento...).</p>
           <div id="lista_faq"></div>
           <button class="add" onclick="addFaq()">+ Adicionar FAQ</button>
         </section>
 
         <section class="card page" id="page-entrega">
-          <h2>🛵 Taxas e Serviços (Entrega / Táxi Dog)</h2>
-          <p class="dica">O bot calcula o valor pela distância. Edite serviços, faixas de km e o endereço de partida.</p>
-          <label class="switch"><input type="checkbox" id="e_ativo" /> Mostrar opção de entrega no menu</label>
-          <div class="grid-2">
-            <div><label>Título no menu</label><input type="text" id="e_titulo" /></div>
-            <div><label>Palavras-chave (separadas por vírgula)</label><input type="text" id="e_gatilhos" /></div>
-          </div>
-          <label>Texto de introdução</label><textarea id="e_intro"></textarea>
-          <label>Rodapé (opcional)</label><textarea id="e_rodape"></textarea>
+          <h2>🛵 Taxas e serviços (Entrega / Táxi Dog)</h2>
+          <p class="dica">Só os <b>dados</b> do cálculo: endereço de partida, faixas de km e valores. O <b>menu</b> e os <b>textos</b> da entrega você cria em <b>Menus</b>.</p>
           <label>📍 Endereço de partida (a loja)</label>
           <p class="dica">Usado para medir a distância até o endereço do cliente. Coloque o endereço completo e real (rua, número, bairro, cidade - UF).</p>
           <input type="text" id="e_origem" />
@@ -230,17 +535,93 @@
           </datalist>
           <div id="lista_taxas"></div>
           <button class="add" onclick="addTaxa()">+ Adicionar taxa</button>
+
+          <hr style="border:none;border-top:1px solid var(--borda);margin:22px 0 14px" />
+          <h3 style="margin:0 0 2px; font-size:15px; color:var(--navy)">🎁 Entrega grátis</h3>
+          <p class="dica">Até X km, pedidos acima de R$ Y não pagam entrega. (Deixe em branco para não usar.)</p>
+          <div class="exp-linha">Até <input type="text" id="e_gratis_km" style="width:64px" placeholder="2" /> km, pedido acima de R$ <input type="text" id="e_gratis_valor" style="width:80px" placeholder="50" /> → grátis</div>
         </section>
+
+        <div class="page" id="page-catalogo">
+          <div class="cat-tabs">
+            <div class="cat-tab ativo" onclick="catTab('produtos', this)">Produtos</div>
+            <div class="cat-tab" onclick="catTab('grupos', this)">Grupos</div>
+            <div class="cat-tab" onclick="catTab('subgrupos', this)">Subgrupos</div>
+            <div class="cat-tab" onclick="catTab('especificacoes', this)">Especificações</div>
+          </div>
+
+          <div class="cat-sub ativo" id="catsub-produtos">
+            <div class="cat-topo">
+              <input class="busca" id="catBusca" placeholder="🔎 Buscar produto..." oninput="renderProdutos()" />
+              <button class="btn-primary" onclick="abrirProduto()">+ Adicionar produto</button>
+            </div>
+            <div id="catProdutos"></div>
+          </div>
+
+          <div class="cat-sub" id="catsub-grupos">
+            <p class="dica">Categorias principais (ex.: Rações, Acessórios). O bot usa para achar o produto certo.</p>
+            <div class="tax-add"><input id="novoGrupo" placeholder="Novo grupo..." onkeydown="if(event.key==='Enter')addTax('grupos')" /><button class="btn-primary" onclick="addTax('grupos')">Adicionar</button></div>
+            <div class="tax-lista" id="listaGrupos"></div>
+          </div>
+
+          <div class="cat-sub" id="catsub-subgrupos">
+            <p class="dica">Tipo de animal (ex.: Cão, Gato, Ave, Roedor, Aquarismo).</p>
+            <div class="tax-add"><input id="novoSubgrupo" placeholder="Novo subgrupo..." onkeydown="if(event.key==='Enter')addTax('subgrupos')" /><button class="btn-primary" onclick="addTax('subgrupos')">Adicionar</button></div>
+            <div class="tax-lista" id="listaSubgrupos"></div>
+          </div>
+
+          <div class="cat-sub" id="catsub-especificacoes">
+            <p class="dica">Detalhes que afinam a escolha (ex.: Filhote, Renal, Hipoalergênica, Super premium).</p>
+            <div class="tax-add"><input id="novoEspec" placeholder="Nova especificação..." onkeydown="if(event.key==='Enter')addTax('especificacoes')" /><button class="btn-primary" onclick="addTax('especificacoes')">Adicionar</button></div>
+            <div class="tax-lista" id="listaEspec"></div>
+          </div>
+
+          <div class="modal-bg" id="modalProduto">
+            <div class="modal">
+              <h3 id="modalTitulo">Novo produto</h3>
+              <p class="dica" style="margin-top:0">Os grupos/subgrupos ajudam o bot a enviar o catálogo certo.</p>
+              <div class="modal-img">
+                <div class="prev" id="prodPrev">🖼️</div>
+                <div>
+                  <input type="file" id="prodImgFile" accept="image/*" onchange="enviarImgProduto(this)" style="display:none" />
+                  <button class="btn-sec" type="button" onclick="el('prodImgFile').click()">Enviar imagem</button>
+                  <div class="dica" id="prodImgStatus" style="margin:6px 0 0"></div>
+                </div>
+              </div>
+              <label>Nome</label><input type="text" id="prodNome" />
+              <label>Descrição</label><textarea id="prodDesc"></textarea>
+              <label>Preço (R$)</label><input type="text" id="prodPreco" placeholder="Ex.: 129,90" />
+              <label>Grupo</label><select id="prodGrupo"></select>
+              <label>Subgrupos (animais)</label><div class="checks" id="prodSubgrupos"></div>
+              <label>Especificações</label><div class="checks" id="prodEspec"></div>
+              <label class="switch-l"><input type="checkbox" id="prodAtivo" checked /> Produto ativo</label>
+              <div class="modal-acoes">
+                <button class="btn-sec" onclick="fecharProduto()">Cancelar</button>
+                <button class="btn-primary" onclick="salvarProduto()">Salvar produto</button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <section class="card page" id="page-gatilhos">
           <h2>⚙️ Palavras-chave gerais</h2>
-          <p class="dica">Atalhos para o bot entender comandos importantes.</p>
-          <label>Pedir atendente humano (vírgula)</label><input type="text" id="g_atendente" />
-          <label>Abrir o menu / saudação (vírgula)</label><input type="text" id="g_saudacao" />
+          <p class="dica">Atalhos para o bot entender comandos importantes. Digite e clique em <b>Adicionar</b> (ou Enter).</p>
+          <label>🙋 Pedir atendente humano</label>
+          <div class="tax-add"><input type="text" id="novoGatAtendente" placeholder="Ex.: atendente, humano..." onkeydown="if(event.key==='Enter'){event.preventDefault();addGatilho('atendente')}" /><button class="btn-primary" type="button" onclick="addGatilho('atendente')">Adicionar</button></div>
+          <div class="tax-lista" id="listaGatAtendente"></div>
+          <label style="margin-top:18px">👋 Abrir o menu / saudação</label>
+          <div class="tax-add"><input type="text" id="novoGatSaudacao" placeholder="Ex.: oi, menu, ajuda..." onkeydown="if(event.key==='Enter'){event.preventDefault();addGatilho('saudacao')}" /><button class="btn-primary" type="button" onclick="addGatilho('saudacao')">Adicionar</button></div>
+          <div class="tax-lista" id="listaGatSaudacao"></div>
+
+          <hr style="border:none;border-top:1px solid var(--borda);margin:24px 0 16px" />
+          <h3 style="margin:0 0 2px; font-size:16px; color:var(--navy)">📌 Comandos personalizados (grupos de palavras-chave)</h3>
+          <p class="dica">Crie um <b>grupo de palavras-chave</b> com um nome. Quando o cliente usar qualquer uma delas, o bot envia a resposta que você definir.</p>
+          <div id="lista_msgs"></div>
+          <button class="add" onclick="addMsg()">+ Adicionar novo grupo</button>
         </section>
 
         <section class="card page" id="page-conta">
-          <h2>👤 Configurações da conta</h2>
+          <h2>👤 Configurações gerais</h2>
           <p class="dica">Dados de acesso ao painel. A senha nunca é exibida.</p>
           <div class="grid-2">
             <div><label>Nome de usuário</label><input type="text" id="ct_nomeUsuario" /></div>
@@ -265,6 +646,15 @@
       </main>
 
       <footer class="rodape">© <span id="ano"></span> Lecoland — Painel do Bot</footer>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="modalLogout">
+    <div class="modal" style="max-width:420px">
+      <h3>Sair de qual conta?</h3>
+      <p class="dica" style="margin-top:4px">Você tem mais de uma conta conectada. Escolha de qual deseja sair.</p>
+      <div id="logoutLista"></div>
+      <div class="modal-acoes"><button class="btn-sec" onclick="fecharModalLogout()">Cancelar</button></div>
     </div>
   </div>
 
@@ -322,11 +712,29 @@
     function mostrarPagina(id, navEl) {
       document.querySelectorAll(".page").forEach(p => p.classList.toggle("ativa", p.id === id));
       document.querySelectorAll(".nav-item").forEach(n => n.classList.toggle("active", n.dataset.target === id));
-      if (navEl) {
+      const ehDash = id === "page-dashboard";
+      el("btnSalvar").style.display = ehDash ? "none" : "";
+      el("btnData").style.display = ehDash ? "flex" : "none";
+      if (el("dataPop")) el("dataPop").style.display = "none";
+      if (ehDash) {
+        const nome = (cfg && cfg.negocio && cfg.negocio.nome) || "Lecoland";
+        el("topTitulo").textContent = `Olá, ${nome}! 👋`;
+        el("topSub").textContent = "Aqui está o resumo do seu atendimento automatizado.";
+      } else if (navEl) {
         el("topTitulo").textContent = navEl.dataset.titulo || "Configurações do Bot";
         el("topSub").textContent = navEl.dataset.sub || "";
       }
       window.scrollTo(0, 0);
+      fecharMenu(); // fecha a gaveta no mobile ao trocar de página
+    }
+    // ===== Menu lateral retrátil (mobile) =====
+    function toggleMenu() {
+      document.querySelector(".sidebar").classList.toggle("aberto");
+      el("backdrop").classList.toggle("aberto");
+    }
+    function fecharMenu() {
+      document.querySelector(".sidebar").classList.remove("aberto");
+      el("backdrop").classList.remove("aberto");
     }
     document.querySelectorAll(".nav-item").forEach(it => {
       it.addEventListener("click", () => mostrarPagina(it.dataset.target, it));
@@ -350,7 +758,55 @@
     }
     function addServico() { el("lista_servicos").appendChild(itemHtml("sv", { titulo: "", gatilhos: [], resposta: "" })); }
     function addFaq() { el("lista_faq").appendChild(itemHtml("fq", { titulo: "", gatilhos: [], resposta: "" })); }
-    function addMsg() { el("lista_msgs").appendChild(itemHtml("mx", { titulo: "", gatilhos: [], resposta: "" })); }
+    // ===== Comandos personalizados = grupos de palavras-chave (com chips) =====
+    function comandoHtml(o) {
+      const div = document.createElement("div");
+      div.className = "item comando";
+      div.__gatilhos = (o.gatilhos || []).slice();
+      div.innerHTML = `
+        <div class="titulo-linha">
+          <div style="flex:1"><label>Nome do grupo</label><input type="text" class="cmd_titulo" value="${esc(o.titulo)}" placeholder="Ex.: Segunda via de boleto" /></div>
+          <button class="lixeira" onclick="this.closest('.item').remove()">🗑 remover</button>
+        </div>
+        <label>Palavras-chave deste grupo</label>
+        <div class="tax-add"><input type="text" class="cmd_novo" placeholder="Digite e clique em Adicionar..." onkeydown="if(event.key==='Enter'){event.preventDefault();addGatilhoComando(this)}" /><button class="btn-primary" type="button" onclick="addGatilhoComando(this.previousElementSibling)">Adicionar</button></div>
+        <div class="tax-lista cmd_chips"></div>
+        <label>Resposta enviada ao cliente</label>
+        <textarea class="cmd_resposta">${esc(o.resposta)}</textarea>
+        <input type="hidden" class="cmd_chave" value="${esc(o.chave || '')}" />`;
+      renderComandoChips(div);
+      return div;
+    }
+    function renderComandoChips(card) {
+      const g = card.__gatilhos || [];
+      card.querySelector(".cmd_chips").innerHTML = g.length
+        ? g.map((v) => `<span class="tax-item">${esc(v)}<button type="button" title="Remover" onclick="removerGatilhoComando(this)">×</button></span>`).join("")
+        : '<span class="dica" style="font-size:12px">Nenhuma palavra-chave ainda.</span>';
+    }
+    function addGatilhoComando(input) {
+      const card = input.closest(".item");
+      const v = input.value.trim(); if (!v) return;
+      card.__gatilhos = card.__gatilhos || [];
+      if (!card.__gatilhos.some((x) => x.toLowerCase() === v.toLowerCase())) card.__gatilhos.push(v);
+      input.value = ""; renderComandoChips(card);
+    }
+    function removerGatilhoComando(btn) {
+      const card = btn.closest(".item");
+      const chips = [...card.querySelectorAll(".cmd_chips .tax-item")];
+      const idx = chips.indexOf(btn.closest(".tax-item"));
+      if (idx > -1) { card.__gatilhos.splice(idx, 1); renderComandoChips(card); }
+    }
+    function coletarComandos() {
+      const out = [];
+      el("lista_msgs").querySelectorAll(".item").forEach((item) => {
+        const titulo = item.querySelector(".cmd_titulo").value.trim();
+        if (!titulo) return;
+        const chave = item.querySelector(".cmd_chave").value.trim() || slug(titulo);
+        out.push({ chave, titulo, gatilhos: (item.__gatilhos || []).slice(), resposta: item.querySelector(".cmd_resposta").value });
+      });
+      return out;
+    }
+    function addMsg() { el("lista_msgs").appendChild(comandoHtml({ titulo: "", gatilhos: [], resposta: "" })); }
     function coletarItens(containerId, prefixo) {
       const out = [];
       el(containerId).querySelectorAll(".item").forEach(item => {
@@ -361,6 +817,64 @@
           chave, titulo,
           gatilhos: textoParaLista(item.querySelector("." + prefixo + "_gatilhos").value),
           resposta: item.querySelector("." + prefixo + "_resposta").value,
+        });
+      });
+      return out;
+    }
+
+    // ===== Menus extras (sub-menus) =====
+    function opcaoMenuHtml(o) {
+      const div = document.createElement("div");
+      div.className = "opcao-linha";
+      div.innerHTML = `
+        <div class="op-campos">
+          <input type="text" class="op_titulo" value="${esc((o && o.titulo) || '')}" placeholder="Título (ex.: Nexgard)" />
+          <textarea class="op_resposta" placeholder="Resposta enviada quando o cliente escolher esta opção">${esc((o && o.resposta) || '')}</textarea>
+        </div>
+        <button class="lixeira" onclick="this.closest('.opcao-linha').remove()">🗑</button>`;
+      return div;
+    }
+    function menuHtml(m) {
+      m = m || {};
+      const div = document.createElement("div");
+      div.className = "item menu-card";
+      div.innerHTML = `
+        <div class="titulo-linha">
+          <div style="flex:1"><label>Nome do menu</label><input type="text" class="mn_nome" value="${esc(m.nome || '')}" placeholder="Ex.: Carrapaticidas" /></div>
+          <button class="lixeira" onclick="this.closest('.menu-card').remove()">🗑 excluir menu</button>
+        </div>
+        <label>Palavras-chave que abrem este menu (vírgula)</label>
+        <input type="text" class="mn_gatilhos" value="${esc(listaParaTexto(m.gatilhos || []))}" placeholder="carrapato, carrapaticida" />
+        <label>Texto de introdução (acima das opções)</label>
+        <input type="text" class="mn_intro" value="${esc(m.intro || '')}" placeholder="💊 Carrapaticidas — qual você procura?" />
+        <input type="hidden" class="mn_id" value="${esc(m.id || '')}" />
+        <label>Opções numeradas deste menu</label>
+        <div class="mn_opcoes"></div>
+        <button class="add" type="button" onclick="addOpcaoMenu(this)">+ Adicionar opção</button>`;
+      const cont = div.querySelector(".mn_opcoes");
+      const ops = (m.opcoes && m.opcoes.length) ? m.opcoes : [{}];
+      ops.forEach(o => cont.appendChild(opcaoMenuHtml(o)));
+      return div;
+    }
+    function addMenu() { el("lista_menus").appendChild(menuHtml({})); }
+    function addOpcaoMenu(btn) { btn.previousElementSibling.appendChild(opcaoMenuHtml({})); }
+    function coletarMenus() {
+      const out = [];
+      el("lista_menus").querySelectorAll(".menu-card").forEach(card => {
+        const nome = card.querySelector(".mn_nome").value.trim();
+        if (!nome) return;
+        const opcoes = [];
+        card.querySelectorAll(".opcao-linha").forEach(l => {
+          const titulo = l.querySelector(".op_titulo").value.trim();
+          if (!titulo) return;
+          opcoes.push({ titulo, resposta: l.querySelector(".op_resposta").value });
+        });
+        out.push({
+          id: card.querySelector(".mn_id").value.trim() || slug(nome),
+          nome,
+          gatilhos: textoParaLista(card.querySelector(".mn_gatilhos").value),
+          intro: card.querySelector(".mn_intro").value.trim(),
+          opcoes,
         });
       });
       return out;
@@ -403,19 +917,29 @@
       logoAtual = n.logo || ""; setLogo(logoAtual);
       ["nome","tipo","endereco","telefone","horarioSemana","horarioSabado","horarioDomingo","pagamento"]
         .forEach(k => el("n_" + k).value = n[k] || "");
-      ["saudacaoIntro","saudacaoChamada","saudacaoRodape","atendente"].forEach(k => el("m_" + k).value = m[k] || "");
-      (cfg.mensagensExtras || []).forEach(x => el("lista_msgs").appendChild(itemHtml("mx", x)));
+      el("n_infoIA").value = cfg.infoIA || "";
+      ["saudacaoIntro","saudacaoChamada","saudacaoRodape","atendente","ausencia"].forEach(k => el("m_" + k).value = m[k] || "");
+      if (!el("m_ausencia").value) el("m_ausencia").value = "🌙 Olá! No momento estamos fora do horário de atendimento. Assim que abrirmos, te respondemos por aqui. 🐾";
+      const padraoExp = { semana: { abre: "08:00", fecha: "19:00" }, sabado: { abre: "08:00", fecha: "18:00" }, domingo: { abre: "", fecha: "" } };
+      el("exp_ativo").checked = cfg.expediente ? cfg.expediente.ativo === true : false;
+      ["semana","sabado","domingo"].forEach(d => {
+        const fonte = (cfg.expediente && cfg.expediente[d]) ? cfg.expediente[d] : padraoExp[d];
+        el("exp_" + d + "_abre").value = (fonte && fonte.abre) || "";
+        el("exp_" + d + "_fecha").value = (fonte && fonte.fecha) || "";
+      });
+      feriados = (cfg.expediente && Array.isArray(cfg.expediente.feriados)) ? cfg.expediente.feriados.slice() : [];
+      renderFeriados();
+      (cfg.mensagensExtras || []).forEach(x => el("lista_msgs").appendChild(comandoHtml(x)));
       cfg.servicos.forEach(s => el("lista_servicos").appendChild(itemHtml("sv", s)));
       cfg.faqRapido.forEach(f => el("lista_faq").appendChild(itemHtml("fq", f)));
-      el("e_ativo").checked = !!e.ativo;
-      el("e_titulo").value = e.titulo || "";
-      el("e_gatilhos").value = listaParaTexto(e.gatilhos);
-      el("e_intro").value = e.intro || "";
-      el("e_rodape").value = e.rodape || "";
+      (cfg.menus || []).forEach(m => el("lista_menus").appendChild(menuHtml(m)));
       el("e_origem").value = (e.origem && e.origem.endereco) || "";
+      el("e_gratis_km").value = (e.gratis && e.gratis.km) || "";
+      el("e_gratis_valor").value = (e.gratis && e.gratis.valor) || "";
       (e.taxas || []).forEach(t => el("lista_taxas").appendChild(taxaHtml(t)));
-      el("g_atendente").value = listaParaTexto(cfg.gatilhosAtendente);
-      el("g_saudacao").value = listaParaTexto(cfg.gatilhosSaudacao);
+      gatilhos.atendente = (cfg.gatilhosAtendente || []).slice();
+      gatilhos.saudacao = (cfg.gatilhosSaudacao || []).slice();
+      renderGatilhos();
       el("ano").textContent = new Date().getFullYear();
     }
 
@@ -425,25 +949,32 @@
       const novo = {
         negocio: {},
         mensagens: {},
-        mensagensExtras: coletarItens("lista_msgs", "mx"),
+        mensagensExtras: coletarComandos(),
         servicos: coletarItens("lista_servicos", "sv"),
         faqRapido: coletarItens("lista_faq", "fq"),
         entrega: {
-          ativo: el("e_ativo").checked,
-          titulo: el("e_titulo").value.trim(),
-          gatilhos: textoParaLista(el("e_gatilhos").value),
-          intro: el("e_intro").value,
-          rodape: el("e_rodape").value,
+          ...cfg.entrega,
           origem: { endereco: el("e_origem").value.trim(), lat: origemAtual.lat, lon: origemAtual.lon },
           taxas: coletarTaxas(),
+          gratis: { km: el("e_gratis_km").value.trim(), valor: el("e_gratis_valor").value.trim() },
         },
-        gatilhosAtendente: textoParaLista(el("g_atendente").value),
-        gatilhosSaudacao: textoParaLista(el("g_saudacao").value),
+        gatilhosAtendente: gatilhos.atendente,
+        gatilhosSaudacao: gatilhos.saudacao,
+        infoIA: el("n_infoIA").value,
+        menus: coletarMenus(),
       };
       ["nome","tipo","endereco","telefone","horarioSemana","horarioSabado","horarioDomingo","pagamento"]
         .forEach(k => novo.negocio[k] = el("n_" + k).value.trim());
       novo.negocio.logo = logoAtual;
-      ["saudacaoIntro","saudacaoChamada","saudacaoRodape","atendente"].forEach(k => novo.mensagens[k] = el("m_" + k).value);
+      ["saudacaoIntro","saudacaoChamada","saudacaoRodape","atendente","ausencia"].forEach(k => novo.mensagens[k] = el("m_" + k).value);
+      novo.expediente = {
+        ativo: el("exp_ativo").checked,
+        timezone: (cfg.expediente && cfg.expediente.timezone) || "America/Fortaleza",
+        semana: { abre: el("exp_semana_abre").value, fecha: el("exp_semana_fecha").value },
+        sabado: { abre: el("exp_sabado_abre").value, fecha: el("exp_sabado_fecha").value },
+        domingo: { abre: el("exp_domingo_abre").value, fecha: el("exp_domingo_fecha").value },
+        feriados: feriados,
+      };
 
       // Se o endereço de partida mudou, zera as coordenadas para recalcular.
       if ((origemAtual.endereco || "") !== novo.entrega.origem.endereco) { novo.entrega.origem.lat = undefined; novo.entrega.origem.lon = undefined; }
@@ -466,6 +997,7 @@
         el("ct_nomeUsuario").value = c.nomeUsuario || "";
         el("ct_telefone").value = c.telefone || "";
         el("ct_email").value = c.email || "";
+        contaInfo = c; montarContas();
       } catch (_) {}
     }
     async function salvarConta() {
@@ -494,8 +1026,355 @@
       window.location.href = "/login";
     }
 
-    carregar();
+    // ===== Seletor de contas / perfis =====
+    let contaInfo = null;
+    let contas = [];
+    function montarContas() {
+      const nome = (cfg && cfg.negocio && cfg.negocio.nome) || (contaInfo && contaInfo.nomeUsuario) || "Conta";
+      const sub = (contaInfo && contaInfo.email) || "Bot do WhatsApp";
+      contas = [{ id: "principal", nome, sub, ativo: true }];
+      el("cpLista").innerHTML = contas.map(c => `
+        <div class="cp-perfil">
+          <span class="av">${esc((c.nome[0] || "?").toUpperCase())}</span>
+          <span class="info"><span class="n">${esc(c.nome)}</span><span class="s">${esc(c.sub)}</span></span>
+          ${c.ativo ? '<span class="chk">✓</span>' : ''}
+        </div>`).join("");
+    }
+    function toggleContas(e) {
+      if (e) e.stopPropagation();
+      const pop = el("contaPop");
+      if (!pop.classList.contains("aberto")) {
+        const sb = document.querySelector(".sidebar").getBoundingClientRect();
+        const brand = document.querySelector(".brand").getBoundingClientRect();
+        pop.style.top = (brand.bottom + 4) + "px";
+        pop.style.left = (sb.left + 10) + "px";
+        pop.style.width = (sb.width - 20) + "px"; // encaixa dentro da sidebar
+      }
+      pop.classList.toggle("aberto");
+    }
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest("#contaBtn") && !e.target.closest("#contaPop")) {
+        const p = el("contaPop"); if (p) p.classList.remove("aberto");
+      }
+      if (!e.target.closest("#btnData") && !e.target.closest("#dataPop")) {
+        const d = el("dataPop"); if (d) d.style.display = "none";
+      }
+    });
+    function adicionarConta() {
+      el("contaPop").classList.remove("aberto");
+      alert("Em breve! 🐾 Aqui você poderá conectar mais de um bot/perfil na mesma conta (quando tiver mais de um bot na Gestalize).");
+    }
+    function iniciarLogout() {
+      el("contaPop").classList.remove("aberto");
+      if (contas.length > 1) { abrirModalLogout(); return; }
+      if (confirm("Deseja sair da sua conta?")) sair();
+    }
+    function abrirModalLogout() {
+      el("logoutLista").innerHTML = contas.map((c, i) => `
+        <div class="cp-perfil" style="border:1px solid var(--borda);border-radius:10px;margin-bottom:8px">
+          <span class="av">${esc((c.nome[0] || "?").toUpperCase())}</span>
+          <span class="info"><span class="n">${esc(c.nome)}</span><span class="s">${esc(c.sub)}</span></span>
+          <button class="btn-sec" style="padding:7px 14px" onclick="confirmarLogout(${i})">Sair</button>
+        </div>`).join("");
+      el("modalLogout").classList.add("aberto");
+    }
+    function fecharModalLogout() { el("modalLogout").classList.remove("aberto"); }
+    function confirmarLogout(i) { const c = contas[i]; if (c && confirm('Sair da conta "' + c.nome + '"?')) sair(); }
+
+    // ===== Dashboard =====
+    function serieDemo(n, base, amp, seed) {
+      const out = []; let v = base, s = (seed || 1) * 7919;
+      for (let i = 0; i < n; i++) { s = (s * 9301 + 49297) % 233280; const r = s / 233280; v += (r - 0.45) * amp; v = Math.max(base * 0.5, v); out.push(Math.round(v)); }
+      return out;
+    }
+    function svgSpark(serie, cor) {
+      const w = 260, h = 44, n = serie.length, min = Math.min(...serie), max = Math.max(...serie), rng = (max - min) || 1;
+      const X = (i) => (i / (n - 1)) * w, Y = (v) => h - 4 - ((v - min) / rng) * (h - 8);
+      let d = ""; serie.forEach((v, i) => { d += (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1) + " "; });
+      const id = "g" + Math.random().toString(36).slice(2, 7);
+      return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+        <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${cor}" stop-opacity="0.22"/><stop offset="1" stop-color="${cor}" stop-opacity="0"/></linearGradient></defs>
+        <path d="${d}L${w} ${h} L0 ${h} Z" fill="url(#${id})"/><path d="${d}" fill="none" stroke="${cor}" stroke-width="2" stroke-linejoin="round"/></svg>`;
+    }
+    function renderKpis() {
+      const cards = [
+        { rot: "Atendimentos", cor: "#16a34a", bg: "#dcfce7", ico: "💬", v: "1.248", d: "↑ 18%", up: true },
+        { rot: "Mensagens enviadas", cor: "#2563eb", bg: "#dbeafe", ico: "✈️", v: "7.982", d: "↑ 24%", up: true },
+        { rot: "Respostas automáticas", cor: "#ea580c", bg: "#ffedd5", ico: "🤖", v: "96%", d: "↑ 8%", up: true },
+        { rot: "Transferências p/ humano", cor: "#7c3aed", bg: "#ede9fe", ico: "🎧", v: "53", d: "↓ 12%", up: false },
+      ];
+      el("dashKpis").innerHTML = cards.map((c, i) => `
+        <div class="kpi">
+          <div class="top"><div class="rotulo" style="color:${c.cor}">${c.rot}</div><div class="ico" style="background:${c.bg}">${c.ico}</div></div>
+          <div class="valor">${c.v} <span class="delta ${c.up ? "up" : "down"}">${c.d}</span></div>
+          <div class="vs">vs período anterior</div>
+          ${svgSpark(serieDemo(24, 40, 18, i + 3), c.cor)}
+        </div>`).join("");
+    }
+    function renderTempoReal() {
+      const dados = [
+        { nome: "Lucas Ferreira", msg: "Gostaria de saber sobre banho e tosa", tag: "bot", t: "agora" },
+        { nome: "Juliana Santos", msg: "Qual o valor da consulta?", tag: "aguard", t: "1 min" },
+        { nome: "Rafael Costa", msg: "Quero agendar uma vacinação", tag: "bot", t: "2 min" },
+        { nome: "Mariana Oliveira", msg: "Vocês fazem entrega?", tag: "humano", t: "3 min" },
+        { nome: "Pedro Almeida", msg: "Qual o horário de funcionamento?", tag: "bot", t: "5 min" },
+      ];
+      const rot = { bot: "Atendido pelo bot", aguard: "Aguardando resposta", humano: "Transferido p/ humano" };
+      el("dashTempoReal").innerHTML = dados.map(d => `
+        <div class="rt"><div class="av">${d.nome[0]}</div>
+          <div class="info"><div class="nome">${d.nome}</div><div class="msg">${d.msg}</div></div>
+          <div class="dir"><span class="tag ${d.tag}">${rot[d.tag]}</span><div class="tempo">${d.t}</div></div></div>`).join("");
+    }
+    function renderServicos() {
+      const opcoes = [];
+      (cfg.servicos || []).forEach(s => opcoes.push(s.titulo));
+      (cfg.faqRapido || []).forEach(f => opcoes.push(f.titulo));
+      if (cfg.entrega && cfg.entrega.ativo) opcoes.push(cfg.entrega.titulo);
+      const base = [532, 398, 286, 152, 98, 64, 40], pct = ["↑ 15%", "↑ 8%", "↑ 22%", "↓ 5%", "↑ 12%", "↑ 4%", "↑ 2%"];
+      el("dashServicos").innerHTML = opcoes.slice(0, 5).map((t, i) => `
+        <div class="sv"><div class="num">${i + 1}</div>
+          <div class="info"><div class="tit">${esc(t)}</div><div class="sub">${base[i] || 30} solicitações</div></div>
+          <div class="pct" style="color:${(pct[i] || "").includes("↓") ? "#dc2626" : "#16a34a"}">${pct[i] || "↑ 3%"}</div></div>`).join("");
+    }
+    async function renderStatus() {
+      let st = { gemini: false, ors: false };
+      try { st = await (await fetch("/api/status")).json(); } catch (_) {}
+      const temTaxas = !!(cfg.entrega && Array.isArray(cfg.entrega.taxas) && cfg.entrega.taxas.length);
+      const itens = [
+        { nome: "Respostas com IA (Gemini)", ok: st.gemini },
+        { nome: "Menu inteligente", ok: true },
+        { nome: "Cálculo de entrega por endereço", ok: !!(st.ors && temTaxas) },
+      ];
+      const tudoOk = itens.every(i => i.ok);
+      el("dashStatus").innerHTML = `
+        <div class="status-topo">
+          <div class="cir" style="background:${tudoOk ? "#dcfce7" : "#fee2e2"};color:${tudoOk ? "#16a34a" : "#dc2626"}">${tudoOk ? "✓" : "!"}</div>
+          <div><div style="font-weight:700;color:var(--navy)">${tudoOk ? "Tudo funcionando" : "Atenção necessária"}</div>
+          <div style="font-size:13px;color:var(--suave)">${tudoOk ? "Sua automação está ativa e funcionando corretamente." : "Algum item precisa de configuração."}</div></div>
+        </div>` +
+        itens.map(i => `<div class="status-item">${i.nome}<span class="est ${i.ok ? "ativo" : "reparo"}"><span class="pt"></span>${i.ok ? "Ativo" : "Aguardando reparo"}</span></div>`).join("");
+    }
+    function renderGrafico() {
+      const dias = parseInt((el("dashFiltro") && el("dashFiltro").value) || "7", 10);
+      const recebidas = serieDemo(dias, 480, 90, 7);
+      const automaticas = recebidas.map(v => Math.round(v * 0.82));
+      const transferidas = recebidas.map(v => Math.round(v * 0.14));
+      const max = Math.max(...recebidas) * 1.15;
+      const w = 720, h = 250, padL = 36, padB = 26, padT = 8, padR = 8, iw = w - padL - padR, ih = h - padT - padB;
+      const X = (i) => padL + (i / (dias - 1 || 1)) * iw, Y = (v) => padT + ih - (v / max) * ih;
+      const path = (arr) => arr.map((v, i) => (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1)).join(" ");
+      let grid = "";
+      for (let g = 0; g <= 4; g++) { const yy = padT + ih - (g / 4) * ih, val = Math.round((g / 4) * max); grid += `<line x1="${padL}" y1="${yy.toFixed(0)}" x2="${w - padR}" y2="${yy.toFixed(0)}" stroke="#f1f5f9"/><text x="${padL - 6}" y="${(yy + 3).toFixed(0)}" text-anchor="end" font-size="10" fill="#94a3b8">${val}</text>`; }
+      const fimDt = window.__dashFim ? new Date(window.__dashFim + "T00:00:00") : new Date();
+      let xl = "", passo = Math.ceil(dias / 7);
+      for (let i = 0; i < dias; i += passo) { const dt = new Date(fimDt); dt.setDate(dt.getDate() - (dias - 1 - i)); const lbl = String(dt.getDate()).padStart(2, "0") + "/" + String(dt.getMonth() + 1).padStart(2, "0"); xl += `<text x="${X(i).toFixed(0)}" y="${h - 6}" text-anchor="middle" font-size="10" fill="#94a3b8">${lbl}</text>`; }
+      el("dashGrafico").innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:260px">${grid}
+        <path d="${path(recebidas)} L${X(dias - 1).toFixed(1)} ${padT + ih} L${padL} ${padT + ih} Z" fill="rgba(22,163,74,.07)"/>
+        <path d="${path(recebidas)}" fill="none" stroke="#16a34a" stroke-width="2.2"/>
+        <path d="${path(automaticas)}" fill="none" stroke="#2563eb" stroke-width="2.2"/>
+        <path d="${path(transferidas)}" fill="none" stroke="#7c3aed" stroke-width="2.2"/>${xl}</svg>`;
+    }
+    function renderDashboard() { if (!cfg) return; renderKpis(); renderTempoReal(); renderServicos(); renderStatus(); renderGrafico(); }
+    function toggleData() { const p = el("dataPop"); p.style.display = p.style.display === "block" ? "none" : "block"; }
+    function fmtData(s) { const p = s.split("-"); return p[2] + "/" + p[1] + "/" + p[0]; }
+    function fmtCurta(s) { const p = s.split("-"); return p[2] + "/" + p[1]; }
+    function setDataLabels(ini, fim) {
+      el("dataLabel").textContent = fmtData(ini) + " - " + fmtData(fim);
+      el("dataLabelCurto").textContent = fmtCurta(ini) + " - " + fmtCurta(fim);
+    }
+    function aplicarData() {
+      const ini = el("dataIni").value, fim = el("dataFim").value;
+      if (ini && fim) { window.__dashFim = fim; setDataLabels(ini, fim); renderGrafico(); }
+      el("dataPop").style.display = "none";
+    }
+    function initDashData() {
+      const iso = (d) => d.toISOString().slice(0, 10);
+      const fim = new Date(), ini = new Date(); ini.setDate(ini.getDate() - 29);
+      el("dataIni").value = iso(ini); el("dataFim").value = iso(fim); window.__dashFim = iso(fim);
+      setDataLabels(iso(ini), iso(fim));
+    }
+
+    // ===== Catálogo =====
+    let catalogo = { grupos: [], subgrupos: [], especificacoes: [], produtos: [] };
+    let prodEditId = null, prodImagem = "";
+    function normCat(t) { return String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+
+    function catTab(nome, elx) {
+      document.querySelectorAll(".cat-tab").forEach(t => t.classList.remove("ativo"));
+      elx.classList.add("ativo");
+      document.querySelectorAll(".cat-sub").forEach(s => s.classList.remove("ativo"));
+      el("catsub-" + nome).classList.add("ativo");
+    }
+    function renderCatalogo() {
+      renderProdutos();
+      renderTaxLista("grupos", "listaGrupos");
+      renderTaxLista("subgrupos", "listaSubgrupos");
+      renderTaxLista("especificacoes", "listaEspec");
+    }
+    function renderProdutos() {
+      const q = normCat(el("catBusca").value);
+      const lista = catalogo.produtos.filter(p => !q || normCat(p.nome + " " + (p.descricao || "") + " " + (p.grupo || "") + " " + (p.subgrupos || []).join(" ")).includes(q));
+      if (!lista.length) { el("catProdutos").innerHTML = `<p class="dica">Nenhum produto ${catalogo.produtos.length ? "encontrado" : "cadastrado ainda"}. Clique em “Adicionar produto”.</p>`; return; }
+      el("catProdutos").innerHTML = lista.map(p => `
+        <div class="prod">
+          ${p.imagem ? `<img class="pimg" src="${esc(p.imagem)}" />` : `<div class="semimg">📦</div>`}
+          <div class="pinfo">
+            <div class="pnome">${esc(p.nome)} ${p.ativo === false ? '<span style="color:#dc2626;font-size:12px">(inativo)</span>' : ""}</div>
+            <div class="pdesc">${esc(p.descricao || "")}</div>
+            <div class="chips">
+              ${p.grupo ? `<span class="chipg">${esc(p.grupo)}</span>` : ""}
+              ${(p.subgrupos || []).map(s => `<span class="chipg sg">${esc(s)}</span>`).join("")}
+              ${(p.especificacoes || []).map(s => `<span class="chipg esp">${esc(s)}</span>`).join("")}
+            </div>
+          </div>
+          <div class="ppreco">${p.preco ? "R$ " + esc(p.preco) : "—"}</div>
+          <div class="pacoes">
+            <button class="iconbtn" title="Editar" onclick="abrirProduto('${p.id}')">✏️</button>
+            <button class="iconbtn" title="Duplicar" onclick="duplicarProduto('${p.id}')">⧉</button>
+            <button class="iconbtn del" title="Excluir" onclick="excluirProduto('${p.id}')">🗑️</button>
+          </div>
+        </div>`).join("");
+    }
+    function renderTaxLista(tipo, alvo) {
+      el(alvo).innerHTML = (catalogo[tipo] || []).map((v, i) =>
+        `<span class="tax-item">${esc(v)}<button title="Excluir" onclick="removerTax('${tipo}', ${i})">×</button></span>`
+      ).join("") || `<p class="dica">Nenhum item ainda.</p>`;
+    }
+    function addTax(tipo) {
+      const inp = el({ grupos: "novoGrupo", subgrupos: "novoSubgrupo", especificacoes: "novoEspec" }[tipo]);
+      const v = inp.value.trim(); if (!v) return;
+      if (!catalogo[tipo].some(x => normCat(x) === normCat(v))) catalogo[tipo].push(v);
+      inp.value = ""; salvarCatalogo(); renderCatalogo();
+    }
+    function removerTax(tipo, i) {
+      if (!confirm(`Excluir “${catalogo[tipo][i]}”?`)) return;
+      catalogo[tipo].splice(i, 1); salvarCatalogo(); renderCatalogo();
+    }
+    function abrirProduto(id) {
+      prodEditId = id || null;
+      const p = id ? catalogo.produtos.find(x => x.id === id) : null;
+      el("modalTitulo").textContent = p ? "Editar produto" : "Novo produto";
+      el("prodNome").value = p ? p.nome : "";
+      el("prodDesc").value = p ? (p.descricao || "") : "";
+      el("prodPreco").value = p ? (p.preco || "") : "";
+      el("prodAtivo").checked = p ? p.ativo !== false : true;
+      prodImagem = p ? (p.imagem || "") : "";
+      el("prodPrev").innerHTML = prodImagem ? `<img src="${esc(prodImagem)}" style="width:100%;height:100%;object-fit:cover;border-radius:10px" />` : "🖼️";
+      el("prodImgStatus").textContent = "";
+      el("prodGrupo").innerHTML = `<option value="">— selecione —</option>` + catalogo.grupos.map(g => `<option ${p && p.grupo === g ? "selected" : ""}>${esc(g)}</option>`).join("");
+      el("prodSubgrupos").innerHTML = catalogo.subgrupos.map(s => `<label><input type="checkbox" value="${esc(s)}" ${p && (p.subgrupos || []).includes(s) ? "checked" : ""}/> ${esc(s)}</label>`).join("") || '<span class="dica">Cadastre subgrupos primeiro.</span>';
+      el("prodEspec").innerHTML = catalogo.especificacoes.map(s => `<label><input type="checkbox" value="${esc(s)}" ${p && (p.especificacoes || []).includes(s) ? "checked" : ""}/> ${esc(s)}</label>`).join("") || '<span class="dica">Cadastre especificações primeiro.</span>';
+      el("modalProduto").classList.add("aberto");
+    }
+    function fecharProduto() { el("modalProduto").classList.remove("aberto"); }
+    function coletarChecks(id) { return [...el(id).querySelectorAll("input:checked")].map(c => c.value); }
+    async function enviarImgProduto(input) {
+      const f = input.files[0]; if (!f) return;
+      el("prodImgStatus").textContent = "Enviando...";
+      try {
+        const dataUrl = await downscale(f, 800); // redimensiona antes (evita upload gigante do celular)
+        const res = await fetch("/api/catalogo/imagem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dataUrl }) });
+        const d = await res.json(); if (!d.ok) throw new Error(d.erro || "falha");
+        prodImagem = d.path;
+        el("prodPrev").innerHTML = `<img src="${esc(prodImagem)}" style="width:100%;height:100%;object-fit:cover;border-radius:10px" />`;
+        el("prodImgStatus").textContent = "Imagem enviada ✓";
+      } catch (e) { el("prodImgStatus").textContent = "Erro: " + e.message; }
+    }
+    async function salvarProduto() {
+      const nome = el("prodNome").value.trim();
+      if (!nome) { alert("Informe o nome do produto."); return; }
+      const dados = {
+        nome, descricao: el("prodDesc").value.trim(), preco: el("prodPreco").value.trim(),
+        imagem: prodImagem, grupo: el("prodGrupo").value,
+        subgrupos: coletarChecks("prodSubgrupos"), especificacoes: coletarChecks("prodEspec"),
+        ativo: el("prodAtivo").checked,
+      };
+      if (prodEditId) { Object.assign(catalogo.produtos.find(x => x.id === prodEditId), dados); }
+      else { dados.id = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); catalogo.produtos.unshift(dados); }
+      await salvarCatalogo(); fecharProduto(); renderCatalogo();
+    }
+    function duplicarProduto(id) {
+      const p = catalogo.produtos.find(x => x.id === id); if (!p) return;
+      const c = JSON.parse(JSON.stringify(p));
+      c.id = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+      c.nome = p.nome + " (cópia)";
+      catalogo.produtos.unshift(c); salvarCatalogo(); renderCatalogo();
+    }
+    function excluirProduto(id) {
+      const p = catalogo.produtos.find(x => x.id === id); if (!p) return;
+      if (!confirm(`Excluir o produto “${p.nome}”?`)) return;
+      catalogo.produtos = catalogo.produtos.filter(x => x.id !== id);
+      salvarCatalogo(); renderCatalogo();
+    }
+    async function salvarCatalogo() {
+      try {
+        const res = await fetch("/api/catalogo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(catalogo) });
+        const d = await res.json(); if (!d.ok) throw new Error(d.erro || "falha");
+      } catch (e) { alert("Erro ao salvar o catálogo: " + e.message); }
+    }
+
+    // ===== Liga/desliga do bot =====
+    async function carregarBot() {
+      try { const d = await (await fetch("/api/bot")).json(); pintarBot(d.ativo, d.conectado); } catch (_) {}
+    }
+    function pintarBot(ativo, conectado) {
+      el("botChk").checked = !!ativo;
+      const badge = el("botBadge");
+      badge.className = "bt-badge " + (ativo ? "on" : "off");
+      badge.textContent = ativo ? "● Ativo" : "○ Inativo";
+      el("botConn").textContent = !ativo ? "⚪ Bot desligado" : (conectado ? "🟢 Bot conectado" : "🟡 Aguardando conexão");
+    }
+    async function toggleBot() {
+      const ativar = el("botChk").checked;
+      if (ativar && !confirm("Ativar o bot? Ele vai começar a responder os clientes no WhatsApp.")) {
+        el("botChk").checked = false; return;
+      }
+      try {
+        const res = await fetch("/api/bot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ativo: ativar }) });
+        const d = await res.json(); if (!d.ok) throw new Error(d.erro || "falha");
+        pintarBot(d.ativo, d.conectado);
+      } catch (e) { alert("Erro ao mudar o bot: " + e.message); carregarBot(); }
+    }
+
+    // ===== Palavras-chave gerais (chips) =====
+    let gatilhos = { atendente: [], saudacao: [] };
+    function renderGatilhos() {
+      [["atendente", "listaGatAtendente"], ["saudacao", "listaGatSaudacao"]].forEach(([t, alvo]) => {
+        el(alvo).innerHTML = (gatilhos[t] || []).map((v, i) => `<span class="tax-item">${esc(v)}<button title="Remover" onclick="removerGatilho('${t}', ${i})">×</button></span>`).join("") || '<p class="dica">Nenhuma palavra-chave ainda.</p>';
+      });
+    }
+    function addGatilho(tipo) {
+      const inp = el(tipo === "atendente" ? "novoGatAtendente" : "novoGatSaudacao");
+      const v = inp.value.trim(); if (!v) return;
+      if (!gatilhos[tipo].some(x => x.toLowerCase() === v.toLowerCase())) gatilhos[tipo].push(v);
+      inp.value = ""; renderGatilhos();
+    }
+    function removerGatilho(tipo, i) { gatilhos[tipo].splice(i, 1); renderGatilhos(); }
+
+    // ===== Feriados (DD/MM) =====
+    let feriados = [];
+    function renderFeriados() {
+      el("listaFeriados").innerHTML = feriados.map((f, i) => `<span class="tax-item">${esc(f)}<button title="Remover" onclick="removerFeriado(${i})">×</button></span>`).join("") || '<p class="dica">Nenhum feriado cadastrado.</p>';
+    }
+    function addFeriado() {
+      const v = el("novoFeriado").value; if (!v) return; // YYYY-MM-DD
+      const partes = v.split("-"); const dm = partes[2] + "/" + partes[1];
+      if (!feriados.includes(dm)) feriados.push(dm);
+      el("novoFeriado").value = ""; renderFeriados();
+    }
+    function removerFeriado(i) { feriados.splice(i, 1); renderFeriados(); }
+
+    carregar().then(() => {
+      initDashData();
+      catalogo = cfg.catalogo || { grupos: [], subgrupos: [], especificacoes: [], produtos: [] };
+      renderCatalogo();
+      mostrarPagina("page-dashboard", document.querySelector('.nav-item[data-target="page-dashboard"]'));
+      renderDashboard();
+      montarContas();
+    });
     carregarConta();
+    carregarBot();
+    setInterval(carregarBot, 15000); // mantém o status de conexão atualizado
   </script>
 </body>
 </html>

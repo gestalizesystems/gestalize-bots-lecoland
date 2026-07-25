@@ -6,7 +6,8 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-const CAMINHO = path.join(__dirname, "..", "data", "conta.json");
+const DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
+const CAMINHO = path.join(DIR, "conta.json");
 
 // Gera "salt:hash" para uma senha. Reaproveita o salt ao conferir.
 function hashSenha(senha, salt) {
@@ -25,6 +26,7 @@ function confere(senha, armazenado) {
 }
 
 function salvarArquivo(c) {
+  fs.mkdirSync(DIR, { recursive: true });
   fs.writeFileSync(CAMINHO, JSON.stringify(c, null, 2), "utf8");
 }
 

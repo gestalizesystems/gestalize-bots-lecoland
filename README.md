@@ -1,104 +1,122 @@
-# Lecoland — Bot de triagem do WhatsApp 🐾
+# Lecoland — Bot de atendimento do WhatsApp 🐾
 
-Bot de atendimento para pet shop / clínica veterinária. Ele:
+Bot de atendimento para pet shop / clínica veterinária, integrado à **WhatsApp Cloud API**
+(oficial da Meta). Ele:
 
-- Conecta ao WhatsApp por **QR code** (via [whatsapp-web.js](https://wwebjs.dev/)).
-- Faz **triagem por palavra-chave**: reconhece intenções como *banho*, *veterinário*, *vacina*, *horário*, *endereço*, *pagamento* e responde na hora com respostas prontas.
-- Responde **perguntas livres** com a IA **gratuita** do **Google Gemini** (`gemini-2.5-flash`), ancorada nos dados do negócio — sem inventar preço, horário ou serviço.
-- Faz **handoff para humano**: quando o cliente digita *atendente*, o bot se cala para aquele contato por 1 hora.
-- Tem um **painel de administração no navegador**: edite saudação, serviços, palavras-chave, preços e taxas de entrega por formulários — sem mexer em código. As mudanças valem na hora.
-- **Calcula a taxa de entrega / táxi dog pelo endereço do cliente**: geolocaliza o endereço, mede a **distância de carro** a partir da loja (via [OpenRouteService](https://openrouteservice.org/), gratuito) e responde o valor da faixa de km correspondente.
+- Recebe mensagens por **webhook** oficial da Meta (sem QR code, sem navegador, sem risco de ban).
+- Faz **triagem por palavra-chave**: reconhece intenções como *banho*, *veterinário*, *vacina*,
+  *horário*, *endereço*, *pagamento*, *entrega* e responde na hora com respostas prontas.
+- Tem um **menu de saudação** numerado e **sub-menus** próprios por palavra-chave
+  (ex.: "carrapaticida" abre um menu com as opções de carrapaticida).
+- Responde **perguntas livres** com a IA **Google Gemini** (`gemini-2.5-flash`), ancorada nos
+  dados do negócio — sem inventar preço, horário ou serviço.
+- Faz **handoff para humano** de forma inteligente: por pedido do cliente (*atendente*) **ou**
+  quando a própria IA decide encaminhar; depois reengaja/encerra sozinho (ver abaixo).
+- **Calcula a taxa de entrega / táxi dog pelo endereço do cliente**: geolocaliza, mede a
+  **distância de carro** a partir da loja (OpenRouteService, gratuito) e responde o valor da faixa.
+- Tem um **painel de administração no navegador** (com login) pra editar tudo por formulários —
+  saudação, menus, FAQ, preços, taxas, catálogo e a base de conhecimento da IA. Mudanças valem na hora.
+- Tem um **interruptor liga/desliga** do bot, pra preparar tudo com ele em silêncio e só ativar quando quiser.
+
+## Como o handoff funciona
+1. Handoff (cliente pede *atendente* ou a IA encaminha) → o bot fica em silêncio para aquele contato.
+2. A cada mensagem do cliente, o cronômetro reinicia (não interrompe um atendimento ativo).
+3. Após **1h de silêncio** → o bot pergunta *"Posso te ajudar em mais alguma coisa?"*.
+4. Se o cliente disser que não (ou ficar **2h** sem responder) → encerra com uma despedida.
+   Se trouxer algo novo → começa um atendimento novo.
+A conversa **não é apagada** — o atendente lê todo o histórico no WhatsApp.
 
 ## Requisitos
+- **Node.js 18+**.
+- **Chave da API do Google Gemini** — gratuita: https://aistudio.google.com/apikey
+  (para produção, ative o faturamento no Google para sair do limite gratuito de 5 req/min).
+- **Credenciais da WhatsApp Cloud API** (Phone Number ID + token) — ver "Configurar o WhatsApp" abaixo.
+- *(Opcional)* Chave gratuita do **OpenRouteService** — só para calcular a taxa pelo **endereço**
+  do cliente. Sem ela, o bot ainda calcula pela **distância (km)** informada.
 
-- **Node.js 18 ou superior** (as libs atuais do WhatsApp/Gemini pedem Node 18+).
-  Seu ambiente está no Node 16 — instale o 18 com [nvm](https://github.com/nvm-sh/nvm): `nvm install 18 && nvm use 18`.
-- Uma **chave da API do Google Gemini** — **gratuita** e sem cartão: https://aistudio.google.com/apikey
-- *(Opcional)* Uma **chave gratuita do [OpenRouteService](https://openrouteservice.org/dev/#/signup)** (sem cartão) — só é necessária para calcular a taxa pelo **endereço** do cliente. Sem ela, o bot ainda calcula a taxa pela **distância (km)** informada.
-- Um número de WhatsApp para o bot (de preferência dedicado).
-
-## Como rodar
-
+## Como rodar (local)
 ```bash
 # 1. Instale as dependências
 npm install
 
-# 2. Configure a chave da API (gratuita)
+# 2. Configure as variáveis
 cp .env.example .env
-#   edite .env e cole sua GEMINI_API_KEY (https://aistudio.google.com/apikey)
-#   (opcional) cole também a ORS_API_KEY para calcular a taxa pelo endereço do cliente
+#   edite o .env e preencha GEMINI_API_KEY, ADMIN_EMAIL/ADMIN_SENHA e (depois) as WHATSAPP_*
 
 # 3. (opcional) Teste a triagem sem WhatsApp nem API
 node test-triagem.js
 
-# 4. Suba o bot (também abre o painel em http://localhost:4500)
+# 4. Suba o servidor (painel + webhook)
 npm start
 ```
+- O painel abre em **http://localhost:4500** (faça login com ADMIN_EMAIL / ADMIN_SENHA).
+- O bot só responde de verdade depois do **deploy + webhook** (precisa de URL pública). Localmente, dá pra editar tudo no painel e testar a triagem com `node test-triagem.js`.
 
-Na primeira vez, um **QR code** aparece no terminal. No celular: WhatsApp → *Aparelhos conectados* → *Conectar um aparelho* → escaneie. A sessão fica salva em `.wwebjs_auth/`, então nas próximas vezes não precisa escanear de novo.
+## Configurar o WhatsApp Cloud API (passo a passo)
+O guia detalhado com prints/etapas está em **MIGRACAO.md**. Em resumo:
 
-## Personalizar (painel no navegador — recomendado)
+**Na Meta (uma vez):**
+1. Crie um app em **developers.facebook.com** usando o caso de uso **"Conectar-se com clientes pelo WhatsApp"** (isso já adiciona o produto WhatsApp).
+2. Em **WhatsApp → Configuração da API**, pegue o **Phone Number ID** e gere um **token**
+   (o temporário serve para testar; gere um **permanente** via *Usuário do sistema* para produção).
+3. Adicione **seu celular** como destinatário de teste.
 
-Você **não precisa mexer em código**. Toda a configuração fica em `data/config.json`, editável por um painel web:
+**No projeto (`.env`):**
+```
+WHATSAPP_TOKEN=<token>
+WHATSAPP_PHONE_ID=<phone number id>
+WHATSAPP_VERIFY_TOKEN=<uma senha que você inventa>
+```
 
-- Com o bot rodando (`npm start`), abra **http://localhost:4500**.
-- Ou abra **só o painel** (sem conectar o WhatsApp): `npm run painel`.
+**Deploy + webhook:** o webhook precisa de uma **URL pública (HTTPS)**. Suba no Railway
+(guia em **DEPLOY-RAILWAY.md**) e, na Meta, cadastre o webhook:
+- **Callback URL:** `https://SUA-URL/webhook`
+- **Verify token:** o mesmo `WHATSAPP_VERIFY_TOKEN`
+- Assine o campo **`messages`**.
 
-No painel você edita:
-- **Dados do negócio** (nome, endereço, telefone, horários, pagamento).
-- **Mensagens** (saudação e resposta de atendente).
-- **Serviços** — adicionar/remover, com palavras-chave e preços.
+Por fim, **ligue o bot** no painel e mande uma mensagem para o número. 🎉
+
+## Painel de administração
+Faça login e edite tudo por formulários (clique em **Salvar tudo** — vale na hora):
+- **Dashboard** — visão geral (métricas demonstrativas + status real da automação).
+- **Dados do negócio** — nome, endereço, telefone, horários, pagamento e a **base de conhecimento da IA**.
+- **Mensagens** — saudação e mensagem de atendente.
+- **Menu de saudação** — opções numeradas + **sub-menus** por palavra-chave.
 - **Respostas rápidas (FAQ)**.
-- **Entrega / Táxi Dog** — taxas por **serviço** e **faixa de distância (km)**, e o **endereço de partida da loja** (usado para medir a distância).
-- **Palavras-chave gerais** (atendente, saudação).
+- **Taxas e serviços** — entrega/táxi dog por **faixa de km** + endereço de partida da loja.
+- **Catálogo** — produtos (nome, imagem, descrição, preço) com **grupos/subgrupos/especificações**.
+- **Palavras-chave** (atendente, saudação).
+- **Configurações gerais** — dados de acesso ao painel e troca de senha.
 
-Clique em **Salvar tudo** e o bot passa a usar as mudanças na hora (sem reiniciar). Dica: em qualquer texto você pode usar `{nome}`, `{telefone}`, `{endereco}`, `{pagamento}`, `{horarioSemana}` etc., que são preenchidos com os dados do negócio.
-
-> O painel roda só na sua máquina (localhost). Não fica exposto na internet.
-
-## Cálculo de taxa pelo endereço (mapa)
-
-O bot calcula a taxa de **entrega** e de **táxi dog** automaticamente a partir do endereço do cliente. Funciona assim:
-
-1. O cliente manda o endereço (ex.: *"quanto é a entrega pra Rua das Carnaúbas, 777, Passaré?"*).
-2. O bot **geolocaliza** o endereço pelo [OpenRouteService](https://openrouteservice.org/) (texto → coordenadas).
-3. Mede a **distância de carro** entre a **loja** e o endereço.
-4. Escolhe a **faixa de km** correspondente em cada serviço (a conta é determinística, no `config.js`/`geo.js` — a IA só formula a resposta).
-
-**Configuração necessária:**
-- `ORS_API_KEY` no `.env` (chave gratuita do OpenRouteService).
-- O **ponto de partida da loja**, na seção *Entrega / Táxi Dog* do painel. Você pode informar só o endereço, **ou** fixar a posição exata com coordenadas em `data/config.json`:
-  ```json
-  "origem": { "endereco": "R. Dois, 190 - Passaré, Fortaleza - CE", "lat": -3.802437, "lon": -38.534313 }
-  ```
-  > 💡 As coordenadas exatas podem ser obtidas do **Plus Code** da loja no Google Maps (ex.: `5FX8+27`).
-
-**Precisão e segurança:**
-- A geolocalização é **restrita a um raio de 50 km** da loja, para nunca casar com um lugar de mesmo nome em outra cidade.
-- Distâncias **acima da maior faixa** (ou endereço não localizado com segurança) → o bot encaminha para um **atendente humano**, sem dar valor errado.
-- O geocoder gratuito acerta bem **endereços residenciais** (rua + número + bairro); pontos de referência/endereços incompletos podem falhar — nesses casos o bot pede para confirmar ou chama o atendente. Para precisão máxima em todo endereço, o caminho é o Google Maps (pago).
-- Sem a `ORS_API_KEY`, o cálculo por endereço fica indisponível, mas o bot continua calculando pela **distância (km)** informada direto pelo cliente.
+Em qualquer texto dá pra usar `{nome}`, `{telefone}`, `{endereco}`, `{pagamento}`, `{horarioSemana}` etc.
 
 ## Estrutura
-
 ```
 data/
-  config.json  → TODA a configuração (editada pelo painel)
+  config.json     → TODA a configuração (editada pelo painel)
 src/
-  config.js    → carrega/salva o config.json e monta as respostas
-  triage.js    → triagem por palavra-chave e menu numerado
-  ai.js        → respostas livres via Google Gemini (+ cálculo de taxa por endereço)
-  geo.js       → geolocalização e distância de carro (OpenRouteService)
-  admin.js     → servidor do painel de administração
-  painel-only.js → abre só o painel (npm run painel)
-  index.js     → conexão com o WhatsApp + painel
+  config.js       → carrega/salva o config.json e monta as respostas
+  triage.js       → triagem por palavra-chave, menu e sub-menus
+  conversa.js     → lógica da conversa (handoff, timers) — independente do transporte
+  ai.js           → respostas livres via Google Gemini (+ cálculo de taxa por endereço)
+  geo.js          → geolocalização e distância de carro (OpenRouteService)
+  wa.js           → cliente da WhatsApp Cloud API (envio de mensagens)
+  admin.js        → servidor do painel + webhook do WhatsApp
+  conta.js        → conta de acesso ao painel (e-mail + senha com hash)
+  estado.js       → estado de runtime (conexão)
+  index.js        → entrada: sobe painel + webhook (Cloud API)
+  painel-only.js  → abre só o painel (npm run painel)
 public/
-  admin.html   → página do painel
-test-triagem.js → teste offline da triagem
+  admin.html      → painel  ·  login.html → tela de login
+test-triagem.js   → teste offline da triagem
+MIGRACAO.md       → setup do WhatsApp Cloud API (passo a passo)
+DEPLOY-RAILWAY.md → deploy no Railway + webhook
+MULTICONTA.md     → plano de multi-conta/multi-bot (futuro)
 ```
 
 ## Observações
-
-- **Custo:** o Gemini tem uma cota **gratuita** generosa por dia, e só perguntas livres (que não casam com palavra-chave) chamam a IA — as respostas de menu são instantâneas e não consomem cota. Limites do plano gratuito: https://ai.google.dev/gemini-api/docs/rate-limits
-- **whatsapp-web.js não é oficial.** É ótimo para protótipo e uso interno; para escala/produção considere a [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api) oficial da Meta. 👉 Veja o guia completo de prós/contras e passo a passo da migração em **[MIGRACAO.md](MIGRACAO.md)**.
-- **Sessão/estado em memória:** o handoff para humano e o histórico de conversa vivem na RAM e somem ao reiniciar. Para produção, troque por Redis ou um banco.
+- **Custo do Gemini:** só perguntas livres chamam a IA — menu e palavras-chave são instantâneos e não
+  consomem cota. O plano gratuito limita ~5 req/min; para produção, ative o faturamento (custo baixíssimo por mensagem).
+- **Estado em memória:** handoff, contexto de menu e histórico vivem na RAM e somem ao reiniciar.
+  No Railway o disco também é efêmero — para produção, use um **Volume** ou um **banco** (ver MULTICONTA.md).
+- **Sem atribuição externa:** o código é próprio do projeto.
