@@ -7,5 +7,8 @@ node_modules/
 # Configuração da ferramenta de desenvolvimento — fora do repositório
 .claude/
 
+# Conta do painel (e-mail + senha com hash) — fica só na máquina, não vai pro Git
+data/conta.json
+
 # Arquivos do macOS
 .DS_Store

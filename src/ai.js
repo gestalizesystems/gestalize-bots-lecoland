@@ -48,10 +48,13 @@ function montarContexto() {
   const dados = config.get();
   const n = dados.negocio;
 
+  const extras = (dados.mensagensExtras || [])
+    .map((x) => `- ${x.titulo}: ${(x.resposta || "").replace(/\n+/g, " ").replace(/\*/g, "")}`)
+    .join("\n");
   const linhasServicos = config
     .intents()
     .map((o) => `- ${o.titulo}: ${o.resposta.replace(/\n+/g, " ").replace(/\*/g, "")}`)
-    .join("\n");
+    .join("\n") + (extras ? "\n" + extras : "");
 
   return [
     `Você é o atendente virtual da ${n.nome}, um(a) ${n.tipo}.`,
