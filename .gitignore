@@ -1,0 +1,11 @@
+node_modules/
+.env
+.wwebjs_auth/
+.wwebjs_cache/
+*.log
+
+# Configuração da ferramenta de desenvolvimento — fora do repositório
+.claude/
+
+# Arquivos do macOS
+.DS_Store

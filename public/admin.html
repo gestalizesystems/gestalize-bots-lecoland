@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lecoland — Painel do Bot</title>
+  <style>
+    :root { --azul:#2563eb; --verde:#16a34a; --vermelho:#dc2626; --borda:#e2e8f0; --fundo:#f1f5f9; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, system-ui, sans-serif; margin:0; background:var(--fundo); color:#1e293b; padding-bottom:90px; }
+    header { background:#0f172a; color:#fff; padding:16px 20px; }
+    header h1 { margin:0; font-size:18px; }
+    header p { margin:4px 0 0; font-size:13px; color:#94a3b8; }
+    main { max-width:780px; margin:20px auto; padding:0 16px; }
+    .card { background:#fff; border:1px solid var(--borda); border-radius:12px; padding:18px; margin-bottom:18px; }
+    .card h2 { margin:0 0 14px; font-size:16px; }
+    .card .dica { font-size:12px; color:#64748b; margin:-8px 0 14px; }
+    label { display:block; font-size:13px; font-weight:600; margin:10px 0 4px; }
+    input[type=text], textarea { width:100%; padding:9px 11px; border:1px solid var(--borda); border-radius:8px; font-size:14px; font-family:inherit; }
+    textarea { min-height:80px; resize:vertical; }
+    .item { border:1px solid var(--borda); border-radius:10px; padding:14px; margin-bottom:12px; background:#fafafa; position:relative; }
+    .item .titulo-linha { display:flex; gap:10px; align-items:flex-end; }
+    .item .titulo-linha > div { flex:1; }
+    .lixeira { background:none; border:none; color:var(--vermelho); cursor:pointer; font-size:13px; font-weight:600; padding:6px; }
+    .taxa-linha { display:flex; gap:8px; margin-bottom:8px; align-items:center; }
+    .taxa-linha input { flex:1; }
+    button.add { background:#fff; border:1px dashed var(--azul); color:var(--azul); border-radius:8px; padding:9px 14px; cursor:pointer; font-size:13px; font-weight:600; }
+    .switch { display:flex; align-items:center; gap:8px; font-weight:600; font-size:14px; margin-bottom:8px; }
+    .rodape-fixo { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--borda); padding:12px 16px; display:flex; align-items:center; gap:14px; justify-content:flex-end; }
+    button.salvar { background:var(--verde); color:#fff; border:none; border-radius:8px; padding:12px 24px; font-size:15px; font-weight:700; cursor:pointer; }
+    button.salvar:disabled { opacity:.6; cursor:default; }
+    #status { font-size:14px; font-weight:600; }
+    .ok { color:var(--verde); } .erro { color:var(--vermelho); }
+    code { background:#eef2ff; padding:1px 5px; border-radius:4px; font-size:12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🐾 Painel do Bot — <span id="hNome">Lecoland</span></h1>
+    <p>Edite as respostas, palavras-chave e taxas. Clique em <b>Salvar</b> e o bot já usa as mudanças.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>📋 Dados do negócio</h2>
+      <p class="dica">Esses dados aparecem nas respostas. Você pode usá-los em qualquer texto com <code>{nome}</code>, <code>{telefone}</code>, <code>{endereco}</code>, <code>{pagamento}</code>, <code>{horarioSemana}</code>, etc.</p>
+      <label>Nome</label><input type="text" id="n_nome" />
+      <label>Tipo (ex.: Pet Shop e Clínica Veterinária)</label><input type="text" id="n_tipo" />
+      <label>Endereço</label><input type="text" id="n_endereco" />
+      <label>Telefone</label><input type="text" id="n_telefone" />
+      <label>Horário (segunda a sexta)</label><input type="text" id="n_horarioSemana" />
+      <label>Horário (sábado)</label><input type="text" id="n_horarioSabado" />
+      <label>Horário (domingo/feriados)</label><input type="text" id="n_horarioDomingo" />
+      <label>Formas de pagamento</label><input type="text" id="n_pagamento" />
+    </section>
+
+    <section class="card">
+      <h2>💬 Mensagens</h2>
+      <p class="dica">Use <code>*texto*</code> para <b>negrito</b> no WhatsApp e Enter para pular linha.</p>
+      <label>Saudação — linha 1</label><textarea id="m_saudacaoIntro"></textarea>
+      <label>Saudação — chamada (acima do menu)</label><textarea id="m_saudacaoChamada"></textarea>
+      <label>Saudação — rodapé</label><textarea id="m_saudacaoRodape"></textarea>
+      <label>Resposta ao pedir atendente humano</label><textarea id="m_atendente"></textarea>
+    </section>
+
+    <section class="card">
+      <h2>🔢 Opções numeradas</h2>
+      <p class="dica">Cada item vira uma opção numerada no menu (1, 2, 3...). <b>Palavras-chave</b> separadas por vírgula.</p>
+      <div id="lista_servicos"></div>
+      <button class="add" onclick="addServico()">+ Adicionar opção</button>
+    </section>
+
+    <section class="card">
+      <h2>❓ Respostas rápidas (FAQ)</h2>
+      <p class="dica">Horário, endereço, pagamento e outras dúvidas comuns.</p>
+      <div id="lista_faq"></div>
+      <button class="add" onclick="addFaq()">+ Adicionar FAQ</button>
+    </section>
+
+    <section class="card">
+      <h2>🛵 Entrega / Taxas</h2>
+      <label class="switch"><input type="checkbox" id="e_ativo" /> Mostrar opção de entrega no menu</label>
+      <label>Título no menu</label><input type="text" id="e_titulo" />
+      <label>Palavras-chave (separadas por vírgula)</label><input type="text" id="e_gatilhos" />
+      <label>Texto de introdução</label><textarea id="e_intro"></textarea>
+      <label>Rodapé (opcional)</label><textarea id="e_rodape"></textarea>
+      <label>📍 Endereço de partida (a loja)</label>
+      <p class="dica">Usado para medir a distância até o endereço do cliente. Coloque o endereço completo e real da loja (rua, número, bairro, cidade - UF).</p>
+      <input type="text" id="e_origem" />
+      <label>Tabela de taxas (serviço · até km · valor · observação)</label>
+      <p class="dica">O bot calcula sozinho: pelo serviço + distância, escolhe a faixa "até X km". Deixe o <b>km vazio</b> para um local fixo (ex.: Caucaia). A <b>observação</b> é opcional (bairro/referência).</p>
+      <datalist id="servicos_entrega">
+        <option value="Entrega (moto)"></option>
+        <option value="Táxi Dog moto (ida e volta)"></option>
+        <option value="Táxi Dog carro (ida e volta)"></option>
+      </datalist>
+      <div id="lista_taxas"></div>
+      <button class="add" onclick="addTaxa()">+ Adicionar taxa</button>
+    </section>
+
+    <section class="card">
+      <h2>⚙️ Palavras-chave gerais</h2>
+      <label>Pedir atendente humano (vírgula)</label><input type="text" id="g_atendente" />
+      <label>Abrir o menu / saudação (vírgula)</label><input type="text" id="g_saudacao" />
+    </section>
+  </main>
+
+  <div class="rodape-fixo">
+    <span id="status"></span>
+    <button class="salvar" id="btnSalvar" onclick="salvar()">💾 Salvar tudo</button>
+  </div>
+
+  <script>
+    let cfg = null;
+
+    function el(id) { return document.getElementById(id); }
+    function slug(s) {
+      return (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "item_" + Date.now();
+    }
+    function listaParaTexto(arr) { return (arr || []).join(", "); }
+    function textoParaLista(t) { return (t || "").split(",").map(s => s.trim()).filter(Boolean); }
+
+    // ---- Serviços / FAQ (mesma estrutura) ----
+    function itemHtml(prefixo, idx, o) {
+      const div = document.createElement("div");
+      div.className = "item";
+      div.innerHTML = `
+        <div class="titulo-linha">
+          <div><label>Título (aparece no menu)</label><input type="text" class="${prefixo}_titulo" value="${esc(o.titulo)}" /></div>
+          <button class="lixeira" onclick="this.closest('.item').remove()">🗑 remover</button>
+        </div>
+        <label>Palavras-chave (vírgula)</label>
+        <input type="text" class="${prefixo}_gatilhos" value="${esc(listaParaTexto(o.gatilhos))}" />
+        <label>Resposta enviada ao cliente</label>
+        <textarea class="${prefixo}_resposta">${esc(o.resposta)}</textarea>
+        <input type="hidden" class="${prefixo}_chave" value="${esc(o.chave || '')}" />`;
+      return div;
+    }
+    function addServico() { el("lista_servicos").appendChild(itemHtml("sv", 0, { titulo: "", gatilhos: [], resposta: "" })); }
+    function addFaq() { el("lista_faq").appendChild(itemHtml("fq", 0, { titulo: "", gatilhos: [], resposta: "" })); }
+
+    function coletarItens(containerId, prefixo) {
+      const out = [];
+      el(containerId).querySelectorAll(".item").forEach(item => {
+        const titulo = item.querySelector("." + prefixo + "_titulo").value.trim();
+        if (!titulo) return;
+        let chave = item.querySelector("." + prefixo + "_chave").value.trim() || slug(titulo);
+        out.push({
+          chave,
+          titulo,
+          gatilhos: textoParaLista(item.querySelector("." + prefixo + "_gatilhos").value),
+          resposta: item.querySelector("." + prefixo + "_resposta").value,
+        });
+      });
+      return out;
+    }
+
+    // ---- Taxas ----
+    function taxaHtml(t) {
+      const div = document.createElement("div");
+      div.className = "taxa-linha";
+      const km = (t.ate_km === null || t.ate_km === undefined) ? "" : t.ate_km;
+      div.innerHTML = `
+        <input type="text" class="tx_servico" list="servicos_entrega" placeholder="Serviço" value="${esc(t.servico || '')}" style="flex:2" />
+        <input type="text" class="tx_km" placeholder="até km" value="${esc(km)}" style="flex:0 0 64px" />
+        <input type="text" class="tx_valor" placeholder="Valor" value="${esc(t.valor || '')}" style="flex:0 0 80px" />
+        <input type="text" class="tx_obs" placeholder="Obs (bairro/ref.)" value="${esc(t.obs || '')}" style="flex:1" />
+        <button class="lixeira" onclick="this.closest('.taxa-linha').remove()">🗑</button>`;
+      return div;
+    }
+    function addTaxa() { el("lista_taxas").appendChild(taxaHtml({})); }
+    function coletarTaxas() {
+      const out = [];
+      el("lista_taxas").querySelectorAll(".taxa-linha").forEach(l => {
+        const servico = l.querySelector(".tx_servico").value.trim();
+        const kmRaw = l.querySelector(".tx_km").value.trim();
+        const valor = l.querySelector(".tx_valor").value.trim();
+        const obs = l.querySelector(".tx_obs").value.trim();
+        if (!servico && !valor) return;
+        let ate_km = "";
+        if (kmRaw !== "") { const n = Number(kmRaw.replace(",", ".")); ate_km = isNaN(n) ? "" : n; }
+        out.push({ servico, ate_km, valor, obs });
+      });
+      return out;
+    }
+
+    function esc(s) { return String(s == null ? "" : s).replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
+
+    // ---- Carregar ----
+    async function carregar() {
+      cfg = await (await fetch("/api/config")).json();
+      const n = cfg.negocio, m = cfg.mensagens, e = cfg.entrega;
+      el("hNome").textContent = n.nome;
+      ["nome","tipo","endereco","telefone","horarioSemana","horarioSabado","horarioDomingo","pagamento"]
+        .forEach(k => el("n_" + k).value = n[k] || "");
+      ["saudacaoIntro","saudacaoChamada","saudacaoRodape","atendente"].forEach(k => el("m_" + k).value = m[k] || "");
+      cfg.servicos.forEach(s => el("lista_servicos").appendChild(itemHtml("sv", 0, s)));
+      cfg.faqRapido.forEach(f => el("lista_faq").appendChild(itemHtml("fq", 0, f)));
+      el("e_ativo").checked = !!e.ativo;
+      el("e_titulo").value = e.titulo || "";
+      el("e_gatilhos").value = listaParaTexto(e.gatilhos);
+      el("e_intro").value = e.intro || "";
+      el("e_rodape").value = e.rodape || "";
+      el("e_origem").value = (e.origem && e.origem.endereco) || "";
+      (e.taxas || []).forEach(t => el("lista_taxas").appendChild(taxaHtml(t)));
+      el("g_atendente").value = listaParaTexto(cfg.gatilhosAtendente);
+      el("g_saudacao").value = listaParaTexto(cfg.gatilhosSaudacao);
+    }
+
+    // ---- Salvar ----
+    async function salvar() {
+      const novo = {
+        negocio: {},
+        mensagens: {},
+        servicos: coletarItens("lista_servicos", "sv"),
+        faqRapido: coletarItens("lista_faq", "fq"),
+        entrega: {
+          ativo: el("e_ativo").checked,
+          titulo: el("e_titulo").value.trim(),
+          gatilhos: textoParaLista(el("e_gatilhos").value),
+          intro: el("e_intro").value,
+          rodape: el("e_rodape").value,
+          origem: { endereco: el("e_origem").value.trim() },
+          taxas: coletarTaxas(),
+        },
+        gatilhosAtendente: textoParaLista(el("g_atendente").value),
+        gatilhosSaudacao: textoParaLista(el("g_saudacao").value),
+      };
+      ["nome","tipo","endereco","telefone","horarioSemana","horarioSabado","horarioDomingo","pagamento"]
+        .forEach(k => novo.negocio[k] = el("n_" + k).value.trim());
+      ["saudacaoIntro","saudacaoChamada","saudacaoRodape","atendente"].forEach(k => novo.mensagens[k] = el("m_" + k).value);
+
+      const btn = el("btnSalvar"), status = el("status");
+      btn.disabled = true; status.textContent = "Salvando...";
+      status.className = "";
+      try {
+        const r = await fetch("/api/config", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(novo),
+        });
+        const j = await r.json();
+        if (j.ok) { status.textContent = "✅ Salvo! O bot já está usando as mudanças."; status.className = "ok"; el("hNome").textContent = novo.negocio.nome; }
+        else { status.textContent = "❌ " + (j.erro || "Erro ao salvar"); status.className = "erro"; }
+      } catch (err) {
+        status.textContent = "❌ Não consegui salvar: " + err.message; status.className = "erro";
+      } finally {
+        btn.disabled = false;
+        setTimeout(() => { if (status.className === "ok") status.textContent = ""; }, 5000);
+      }
+    }
+
+    carregar();
+  </script>
+</body>
+</html>
