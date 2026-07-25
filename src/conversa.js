@@ -22,6 +22,9 @@ async function enviarImagem(para, link, legenda) { metricas.inc("enviada"); retu
 // URL pública do painel (pra montar o link das fotos do catálogo no WhatsApp).
 const PUBLIC_URL = (process.env.PUBLIC_URL || "https://bots.gestalizesystems.com.br").replace(/\/$/, "");
 
+// Aviso enviado SEMPRE junto com a saudação (novo sistema em testes).
+const AVISO_SISTEMA = "🔔 Estamos com um novo sistema de atendimento por aqui, ainda em fase de *testes*! Se tiver alguma sugestão, pode deixar no final da conversa. 🐾";
+
 // Envia até 5 produtos achados como foto + nome + preço (formato de catálogo).
 async function enviarProdutos(from, produtos) {
   for (const p of (produtos || []).slice(0, 5)) {
@@ -323,7 +326,8 @@ async function processar(from, texto, nomeWpp) {
       } else {
         aguardandoNome.add(from); // cliente novo → pergunta o nome antes do menu
         menuContexto.delete(from);
-        r.resposta = config.preencher(dados.mensagens.saudacaoNome || "Olá! 🐾 Seja muito bem-vindo(a) à {nome}! Antes de começar, como posso te chamar? 😊");
+        r.resposta = config.preencher(dados.mensagens.saudacaoNome || "Olá! 🐾 Seja muito bem-vindo(a) à {nome}! Antes de começar, como posso te chamar? 😊")
+          + "\n\n" + AVISO_SISTEMA; // aviso do novo sistema — SOMENTE para clientes novos (sem nome ainda)
       }
     }
   }

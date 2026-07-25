@@ -1279,8 +1279,16 @@
           <div class="vs">no período</div>
         </div>`).join("");
     }
+    function abrirAtendimentos() { mostrarPagina("page-atendimentos", document.querySelector('.nav-item[data-target="page-atendimentos"]')); }
     function renderTempoReal() {
-      el("dashTempoReal").innerHTML = '<p class="dica" style="padding:10px 2px">As conversas acontecem direto no WhatsApp — o histórico completo de cada cliente fica lá. 🐾</p>';
+      const c = el("dashTempoReal"); if (!c) return;
+      const lista = atendimentosPend || [];
+      if (!lista.length) { c.innerHTML = '<p class="dica" style="padding:10px 2px">Nenhum cliente aguardando atendimento no momento. 🎉</p>'; return; }
+      c.innerHTML = lista.slice(0, 3).map(a => `
+        <div class="rt"><div class="av">${esc((a.nome || "?").charAt(0).toUpperCase())}</div>
+          <div class="info"><div class="nome">${esc(a.nome || "(sem nome)")}</div><div class="msg">${esc(a.resumo || a.motivo || "")}</div></div>
+          <div class="dir"><span class="tag humano">Aguardando</span><div class="tempo">há ${tempoRel(a.atualizadoEm)}</div></div></div>`).join("")
+        + `<button class="add" style="width:100%;margin-top:8px" onclick="abrirAtendimentos()">Ver mais (${lista.length}) →</button>`;
     }
     function renderServicos(m) {
       const top = (m && m.topServicos) || [];
@@ -1666,7 +1674,7 @@
     async function carregarAtendimentos() {
       try { const d = await (await fetch("/api/atendimentos")).json(); atendimentosPend = d.pendentes || []; }
       catch (_) { atendimentosPend = []; }
-      pintarBadgeAtendimentos(); renderAtendimentos();
+      pintarBadgeAtendimentos(); renderAtendimentos(); renderTempoReal();
     }
     function renderAtendimentos() {
       const c = el("listaAtendimentos"); if (!c) return;

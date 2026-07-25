@@ -26,11 +26,11 @@
   <style>
     :root {
       --azul: #2563eb; --azul-vivo: #2f6bf6; --azul-escuro: #1d4ed8; --azul-medio: #3b82f6;
-      --azul-claro: #eaf1fe; --texto: #1e293b; --escuro: #0f172a; --suave: #64748b; --borda: #e6ebf4;
+      --azul-claro: rgba(37,99,235,.18); --texto: #dfe7f5; --escuro: #f1f5f9; --suave: #94a4bf; --borda: rgba(255,255,255,.13);
     }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: "Poppins", -apple-system, system-ui, sans-serif; color: var(--texto);
-      background: #f4f7fc; min-height: 100vh; position: relative; overflow-x: hidden; }
+      background: radial-gradient(1200px 820px at 50% -22%, rgba(32,66,150,0.10), transparent 62%), #0a0e18; min-height: 100vh; position: relative; overflow-x: hidden; }
 
     /* ===== Decorações de fundo ===== */
     .deco { position: fixed; pointer-events: none; z-index: 0; }
@@ -38,13 +38,15 @@
     .deco-blob1 { top: -120px; left: -120px; width: 420px; height: 420px; border-radius: 50%;
       background: radial-gradient(circle at 50% 50%, rgba(79,140,246,.10), transparent 70%); }
     .deco-blob2 { top: -70px; right: 40px; width: 540px; height: 500px; border-radius: 50%;
-      background: radial-gradient(circle at 58% 42%, rgba(202,210,228,.6), transparent 62%); }
+      background: radial-gradient(circle at 58% 42%, rgba(32,52,110,.40), transparent 62%); }
     .deco-blob3 { bottom: -60px; left: -40px; width: 520px; height: 380px; border-radius: 50%;
-      background: radial-gradient(circle at 42% 60%, rgba(206,214,232,.5), transparent 62%); }
+      background: radial-gradient(circle at 42% 60%, rgba(32,52,110,.34), transparent 62%); }
     /* suaviza as linhas/ondas que passam atrás do texto da esquerda */
     .deco-veil { top: 6%; left: 0; width: 52%; height: 84%;
-      background: radial-gradient(ellipse 62% 56% at 42% 50%, rgba(244,247,252,.8), rgba(244,247,252,0) 72%); }
+      background: radial-gradient(ellipse 62% 56% at 42% 50%, rgba(9,13,24,.78), rgba(9,13,24,0) 72%); }
     .deco-wave { top: 0; left: 0; width: 100%; height: 100%; opacity: .95; }
+    /* remove as listras (ondas) e as formas navy; o glow de fundo agora é desenhado atrás de cada grupo de pontinhos */
+    .deco-blob1, .deco-blob2, .deco-blob3, .deco-wave, .deco-veil { display: none; }
 
     /* ===== Layout ===== */
     .wrap { position: relative; z-index: 1; max-width: 1120px; margin: 0 auto; min-height: 100vh;
@@ -60,7 +62,7 @@
     .esq h2 b { color: var(--azul); font-weight: 700; }
     .esq .desc { color: var(--suave); font-size: 16px; margin: 0 0 34px; line-height: 1.55; max-width: 420px; }
     .features { list-style: none; padding: 0; margin: 0 0 40px; display: flex; flex-direction: column; gap: 18px; }
-    .features li { display: flex; align-items: center; gap: 14px; font-weight: 600; color: #334155; font-size: 15.5px; }
+    .features li { display: flex; align-items: center; gap: 14px; font-weight: 600; color: #c6d1e6; font-size: 15.5px; }
     .fic { width: 42px; height: 42px; border-radius: 12px; background: var(--azul-claro); color: var(--azul);
       display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
     .seg { position: fixed; left: 56px; bottom: 32px; z-index: 2; display: flex; align-items: center; gap: 12px; }
@@ -70,24 +72,34 @@
     .seg small { font-size: 13px; color: var(--suave); }
 
     /* ===== Direita — card ===== */
-    .card { background: #fff; border-radius: 26px; padding: 44px 40px;
-      box-shadow: 0 24px 70px rgba(37,99,235,.13), 0 6px 22px rgba(15,23,42,.05); border: 1px solid #eef2f9; }
+    .card { background: #141d33; border-radius: 26px; padding: 44px 40px;
+      box-shadow: 0 24px 70px rgba(0,0,0,.5), 0 6px 26px rgba(37,99,235,.20); border: 1px solid rgba(255,255,255,.08); }
     .col-dir { display: flex; flex-direction: column; }
     .escudo { width: 64px; height: 64px; border-radius: 50%; background: var(--azul-claro); color: var(--azul);
       margin: 0 auto 18px; display: flex; align-items: center; justify-content: center; }
     .card h2 { text-align: center; margin: 0 0 6px; font-size: 26px; color: var(--escuro); font-weight: 700; }
     .card .sub { text-align: center; color: var(--suave); margin: 0 0 30px; font-size: 14.5px; }
-    label { display: block; font-weight: 600; font-size: 14px; margin: 0 0 9px; color: #334155; }
+    label { display: block; font-weight: 600; font-size: 14px; margin: 0 0 9px; color: #c6d1e6; }
     .campo { display: flex; align-items: center; gap: 11px; border: 1.5px solid var(--borda); border-radius: 13px;
-      padding: 0 16px; margin-bottom: 20px; transition: border .15s, box-shadow .15s; background: #fff; }
+      padding: 0 16px; margin-bottom: 20px; transition: border .15s, box-shadow .15s; background: #0e1730; }
     .campo:focus-within { border-color: var(--azul); box-shadow: 0 0 0 3px rgba(37,99,235,.14); }
     .campo .ic { color: var(--azul); display: flex; flex: 0 0 auto; }
     .campo input { flex: 1; border: none; outline: none; background: transparent; padding: 15px 0; font-size: 15px;
       font-family: inherit; color: var(--texto); }
     .campo input::placeholder { color: #94a3b8; }
+    /* impede o navegador (autofill) de pintar o campo de branco ao preencher */
+    .campo input:-webkit-autofill,
+    .campo input:-webkit-autofill:hover,
+    .campo input:-webkit-autofill:focus,
+    .campo input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 1000px #0e1730 inset;
+      -webkit-text-fill-color: var(--texto);
+      caret-color: var(--texto);
+      transition: background-color 9999s ease-in-out 0s;
+    }
     .olho { background: none; border: none; cursor: pointer; color: #94a3b8; padding: 4px; display: flex; }
     .linha { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; font-size: 14px; }
-    .chk { display: flex; align-items: center; gap: 9px; font-weight: 500; color: #475569; margin: 0; cursor: pointer; }
+    .chk { display: flex; align-items: center; gap: 9px; font-weight: 500; color: #b8c4da; margin: 0; cursor: pointer; }
     .chk input { accent-color: var(--azul); width: 17px; height: 17px; border-radius: 5px; }
     .linha a { color: var(--azul); font-weight: 600; text-decoration: none; }
     .btn-entrar { position: relative; width: 100%; background: var(--azul-vivo); color: #fff; border: none; border-radius: 13px;
@@ -99,7 +111,7 @@
     .divisor { text-align: center; color: var(--suave); font-size: 14px; margin: 26px 0 18px; position: relative; }
     .divisor::before, .divisor::after { content: ""; position: absolute; top: 50%; width: 36%; height: 1px; background: var(--borda); }
     .divisor::before { left: 0; } .divisor::after { right: 0; }
-    .btn-criar { width: 100%; background: #fff; color: var(--azul); border: 1.5px solid var(--borda); border-radius: 13px;
+    .btn-criar { width: 100%; background: transparent; color: var(--azul-medio); border: 1.5px solid var(--borda); border-radius: 13px;
       padding: 15px; font-size: 15.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center;
       justify-content: center; gap: 11px; transition: border .15s, background .15s; font-family: inherit; }
     .btn-criar:hover { border-color: var(--azul); background: var(--azul-claro); }
@@ -112,7 +124,7 @@
     .marca-mob, .primeiro-mob, .plat-mob { display: none; }
 
     @media (max-width: 900px) {
-      body { background: #fff; }
+      body { background: #0a0e1a; }
       .deco { display: none; }
       .esq { display: none; }
       .wrap { grid-template-columns: 1fr; max-width: 440px; padding: 26px 22px 40px; align-items: start; }
@@ -138,12 +150,12 @@
       .ou-mob { text-align: center; color: var(--suave); font-size: 14px; position: relative; margin-bottom: 18px; }
       .ou-mob::before, .ou-mob::after { content: ""; position: absolute; top: 50%; width: 42%; height: 1px; background: var(--borda); }
       .ou-mob::before { left: 0; } .ou-mob::after { right: 0; }
-      .pcard { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 14px; background: #f6f8fc; border: 1px solid #eef2f9; border-radius: 16px; padding: 18px; }
+      .pcard { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 14px; background: #141d33; border: 1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 18px; }
       .picon { width: 46px; height: 46px; border-radius: 50%; background: var(--azul-claro); color: var(--azul); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
       .ptxt { flex: 1 1 0; min-width: 150px; }
       .ptxt strong { display: block; color: var(--escuro); font-size: 15.5px; font-weight: 700; }
       .ptxt span { color: var(--suave); font-size: 13px; line-height: 1.4; }
-      .pbtn { flex: 1 1 100%; background: #fff; color: var(--azul); border: 1.5px solid #cfdcf3; border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 2px; }
+      .pbtn { flex: 1 1 100%; background: transparent; color: var(--azul-medio); border: 1.5px solid rgba(255,255,255,.14); border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 2px; }
       .pbtn:hover { border-color: var(--azul); background: var(--azul-claro); }
 
       /* rodapé: descrição da plataforma + copyright */
@@ -265,43 +277,24 @@
   </div>
 
   <script>
-    // ===== Pontinhos interativos (fogem do cursor pela tela e voltam ao lugar) =====
+    // ===== Grade de pontos sutil e interativa (acendem/afastam perto do cursor) =====
     (function () {
       const canvas = document.getElementById("dotsCanvas");
       const ctx = canvas.getContext("2d");
-      const COR = "#c4d2ec", RAIO = 1.6;
-      const ALCANCE = 150;   // distância em que o cursor começa a empurrar
-      const FORCA = 6;       // intensidade do empurrão (quanto eles correm)
-      const MOLA = 0.012;    // força que puxa de volta à posição original
-      const ATRITO = 0.88;   // desaceleração (suaviza o movimento)
+      const ESP = 30;        // espaçamento da grade
+      const RAIO = 1.5;      // tamanho do ponto
+      const ALCANCE = 180;   // raio de influência do cursor
+      const A_BASE = 0.05;   // opacidade em repouso (bem discreto)
+      const A_ATIVO = 0.7;   // opacidade perto do cursor
+      const FORCA = 3.2, MOLA = 0.02, ATRITO = 0.86; // repulsão suave + retorno
       let dots = [], mx = -9999, my = -9999;
 
-      function grade(ox, oy, cols, rows, esp) {
-        const cx = (cols - 1) / 2, cy = (rows - 1) / 2;
-        for (let c = 0; c < cols; c++)
-          for (let r = 0; r < rows; r++) {
-            const x = ox + c * esp, y = oy + r * esp;
-            // transparência radial: centro mais forte, bordas mais suaves (mas visíveis)
-            const nx = cx ? (c - cx) / cx : 0, ny = cy ? (r - cy) / cy : 0;
-            const t = Math.min(1, Math.hypot(nx, ny));
-            const a = 1 - t * 0.72; // centro ~1.0, borda ~0.28
-            dots.push({ hx: x, hy: y, x, y, vx: 0, vy: 0, a });
-          }
-      }
-      const COLS = 26, ROWS = 15, ESP = 11; // dobro de pontos por grupo, mesmo efeito
       function gerar() {
         dots = [];
         const W = innerWidth, H = innerHeight;
-        const gw = COLS * ESP, gh = ROWS * ESP;
-        grade(42, 40, COLS, ROWS, ESP);               // superior esquerdo
-        grade(42, H - gh - 130, COLS, ROWS, ESP);     // inferior esquerdo (subiu p/ não colidir com as ondas)
-        grade(W - gw - 40, H - gh - 40, COLS, ROWS, ESP); // inferior direito
-        // grupo ao lado do título "Gestalize Bots" (centralizado verticalmente nele)
-        const wm = document.querySelector(".wordmark");
-        if (wm) {
-          const r = wm.getBoundingClientRect();
-          if (r.width > 0) grade(r.right + 26, r.top + r.height / 2 - gh / 2, COLS, ROWS, ESP);
-        }
+        for (let x = ESP; x < W; x += ESP)
+          for (let y = ESP; y < H; y += ESP)
+            dots.push({ hx: x, hy: y, x, y, vx: 0, vy: 0 });
       }
       function dimensoes() {
         const dpr = window.devicePixelRatio || 1;
@@ -315,20 +308,15 @@
 
       function loop() {
         ctx.clearRect(0, 0, innerWidth, innerHeight);
-        ctx.fillStyle = COR;
         for (const d of dots) {
-          // empurrão a partir da posição ATUAL (eles continuam fugindo enquanto o cursor chega perto)
           const dx = d.x - mx, dy = d.y - my, dist = Math.hypot(dx, dy) || 0.01;
-          if (dist < ALCANCE) {
-            const f = (1 - dist / ALCANCE) * FORCA;
-            d.vx += (dx / dist) * f; d.vy += (dy / dist) * f;
-          }
-          // mola de volta ao lugar de origem + atrito
-          d.vx += (d.hx - d.x) * MOLA;
-          d.vy += (d.hy - d.y) * MOLA;
-          d.vx *= ATRITO; d.vy *= ATRITO;
-          d.x += d.vx; d.y += d.vy;
-          ctx.globalAlpha = d.a;
+          const prox = dist < ALCANCE ? 1 - dist / ALCANCE : 0;
+          if (prox > 0) { const f = prox * FORCA; d.vx += (dx / dist) * f; d.vy += (dy / dist) * f; }
+          d.vx += (d.hx - d.x) * MOLA; d.vy += (d.hy - d.y) * MOLA;
+          d.vx *= ATRITO; d.vy *= ATRITO; d.x += d.vx; d.y += d.vy;
+          const p = prox * prox; // realce concentrado bem perto do cursor
+          ctx.globalAlpha = A_BASE + (A_ATIVO - A_BASE) * p;
+          ctx.fillStyle = p > 0.03 ? "#6f9bf2" : "#8aa0c6";
           ctx.beginPath(); ctx.arc(d.x, d.y, RAIO, 0, Math.PI * 2); ctx.fill();
         }
         ctx.globalAlpha = 1;
@@ -366,7 +354,7 @@
         }
         return d;
       }
-      const cores = ["#b6cbef", "#bfd2f1", "#c8d8f3", "#d1ddf5", "#dae5f7", "#e4ecfa"];
+      const cores = ["#16244a", "#1a2c58", "#1f3468", "#243c78", "#294488", "#2f4d98"];
       let html = '<defs><filter id="ondaSombra" x="-5%" y="-12%" width="115%" height="132%">'
         + '<feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#6f8cc7" flood-opacity="0.32"/></filter></defs>';
       html += `<path d="${onda(0)} L1440 900 L0 900 Z" fill="#e6edfa" opacity="0.4"/>`;
