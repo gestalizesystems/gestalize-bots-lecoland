@@ -375,6 +375,8 @@ function _extrairTermoBusca(texto) {
 
   if (!termo || termo.length < 3) return null;
   if (/^(?:ra[cç][aã]o|rem[eé]dio|produto|medicamento|alimento|comida|petisco|sach[eê])s?$/i.test(termo)) return null;
+  // Respostas conversacionais (negação, confirmação, "ele não tomou") → cai na IA para manter contexto
+  if (/^(n[aã]o|sim|claro|ok\b|certo|exato|nunca|nenhum[a]?|tudo\s+bem|tudo\s+certo|isso|esse|esta)/i.test(termo)) return null;
   return termo;
 }
 

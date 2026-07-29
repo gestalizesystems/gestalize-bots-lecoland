@@ -116,7 +116,16 @@ function norm(s) {
 }
 
 // Conectivos ignorados na busca por texto (não ajudam a casar e atrapalham o "todas as palavras").
-const STOPWORDS = new Set(["de", "do", "da", "para", "pra", "pro", "com", "e", "o", "a", "os", "as", "em", "no", "na", "ml", "mg"]);
+const STOPWORDS = new Set([
+  "de", "do", "da", "dos", "das", "para", "pra", "pro", "com", "e", "o", "a", "os", "as", "em", "no", "na", "ml", "mg",
+  // Pronomes pessoais/possessivos — nunca identificam um produto
+  "ele", "ela", "eles", "elas", "eu", "tu", "nos", "voce", "voces",
+  "meu", "minha", "meus", "minhas", "seu", "sua", "seus", "suas",
+  // Indefinidos e advérbios conversacionais — nunca identificam um produto
+  "nenhum", "nenhuma", "nenhuns", "nenhumas", "nada", "ninguem",
+  "ainda", "ja", "so", "ate", "nunca", "sempre", "tambem", "mesmo",
+  "isso", "esse", "essa", "esses", "essas", "este", "esta", "estes", "estas", "aquele", "aquela",
+]);
 
 // Sinônimos de busca: a palavra da esquerda casa se QUALQUER termo à direita aparecer no produto.
 // Resolve os nomes técnicos do catálogo: gato↔cat, cão↔dog, e "a quilo/kg/fracionado" = GRANEL.
