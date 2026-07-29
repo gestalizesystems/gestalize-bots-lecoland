@@ -76,6 +76,22 @@ const TOOLS = [
         },
       },
       {
+        name: "obter_info_granel",
+        description:
+          "Obtém as informações de ração a granel (preços, disponibilidade, como funciona) registradas nas respostas rápidas da loja, para cães ou gatos. Use APENAS quando o cliente quiser ração a granel (no quilo / fracionado) sem citar uma marca específica. Não use para ração em saca fechada.",
+        parameters: {
+          type: "object",
+          properties: {
+            especie: {
+              type: "string",
+              enum: ["cao", "gato"],
+              description: "Espécie do pet: 'cao' para cão/cachorro, 'gato' para gato.",
+            },
+          },
+          required: ["especie"],
+        },
+      },
+      {
         name: "encaminhar_para_atendente",
         description:
           "Use quando o atendimento precisar de um ATENDENTE HUMANO. Exemplos: AGENDAR/MARCAR/TRAZER pet pro BANHO ou TOSA (confirmar vaga e horário), exames (precisa da guia do veterinário), fechar valor de pacote de banho de cliente frequente, venda de aves/animais (ex.: calopsita), reclamações, ENTREGA de medicamento/pedido a fechar, ou qualquer caso fora do seu conhecimento. NÃO use só porque o cliente mandou uma receita — primeiro busque os medicamentos no catálogo e passe os valores. Ao chamar esta função, escreva TAMBÉM uma mensagem curta e simpática avisando o cliente que você já vai chamar um atendente.",
@@ -261,6 +277,17 @@ async function executarFuncao(nome, args, contactId) {
   if (nome === "buscar_produtos") {
     return buscarProdutos(args || {});
   }
+  if (nome === "obter_info_granel") {
+    const especie = (args && args.especie) || "";
+    const extras = config.get().mensagensExtras || [];
+    const ehGato = /^gat/i.test(especie);
+    const found = extras.find((x) => {
+      const t = norm(x.titulo);
+      return t.includes("granel") && (ehGato ? (t.includes("gato") || t.includes("cat")) : (t.includes("cao") || t.includes("caes") || t.includes("cao") || t.includes("dog") || t.includes("can")));
+    });
+    if (found) return { titulo: found.titulo, resposta: found.resposta, ok: true };
+    return { ok: false, erro: "Resposta rápida de granel não encontrada. Encaminhe para um atendente." };
+  }
   if (nome === "encaminhar_para_atendente") {
     return { ok: true, instrucao: "Escreva uma mensagem curta e simpática avisando o cliente que você já vai chamar um atendente humano para continuar o atendimento por aqui." };
   }
@@ -345,12 +372,13 @@ function montarContexto(cliente) {
     "- IMPORTANTE: pergunta sobre UM produto NUNCA é respondida com o menu de saudação nem pedindo para o cliente escolher 1/2/3. SEMPRE use a função buscar_produtos.",
     "- NUNCA diga que 'não temos' um produto sem ANTES ter chamado buscar_produtos com o nome dele. Ao procurar um produto ESPECÍFICO (uma marca ou item de receita, ex.: 'Hepvet', 'Vetmax'), busque pela MARCA/NOME com POUCAS palavras (ex.: texto 'hepvet'), NÃO a descrição inteira (embalagem, ml, apresentação) — o nome no catálogo é técnico e o excesso de palavras faz a busca falhar.",
     "- RECEITA / LISTA DE REMÉDIOS: quando chegar uma receita com vários itens, CHAME buscar_produtos para CADA item (pelo nome/marca) antes de dizer se tem ou não. Os produtos encontrados são enviados com foto automaticamente.",
-    "- RAÇÃO (e itens com variação, como vermífugo): ANTES de mandar o catálogo, você PRECISA saber (1) cão ou gato, (2) adulto ou filhote, (3) alguma necessidade especial (castrado, controle de peso/acima do peso, idoso, porte). Pergunte UMA coisa por vez, só o que faltar — comece por 'É para cão ou gato?'. NÃO pergunte o NOME nem a RAÇA do pet pra ração/produto (isso é só pra banho/tosa/consulta/vacina). SÓ depois de ter essas infos, CHAME buscar_produtos com o texto montado (ex.: 'racao gato castrado').",
-    "- A GRANEL / QUILO / KG / FRACIONADO: quando o cliente falar em QUILO, KILO, KG, GRANEL ou FRACIONADO (ex.: 'rações no quilo', '1kg de ração', 'tem fracionada?'), ele se refere às rações a GRANEL. SEMPRE busque com o texto 'granel <espécie>' — ex.: 'granel gato' ou 'granel cao' (nunca só 'quilo' nem só 'granel' sem a espécie).",
+    "- RAÇÃO — MARCA + SABOR/VARIANTE JÁ INFORMADOS (prioridade máxima): se o cliente mencionar MARCA + SABOR ou VARIANTE específica (ex.: 'chanin peixe', 'friskies mix', 'golden salmão', 'fargo frango 25kg', 'premier gato castrado'), busque DIRETO com buscar_produtos usando SÓ o texto informado (ex.: texto 'chanin peixe 25kg'). NÃO pergunte cão/gato, adulto/filhote, saca/granel. NÃO inclua 'cao' nem 'gato' no texto da busca — a marca+variante já identifica o produto. Se o cliente informar tamanho em kg, isso é SACA (inclua no texto). Se quiser granel, ele dirá 'granel' ou 'a quilo'.",
+    "- RAÇÃO (sem marca ou variante definidas): quando o cliente pedir ração genericamente (ex.: 'quero uma ração', 'tem ração pra gato?'), aí sim pergunte UMA coisa por vez, só o que faltar: (1) cão ou gato, (2) adulto ou filhote, (3) necessidade especial (castrado, controle de peso, idoso). NÃO pergunte NOME nem RAÇA do pet (só pra banho/tosa/consulta). Com essas infos, CHAME buscar_produtos com o texto montado (ex.: 'racao gato castrado'). NÃO inclua a espécie na query quando buscar por marca específica.",
+    "- A GRANEL / QUILO / FRACIONADO (sem marca): quando o cliente pedir ração 'no quilo', 'granel', 'fracionado' SEM especificar marca ou sabor, NÃO chame buscar_produtos. Em vez disso: (1) se ainda não souber se é para cão ou gato, PERGUNTE 'É para cão ou gato? 🐾'; (2) assim que souber a espécie, CHAME obter_info_granel(especie='cao' ou 'gato') — a resposta registrada será enviada automaticamente. Quando o cliente CITAR uma marca ou sabor específico junto com granel (ex.: 'chanin frango no quilo'), aí sim busque com buscar_produtos usando texto 'granel <marca> <sabor>' — sem adicionar espécie.",
     "- ESPÉCIE (NUNCA MISTURE): se o cliente pediu para GATO, só ofereça produtos de GATO; se pediu para CÃO, só de CÃO. É PROIBIDO mostrar ração/produto de cão quando pediram para gato (e vice-versa). Se não tivermos para a espécie pedida, diga que não temos e ofereça buscar outra opção PARA A MESMA ESPÉCIE — nunca sugira a outra espécie.",
-    "- MARCAS DE UMA ESPÉCIE SÓ: algumas marcas de ração são só de cão ou só de gato (veja a base de conhecimento). Se o cliente citar uma dessas marcas, NÃO pergunte 'cão ou gato' — busque DIRETO pela marca e mande o valor.",
-    "- RAÇÃO — SEMPRE PERGUNTE 'SACA OU GRANEL' ANTES DE ENVIAR: vale para QUALQUER ração (por marca como 'vetlife', 'chanin', 'golden', OU por tipo como 'ração urinária pra gato'). Se o cliente NÃO disse se quer saca ou granel, você DEVE perguntar PRIMEIRO e NÃO enviar nenhum produto ainda: 'Você quer em *saca* (fechada) ou a *granel* (por quilo)? 🐾'. Depois da resposta: SACA → CHAME buscar_produtos com texto 'saca <ração>' (sacas fechadas: 1kg, 7,5kg, 10kg, 15kg, 20kg, 25kg...); GRANEL → texto 'granel <ração>'. Só pule a pergunta se você já tiver certeza de que aquela ração existe SÓ a granel ou SÓ em saca.",
-    "- TAMANHO EM KG = SACA: se o cliente pedir um tamanho específico (ex.: 'de 7kg?', 'tem de 15kg?'), ele quer a SACA fechada desse tamanho — CHAME buscar_produtos com texto 'saca <ração> <tamanho>' (ex.: 'saca vetlife gato 7kg'). NÃO responda com o granel. Se não tiver aquele tamanho em saca, diga que não temos esse tamanho e ofereça os tamanhos/opções que temos.",
+    "- MARCAS DE UMA ESPÉCIE SÓ: algumas marcas são só de cão ou só de gato (veja a base de conhecimento). Se o cliente citar essas marcas, NÃO pergunte 'cão ou gato' — busque DIRETO pela marca.",
+    "- RAÇÃO — SACA OU GRANEL: pergunte 'Você quer em *saca* (fechada) ou a *granel* (por quilo)? 🐾' quando o cliente pedir ração genericamente e não tiver deixado claro. PULE a pergunta se: (a) o cliente já informou tamanho em kg (ex.: '25kg' = saca); (b) o cliente disse 'granel', 'a quilo', 'fracionado'; (c) o cliente especificou marca+sabor (busque direto, conforme regra acima). SACA → texto 'saca <ração>'; GRANEL → texto 'granel <ração>'.",
+    "- TAMANHO EM KG = SACA: se o cliente pedir um tamanho específico (ex.: 'de 7kg?', 'tem de 15kg?'), ele quer a SACA fechada desse tamanho — CHAME buscar_produtos com texto '<ração> <tamanho>' (ex.: 'chanin peixe 25kg'). NÃO responda com o granel. Se buscar_produtos retornar 0 para aquele tamanho, CHAME buscar_produtos NOVAMENTE sem o número de kg (ex.: para 'zuppy ad pequeno porte 10kg' → busque texto 'zuppy ad pequeno porte') para ver quais tamanhos temos. Se encontrar, diga que não temos o tamanho pedido mas temos os tamanhos encontrados e ofereça-os. Se não achar nenhum, diga que não temos essa ração e pergunte se pode mostrar opções parecidas.",
     "- MARCA PEDIDA — NUNCA SUBSTITUA: se o cliente cita uma MARCA específica (ex.: 'chanin', 'golden', 'fargo', 'zuppy'), você DEVE chamar buscar_produtos com o NOME DELA e só mostrar produtos DESSA marca. É TERMINANTEMENTE PROIBIDO mostrar outra marca como se fosse a pedida. Se buscar_produtos NÃO retornar a marca pedida, NÃO mande outra marca: responda EXATAMENTE 'Não temos a marca [X] no momento, mas posso te mandar outras opções? 🐾' e ESPERE a resposta. Só se o cliente CONFIRMAR (ex.: 'sim', 'pode', 'quero'), aí sim CHAME buscar_produtos com uma busca mais ampla (MESMA espécie, sem a marca) e envie.",
     "- AREIA (FARDO): se o cliente falar em 'fardo', use a quantidade por fardo informada na base de conhecimento.",
     "- MAIS BARATO / MAIS EM CONTA: se o cliente pedir o item mais barato ou 'mais em conta' (ex.: 'qual a areia mais em conta?'), CHAME buscar_produtos com ordenarPor='preco' e indique o de MENOR preço entre os resultados.",
@@ -423,6 +451,7 @@ async function responder(contactId, mensagem) {
   let encaminhar = false;
   let motivo = "";
   let produtos = []; // produtos achados na última busca (pra enviar com foto)
+  let respostaGranel = ""; // conteúdo da resposta rápida de granel (enviado verbatim após o texto da IA)
   let resp;
   try {
     resp = await ai.models.generateContent({ model: MODELO, contents: working, config: cfg });
@@ -444,6 +473,9 @@ async function responder(contactId, mensagem) {
         // de uma receita, ou busca específica + ampla. Antes sobrescrevia e só sobrava a última.
         if (chamada.name === "buscar_produtos" && resultado && Array.isArray(resultado.produtos)) {
           for (const p of resultado.produtos) if (!produtos.some((x) => x.nome === p.nome)) produtos.push(p);
+        }
+        if (chamada.name === "obter_info_granel" && resultado && resultado.ok && resultado.resposta) {
+          respostaGranel = resultado.resposta;
         }
         partesResposta.push({ functionResponse: { name: chamada.name, response: resultado } });
       }
@@ -472,7 +504,7 @@ async function responder(contactId, mensagem) {
   historico.push({ role: "model", parts: [{ text: texto }] });
   if (historico.length > MAX_TURNOS) historico.splice(0, historico.length - MAX_TURNOS);
 
-  return { texto, encaminhar, motivo, produtos };
+  return { texto, encaminhar, motivo, produtos, respostaGranel };
 }
 
 function limparHistorico(contactId) {

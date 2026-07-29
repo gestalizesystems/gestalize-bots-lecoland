@@ -642,6 +642,7 @@ function iniciarAdmin(porta) {
     const tel = String((req.body && req.body.telefone) || "").replace(/\D/g, "");
     if (!tel) return res.json({ ok: false, erro: "Telefone obrigatório." });
     conversa.pausar(tel);
+    atendimentos.resolver(tel); // remove da fila "aguardando" → estado vira "pausado"
     res.json({ ok: true });
   });
 

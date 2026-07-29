@@ -1,6 +1,8 @@
 // Lógica de conversa do bot (triagem, menus, IA, handoff), separada do transporte de mensagens.
 // O envio é injetado via configurar(fn), onde fn(para, texto) entrega a mensagem (Cloud API).
 
+const fs = require("fs");
+const path = require("path");
 const { triar, menuPrincipal } = require("./triage");
 const { responder, limparHistorico, registrarTurno, resumirConversa } = require("./ai");
 const config = require("./config");
@@ -51,6 +53,11 @@ async function enviarProdutos(from, produtos) {
   }
 }
 
+// ===== Persistência de sessões (sobrevive a redeploys) ======================
+const _DIR_DADOS = process.env.DATA_DIR || path.join(__dirname, "..", "data");
+const _SESSOES_PATH = path.join(_DIR_DADOS, "sessoes.json");
+const _LIMITE_SESSAO_MS = 24 * 60 * 60 * 1000; // descarta sessões com mais de 24h sem mensagem
+
 // ===== Estado por contato (em memória) =====
 const pausados = new Map();            // contactId -> { ultimaMsg }
 const ultimaMsgTs = new Map();         // contactId -> timestamp da última mensagem recebida
@@ -61,6 +68,49 @@ const aguardandoNome = new Map();      // contactId -> { textoOriginal, rTriagem
 const aguardandoNps = new Set();
 const aguardandoNpsComentario = new Map();
 const historicoConversa = new Map();
+
+// Restaura estado a partir do snapshot salvo no Volume.
+(function restaurarSessoes() {
+  try {
+    const snap = JSON.parse(fs.readFileSync(_SESSOES_PATH, "utf8"));
+    const agora = Date.now();
+    // Restaura apenas contatos ativos nas últimas 24h.
+    const ativos = new Set(
+      Object.entries(snap.ultimaMsgTs || {})
+        .filter(([, ts]) => agora - ts < _LIMITE_SESSAO_MS)
+        .map(([id]) => id)
+    );
+    for (const id of (snap.jaSaudou || [])) if (ativos.has(id)) jaSaudou.add(id);
+    for (const [id, v] of Object.entries(snap.menuContexto || {})) if (ativos.has(id)) menuContexto.set(id, v);
+    for (const [id, v] of Object.entries(snap.historicoConversa || {})) if (ativos.has(id)) historicoConversa.set(id, v);
+    for (const [id, ts] of Object.entries(snap.ultimaMsgTs || {})) if (ativos.has(id)) ultimaMsgTs.set(id, ts);
+    if (ativos.size) console.log(`[bot] ${ativos.size} sessão(ões) restaurada(s) do snapshot.`);
+  } catch (_) { /* primeira vez ou arquivo corrompido — começa do zero */ }
+  // Restaura pausados a partir dos atendimentos pendentes persistidos.
+  for (const a of atendimentos.pendentes()) {
+    if (a.telefone) pausados.set(a.telefone, { ultimaMsg: a.atualizadoEm || Date.now() });
+  }
+  if (pausados.size) console.log(`[bot] ${pausados.size} atendimento(s) em pausa restaurado(s).`);
+})();
+
+// Salva snapshot das sessões ativas (debounced — no máximo 1 escrita a cada 3s).
+let _saveTimer = null;
+function _agendarSalvar() {
+  if (_saveTimer) return;
+  _saveTimer = setTimeout(() => {
+    _saveTimer = null;
+    try {
+      fs.mkdirSync(_DIR_DADOS, { recursive: true });
+      fs.writeFileSync(_SESSOES_PATH, JSON.stringify({
+        ts: Date.now(),
+        jaSaudou: [...jaSaudou],
+        menuContexto: Object.fromEntries(menuContexto),
+        historicoConversa: Object.fromEntries(historicoConversa),
+        ultimaMsgTs: Object.fromEntries(ultimaMsgTs),
+      }), "utf8");
+    } catch (_) {}
+  }, 3000);
+}
 const ausenciaEnviada = new Map();
 const AUSENCIA_THROTTLE_MS = 60 * 60 * 1000;
 setInterval(() => {
@@ -123,6 +173,12 @@ function ehDespedidaForte(t) {
   const n = normaliza(t);
   if (!n || n.length > 22) return false;
   return DESPEDIDA.some((p) => n === p || n.includes(p));
+}
+
+function ehPedidoRepetido(texto) {
+  if (!texto) return false;
+  const t = normaliza(String(texto));
+  return /(ultim[ao]|anterior)\s+(pedido|compra|encomenda)|mesmo\s+pedido|repetir\s+(o\s+|meu\s+)?(pedido|compra)|pedir\s+(de\s+)?novo|igual\s+ao?\s+ultim[ao]|mesm[ao]\s+de\s+(antes|sempre|ontem|semana)|pode\s+repetir|quero\s+o\s+mesmo\b|manda\s+de\s+novo|pedido\s+anterior/.test(t);
 }
 
 async function encerrarComNps(from, msgPadrao) {
@@ -247,6 +303,7 @@ async function finalizar(contactId, enviarDespedida) {
   preBot.delete(contactId); // conversa encerrada → sai do modo pré-bot se estiver lá
   atendimentos.resolver(contactId);
   limparHistorico(contactId);
+  _agendarSalvar();
   if (enviarDespedida) {
     try {
       await enviar(contactId, "Atendimento finalizado, qualquer coisa é só chamar! 🐾");
@@ -265,7 +322,19 @@ async function processar(from, texto, nomeWpp) {
   if (!dados.botAtivo) return;
 
   // Funcionários cadastrados no painel não recebem mensagens do bot.
-  if (equipe.ehFuncionario(from)) return;
+  if (equipe.ehFuncionario(from)) {
+    // Apaga qualquer dado obsoleto para não aparecer em atendimentos.
+    ultimaMsgTs.delete(from);
+    jaSaudou.delete(from);
+    menuContexto.delete(from);
+    aguardandoNome.delete(from);
+    const f = aguardandoFecho.get(from);
+    if (f && f.timer) clearTimeout(f.timer);
+    aguardandoFecho.delete(from);
+    pausados.delete(from);
+    atendimentos.resolver(from);
+    return;
+  }
 
   metricas.inc("recebida");
   ultimaMsgTs.set(from, Date.now());
@@ -278,22 +347,24 @@ async function processar(from, texto, nomeWpp) {
     historicoConversa.set(from, buf);
   }
 
-  // ── NPS passo 1: cliente manda nota ────────────────────────────────────
+  // ── NPS: cliente manda nota ─────────────────────────────────────────────
   if (aguardandoNps.has(from)) {
     aguardandoNps.delete(from);
+    ultimaMsgTs.delete(from); // qualquer resposta ao NPS nunca reabre em atendimentos
     const m = String(texto).match(/\b(10|[0-9])\b/);
     if (m) {
-      const { id, nota } = nps.registrar(from, Number(m[1]));
-      const detrator = nota <= 6;
-      aguardandoNpsComentario.set(from, { id, detrator });
-      await enviar(from, detrator
-        ? "Poxa, sentimos muito! 😔 O que podemos melhorar? (se preferir, mande *ok* que já chamo um atendente)"
-        : `Obrigada pela nota ${nota}! 🐾 Quer deixar um comentário? (ou mande *ok*)`);
-      return;
+      const { nota } = nps.registrar(from, Number(m[1]));
+      if (nota <= 6) {
+        await enviar(from, "Poxa, sentimos muito pela experiência! 😔 Em breve um atendente vai entrar em contato. 🐾");
+      } else {
+        await enviar(from, `Obrigada pela nota ${nota}! 💛 Significa muito pra gente. 🐾`);
+        await enviarConviteRedes(from);
+      }
     }
+    return; // absorve qualquer resposta ao NPS (número ou não) sem reprocessar
   }
 
-  // ── NPS passo 2: comentário ─────────────────────────────────────────────
+  // ── NPS comentário (fluxo legado — mantido para conversas em andamento) ──
   if (aguardandoNpsComentario.has(from)) {
     const { id, detrator } = aguardandoNpsComentario.get(from);
     aguardandoNpsComentario.delete(from);
@@ -455,6 +526,12 @@ async function processar(from, texto, nomeWpp) {
       await enviar(from, msgBV + avisoTexto);
       if (deveAviso) clientes.salvar(from, { avisoEnviado: true });
 
+      if (ehPedidoRepetido(texto)) {
+        pausar(from);
+        await abrirHandoff(from, "Cliente quer repetir o último pedido.");
+        return;
+      }
+
       if (r.saudacao) {
         // Saudação pura → aguarda nome para mostrar o menu personalizado
         aguardandoNome.set(from, { textoOriginal: texto, rTriagem: r });
@@ -512,6 +589,12 @@ async function processar(from, texto, nomeWpp) {
     // e depois cai para responder a pergunta normalmente abaixo.
     await enviar(from, `Oi, ${cli.nome}! 🐾` + avisoTexto);
     if (deveAviso) clientes.salvar(from, { avisoEnviado: true });
+
+    if (ehPedidoRepetido(texto)) {
+      pausar(from);
+      await abrirHandoff(from, "Cliente quer repetir o último pedido.");
+      return;
+    }
     // Não retorna — responde a pergunta a seguir
   }
 
@@ -548,6 +631,12 @@ async function processar(from, texto, nomeWpp) {
   }
 
   // ── IA: pergunta livre ───────────────────────────────────────────────────
+  if (ehPedidoRepetido(texto)) {
+    await enviar(from, config.preencher(dados.mensagens.atendente));
+    pausar(from);
+    await abrirHandoff(from, "Cliente quer repetir o último pedido.");
+    return;
+  }
   const resp = await responder(from, texto);
   await enviar(from, (resp.texto || "").trim());
   if (resp.encaminhar) {
@@ -557,6 +646,8 @@ async function processar(from, texto, nomeWpp) {
     agendarInatividade(from);
   }
   if (resp.produtos && resp.produtos.length) await enviarProdutos(from, resp.produtos);
+  if (resp.respostaGranel) try { await enviar(from, resp.respostaGranel); } catch (e) { console.error("Falha ao enviar granel:", e.message); }
+  _agendarSalvar();
 }
 
 function conversasAtivas() {
