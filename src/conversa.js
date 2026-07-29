@@ -347,6 +347,24 @@ async function finalizar(contactId, enviarDespedida) {
   }
 }
 
+// Detecta pedido com itens e quantidades já definidos (ex: "1 saca de pipicat, 2 latas de patê chanin").
+// Critério: pelo menos 2 ocorrências de dígito + unidade/item, ou 1 ocorrência + vírgula/quebra separando mais itens.
+function _ehPedidoPronto(texto) {
+  const t = texto.toLowerCase();
+  const unidades = /\b(\d+)\s*(saca|sacos?|kg|quilo|quilos?|gramas?|g\b|lata|latas?|pote|potes?|pacote|pacotes?|caixa|caixas?|cx|frasco|frascos?|unidade|unidades?|und?|bisnaga|bisnagas?|kit|kits?)/g;
+  const ocorrencias = [...t.matchAll(unidades)];
+  if (ocorrencias.length >= 2) return true;
+  if (ocorrencias.length === 1) {
+    const pos = ocorrencias[0].index;
+    const restante = t.slice(pos + ocorrencias[0][0].length);
+    // Lista: separador após o item
+    if (/,|(\se\s)/.test(restante) && restante.length > 10) return true;
+    // Item único com intenção de compra clara
+    if (/\b(gostaria|quero|queria|preciso|me manda|pode mandar|manda|peço|pedindo|por favor|quero pedir|gostaria de pedir)\b/.test(t)) return true;
+  }
+  return false;
+}
+
 // Processa uma mensagem recebida do cliente.
 async function processar(from, texto, nomeWpp) {
   // Inicializa preBot na primeira mensagem após as credenciais estarem disponíveis.
@@ -482,6 +500,15 @@ async function processar(from, texto, nomeWpp) {
     return;
   }
 
+  // ── Pedido pronto: tem prioridade sobre triage e IA ─────────────────────
+  if (_ehPedidoPronto(texto)) {
+    const msgPedido = config.preencher(dados.mensagens.atendente || "Já vou chamar um atendente! 🐾");
+    await enviar(from, msgPedido);
+    pausar(from);
+    await abrirHandoff(from, "Cliente enviou pedido pronto com itens e quantidades.");
+    return;
+  }
+
   // ── Triagem ──────────────────────────────────────────────────────────────
   const ctx = menuContexto.get(from) || null;
   const r = triar(texto, ctx);
@@ -545,7 +572,8 @@ async function processar(from, texto, nomeWpp) {
 
   // ── Granel: responde com a resposta rápida certa sem acionar a IA ────────
   if (r.tipo === "opcao" && /granel/i.test(r.titulo || "")) {
-    const especie = detectarEspecieGranel(texto);
+    // Detecta espécie pelo TÍTULO da opção (ex: "Granel para Cães") antes de tentar o texto do cliente
+    const especie = detectarEspecieGranel(r.titulo || "") || detectarEspecieGranel(texto);
     const respostaGranel = especie ? buscarRespostaGranel(especie) : null;
     if (respostaGranel) {
       await enviar(from, respostaGranel);
