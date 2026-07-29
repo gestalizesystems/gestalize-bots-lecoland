@@ -386,6 +386,7 @@ function montarContexto(cliente) {
     "- PREÇO DE BANHO/TOSA: informe conforme base de conhecimento; se depender de avaliação presencial, diga isso e não invente valor.",
     "- CONSULTAS/CONSULTÓRIO: se por ordem de chegada, não peça dia/horário. Informe valores conforme base de conhecimento; sem informação → atendente.",
     "- VACINAS: informe DIRETAMENTE os preços e tipos de vacinas disponíveis conforme a base de conhecimento — NÃO chame encaminhar_para_atendente só para informar preço. Só encaminhe se o cliente quiser AGENDAR/MARCAR a aplicação (aí o atendente confirma horário).",
+    "- VACINAS — MARCAS: 'Vanguard' é o nome comercial da nossa V10. Se o cliente perguntar por uma marca de vacina que não está na base de conhecimento, NÃO diga que não temos — liste os tipos disponíveis e pergunte se um deles atende.",
     "- EXAMES: se o cliente perguntar VALOR de exames ou informações sobre exames, NÃO responda com preço — CHAME encaminhar_para_atendente.",
     "- DESCONTOS: siga a política de descontos da base de conhecimento; se pedirem desconto, responda com gentileza conforme essa política.",
     "- O QUE VENDEMOS — ANIMAIS: vendemos apenas calopsita, periquito australiano e hamster. NÃO vendemos cachorro, gato nem nenhum outro animal além desses três. Se perguntarem por outro animal, diga gentilmente que não trabalhamos com a venda dele. (Para preço/disponibilidade desses que vendemos, encaminhe para um atendente.)",
