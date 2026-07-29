@@ -46,13 +46,22 @@ function salvar({ id, nome, cargo, obs, telefone } = {}) {
   return m;
 }
 
+// Normaliza para: sem código de país (55), com 9° dígito (11 dígitos BR mobile).
+// Resolve o bug do WhatsApp que às vezes omite o 9° dígito ao entregar o número.
+function _normalizar(tel) {
+  let d = String(tel).replace(/\D/g, "");
+  if (d.startsWith("55") && d.length >= 12) d = d.slice(2); // remove prefixo 55
+  if (d.length === 10) d = d.slice(0, 2) + "9" + d.slice(2); // insere o 9° dígito
+  return d;
+}
+
 // Retorna true se o número (formato WhatsApp, ex: 5585982258020) pertence a um funcionário.
 function ehFuncionario(telefone) {
   if (!telefone) return false;
-  const dig = String(telefone).replace(/\D/g, "");
+  const norm = _normalizar(String(telefone));
   const comFone = lista.filter((m) => m.telefone);
   if (!comFone.length) return false;
-  return comFone.some((m) => dig === m.telefone || dig.endsWith(m.telefone));
+  return comFone.some((m) => _normalizar(m.telefone) === norm);
 }
 
 function remover(id) {

@@ -98,6 +98,27 @@ function enfileirar(from, tarefa) {
   filasContato.set(from, atual);
   atual.finally(() => { if (filasContato.get(from) === atual) filasContato.delete(from); });
 }
+// Debounce de texto: junta mensagens em rajada antes de processar (evita respostas intermediárias).
+const _debounceTexto = new Map(); // contactId -> { timer, partes, nomeWpp }
+const DEBOUNCE_MS = 2500;
+function _agendarTexto(from, textoCompleto, nomeWpp) {
+  const buf = _debounceTexto.get(from) || { partes: [], nomeWpp };
+  buf.partes.push(textoCompleto);
+  if (!buf.nomeWpp) buf.nomeWpp = nomeWpp;
+  if (buf.timer) clearTimeout(buf.timer);
+  buf.timer = setTimeout(() => {
+    _debounceTexto.delete(from);
+    enfileirar(from, () => conversa.processar(from, buf.partes.join("\n"), buf.nomeWpp));
+  }, DEBOUNCE_MS);
+  _debounceTexto.set(from, buf);
+}
+function _flushTexto(from) {
+  const buf = _debounceTexto.get(from);
+  if (!buf) return;
+  clearTimeout(buf.timer);
+  _debounceTexto.delete(from);
+  enfileirar(from, () => conversa.processar(from, buf.partes.join("\n"), buf.nomeWpp));
+}
 // Em produção (Railway) as imagens vão para o Volume persistente; local usa public/uploads.
 const UPLOAD_DIR = process.env.DATA_DIR ? path.join(process.env.DATA_DIR, "uploads") : path.join(PUBLIC_DIR, "uploads");
 
@@ -308,14 +329,18 @@ function iniciarAdmin(porta) {
             const from = msg.from;
             const nomeWpp = nomes[from] || Object.values(nomes)[0]; // nome do perfil do WhatsApp
             const ctxAd = contextoAnuncio(msg.referral); // veio de anúncio do Instagram/Facebook?
-            // Cada contato tem sua fila: mensagens em rajada são tratadas UMA de cada vez, em ordem.
+            // Texto → debounce: aguarda 1,5s para juntar mensagens em rajada antes de processar.
+            // Mídia → descarrega qualquer texto pendente e enfileira imediatamente.
             if (msg.type === "text" && msg.text) {
-              enfileirar(from, () => conversa.processar(from, ctxAd + (msg.text.body || ""), nomeWpp));
+              _agendarTexto(from, ctxAd + (msg.text.body || ""), nomeWpp);
             } else if (msg.type === "image" && msg.image && msg.image.id) {
+              _flushTexto(from);
               enfileirar(from, () => processarImagem(from, msg.image.id, (ctxAd + (msg.image.caption || "")).trim(), nomeWpp));
             } else if (msg.type === "audio" && msg.audio && msg.audio.id) {
+              _flushTexto(from);
               enfileirar(from, () => processarAudio(from, msg.audio.id, nomeWpp));
             } else if (msg.type === "document" && msg.document && msg.document.id) {
+              _flushTexto(from);
               enfileirar(from, () => processarDocumento(from, msg.document.id, msg.document.mime_type, nomeWpp));
             }
           }

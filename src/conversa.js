@@ -65,7 +65,7 @@ const aguardandoFecho = new Map();     // contactId -> { timer }
 const menuContexto = new Map();        // contactId -> opções do menu atual
 const jaSaudou = new Set();            // contatos que já receberam o fluxo de boas-vindas
 const aguardandoNome = new Map();      // contactId -> { textoOriginal, rTriagem }
-const aguardandoNps = new Set();
+const aguardandoNps = new Map(); // contactId → timestamp em que o NPS foi enviado (persiste em sessoes.json)
 const aguardandoNpsComentario = new Map();
 const aguardandoGranelEspecie = new Set(); // aguardando o cliente dizer "cão" ou "gato" para granel
 const historicoConversa = new Map();
@@ -85,7 +85,13 @@ const historicoConversa = new Map();
     for (const [id, v] of Object.entries(snap.menuContexto || {})) if (ativos.has(id)) menuContexto.set(id, v);
     for (const [id, v] of Object.entries(snap.historicoConversa || {})) if (ativos.has(id)) historicoConversa.set(id, v);
     for (const [id, ts] of Object.entries(snap.ultimaMsgTs || {})) if (ativos.has(id)) ultimaMsgTs.set(id, ts);
-    if (ativos.size) console.log(`[bot] ${ativos.size} sessão(ões) restaurada(s) do snapshot.`);
+    // NPS: restaura entradas dos últimos 120 min (independente de ultimaMsgTs — finalizar apaga o timestamp)
+    const _LIMITE_NPS_MS = 2 * 60 * 60 * 1000;
+    for (const [id, ts] of Object.entries(snap.aguardandoNps || {})) {
+      if (agora - ts < _LIMITE_NPS_MS) aguardandoNps.set(id, ts);
+    }
+    const totalRestaurados = ativos.size + aguardandoNps.size;
+    if (totalRestaurados) console.log(`[bot] ${totalRestaurados} sessão(ões) restaurada(s) do snapshot.`);
   } catch (_) { /* primeira vez ou arquivo corrompido — começa do zero */ }
   // Restaura pausados a partir dos atendimentos pendentes persistidos.
   for (const a of atendimentos.pendentes()) {
@@ -108,6 +114,7 @@ function _agendarSalvar() {
         menuContexto: Object.fromEntries(menuContexto),
         historicoConversa: Object.fromEntries(historicoConversa),
         ultimaMsgTs: Object.fromEntries(ultimaMsgTs),
+        aguardandoNps: Object.fromEntries(aguardandoNps),
       }), "utf8");
     } catch (_) {}
   }, 3000);
@@ -209,7 +216,8 @@ function ehPedidoRepetido(texto) {
 async function encerrarComNps(from, msgPadrao) {
   if (nps.podePerguntar(from)) {
     nps.marcarPerguntado(from);
-    aguardandoNps.add(from);
+    aguardandoNps.set(from, Date.now());
+    _agendarSalvar();
     const cli = clientes.get(from);
     const nm = cli && cli.nome ? cli.nome + ", de " : "De ";
     const nomeLoja = config.get().negocio.nome || "a loja";
@@ -474,78 +482,6 @@ async function processar(from, texto, nomeWpp) {
     return;
   }
 
-  // ── Resposta ao pedido de nome ───────────────────────────────────────────
-  // aguardandoNome agora é um Map com o texto e resultado de triagem originais,
-  // para que depois de receber o nome o bot responda a pergunta que o cliente
-  // fez na primeira mensagem (sem mostrar o menu se era uma pergunta direta).
-  if (aguardandoNome.has(from)) {
-    const { textoOriginal, rTriagem } = aguardandoNome.get(from);
-    aguardandoNome.delete(from);
-    const nome = extrairNome(texto);
-
-    if (!nome) {
-      // Não parece um nome — não insiste, processa a mensagem normalmente
-      await processar(from, texto, nomeWpp);
-      return;
-    }
-
-    clientes.salvar(from, { nome });
-
-    if (textoOriginal === null) {
-      // Pergunta já foi respondida — só acusa o nome e continua
-      await enviar(from, `Prazer, ${nome}! 🐾 Se precisar de mais alguma coisa, é só perguntar.`);
-      agendarInatividade(from);
-      return;
-    }
-
-    if (rTriagem && rTriagem.tipo === "atendente") {
-      await enviar(from, `Prazer, ${nome}! 🐾 ` + config.preencher(dados.mensagens.atendente));
-      pausar(from);
-      await abrirHandoff(from, "Cliente pediu para falar com um atendente.");
-      return;
-    }
-
-    if (rTriagem && rTriagem.saudacao) {
-      // Primeira mensagem era uma saudação → mostra o menu personalizado
-      const menu = menuPrincipal(nome);
-      menuContexto.set(from, { opcoes: config.intents(), texto: menu, sub: false });
-      await enviar(from, menu);
-      agendarInatividade(from);
-      return;
-    }
-
-    if (rTriagem && rTriagem.resposta) {
-      // Primeira mensagem casou com palavra-chave → responde direto (sem menu)
-      let resp = rTriagem.resposta;
-      if (rTriagem.tipo === "opcao" && /banho|tosa|consult|veterin|vacin/i.test(rTriagem.titulo || "")) {
-        const cli = clientes.get(from);
-        if (!cli || !Array.isArray(cli.pets) || !cli.pets.length) {
-          resp += "\n\n🐾 Pra deixar tudo certinho, me diz o *nome* e a *raça* do seu pet?";
-        }
-      }
-      await enviar(from, `Prazer, ${nome}! 🐾\n\n` + resp);
-      if (rTriagem.tipo === "opcao" || rTriagem.tipo === "mensagem") {
-        const nota = rTriagem.titulo ? `(O cliente escolheu: ${rTriagem.titulo}.) ` : "";
-        registrarTurno(from, textoOriginal, nota + resp);
-        if (rTriagem.titulo) metricas.registrarServico(rTriagem.titulo);
-      }
-      agendarInatividade(from);
-      return;
-    }
-
-    // Primeira mensagem era pergunta livre → IA responde (sem menu)
-    const respIA = await responder(from, textoOriginal);
-    await enviar(from, `Prazer, ${nome}! 🐾\n\n` + (respIA.texto || "").trim());
-    if (respIA.encaminhar) {
-      pausar(from);
-      await abrirHandoff(from, respIA.motivo || "A IA encaminhou para um atendente.");
-      return;
-    }
-    if (respIA.produtos && respIA.produtos.length) await enviarProdutos(from, respIA.produtos);
-    agendarInatividade(from);
-    return;
-  }
-
   // ── Triagem ──────────────────────────────────────────────────────────────
   const ctx = menuContexto.get(from) || null;
   const r = triar(texto, ctx);
@@ -562,87 +498,27 @@ async function processar(from, texto, nomeWpp) {
     const deveAviso = !cli || !cli.avisoEnviado;
     const avisoTexto = deveAviso ? ("\n\n" + AVISO_SISTEMA) : "";
 
-    if (!cli || !cli.nome) {
-      menuContexto.delete(from);
-      const msgBV = config.preencher(dados.mensagens.saudacaoNome || "Olá! 🐾 Seja muito bem-vindo(a) à {nome}! Como posso te chamar? 😊");
-      await enviar(from, msgBV + avisoTexto);
-      if (deveAviso) clientes.salvar(from, { avisoEnviado: true });
+    const nomeCliente = cli && cli.nome ? cli.nome : null;
 
-      if (ehPedidoRepetido(texto)) {
-        pausar(from);
-        await abrirHandoff(from, "Cliente quer repetir o último pedido.");
-        return;
-      }
-
-      if (r.saudacao) {
-        // Saudação pura → aguarda nome para mostrar o menu personalizado
-        aguardandoNome.set(from, { textoOriginal: texto, rTriagem: r });
-        agendarInatividade(from);
-        return;
-      }
-
-      // Primeira mensagem tem pergunta/pedido → responde já, sem esperar o nome.
-      // Mantém aguardandoNome (textoOriginal=null) só para salvar o nome se vier.
-      aguardandoNome.set(from, { textoOriginal: null, rTriagem: null });
-
-      if (r.tipo === "atendente") {
-        aguardandoNome.delete(from);
-        await enviar(from, r.resposta || config.preencher(dados.mensagens.atendente));
-        pausar(from);
-        await abrirHandoff(from, "Cliente pediu para falar com um atendente.");
-        return;
-      }
-      if (r.tipo === "opcao" && /granel/i.test(r.titulo || "")) {
-        aguardandoNome.delete(from);
-        const especie = detectarEspecieGranel(texto);
-        const respostaGranel = especie ? buscarRespostaGranel(especie) : null;
-        if (respostaGranel) {
-          await enviar(from, respostaGranel);
-        } else {
-          aguardandoGranelEspecie.add(from);
-          await enviar(from, "É para cão ou gato? 🐾");
-        }
-        agendarInatividade(from);
-        return;
-      }
-      if (r.resposta) {
-        await enviar(from, r.resposta);
-        if (r.tipo === "opcao" || r.tipo === "mensagem") {
-          const nota = r.titulo ? `(O cliente escolheu: ${r.titulo}.) ` : "";
-          registrarTurno(from, texto, nota + r.resposta);
-          if (r.titulo) metricas.registrarServico(r.titulo);
-        }
-        agendarInatividade(from);
-        return;
-      }
-      // IA responde à pergunta imediatamente
-      const respIA0 = await responder(from, texto);
-      await enviar(from, (respIA0.texto || "").trim());
-      if (respIA0.encaminhar) {
-        aguardandoNome.delete(from);
-        pausar(from);
-        await abrirHandoff(from, respIA0.motivo || "A IA encaminhou para um atendente.");
-        return;
-      }
-      if (respIA0.produtos && respIA0.produtos.length) await enviarProdutos(from, respIA0.produtos);
-      agendarInatividade(from);
-      return;
-    }
-
-    // Contato conhecido
     if (r.saudacao) {
-      // Saudação → menu personalizado (+ aviso se primeira vez com o bot)
-      const menu = menuPrincipal(cli.nome);
+      // Saudação → menu (personalizado se tiver nome, genérico se não tiver)
+      const menu = menuPrincipal(nomeCliente);
       menuContexto.set(from, { opcoes: config.intents(), texto: menu, sub: false });
-      await enviar(from, menu + avisoTexto);
+      const msgBV = config.preencher(dados.mensagens.saudacao || "Olá! 🐾 Seja muito bem-vindo(a) à {nome}!");
+      const intro = nomeCliente ? "" : (msgBV + avisoTexto + "\n\n");
+      await enviar(from, nomeCliente ? (menu + avisoTexto) : (intro + menu));
       if (deveAviso) clientes.salvar(from, { avisoEnviado: true });
       agendarInatividade(from);
       return;
     }
 
-    // Contato conhecido + pergunta direta → envia saudação breve + aviso (sem menu)
-    // e depois cai para responder a pergunta normalmente abaixo.
-    await enviar(from, `Oi, ${cli.nome}! 🐾` + avisoTexto);
+    // Primeira mensagem é pergunta direta → saudação breve + cai para responder abaixo
+    if (nomeCliente) {
+      await enviar(from, `Oi, ${nomeCliente}! 🐾` + avisoTexto);
+    } else {
+      const msgBV = config.preencher(dados.mensagens.saudacao || "Olá! 🐾 Seja muito bem-vindo(a) à {nome}!");
+      await enviar(from, msgBV + avisoTexto);
+    }
     if (deveAviso) clientes.salvar(from, { avisoEnviado: true });
 
     if (ehPedidoRepetido(texto)) {
