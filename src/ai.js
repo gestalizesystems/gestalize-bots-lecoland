@@ -62,7 +62,7 @@ const TOOLS = [
       {
         name: "buscar_produtos",
         description:
-          "Busca produtos no CATÁLOGO da loja. Use quando o cliente quiser comprar/ver um PRODUTO (ração, petisco, brinquedo, acessório, areia, cosmético, etc.). Antes de chamar, faça perguntas curtas para descobrir o subgrupo (ex.: cão ou gato) e a especificação (ex.: filhote/adulto, porte, linha). Passe os filtros que já souber. Apresente só o que a função retornar (não invente produtos nem preços).",
+          "Busca produtos no CATÁLOGO da loja. Use quando o cliente quiser comprar/ver um PRODUTO (ração, petisco, brinquedo, acessório, areia, cosmético, medicamento, vermifugo, antipulgas, etc.). Se a espécie (cão/gato) e outras informações já forem conhecidas pelo contexto da conversa, BUSQUE DIRETO sem perguntar de novo. Só faça perguntas quando as informações realmente não estiverem disponíveis. Passe os filtros que já souber. Apresente só o que a função retornar (não invente produtos nem preços).",
         parameters: {
           type: "object",
           properties: {
@@ -408,7 +408,7 @@ function montarContexto(cliente) {
     "- MARCA PEDIDA — NUNCA SUBSTITUA: mostre SOMENTE produtos da marca pedida. Se buscar_produtos não retornar a marca, pergunte 'Não temos [X] no momento, mas posso te mandar outras opções? 🐾' e ESPERE. Só busque parecidos após o cliente confirmar.",
     "- MAIS BARATO / MAIS EM CONTA: CHAME buscar_produtos com ordenarPor='preco' e indique o de menor preço.",
     "- ROUPA CIRÚRGICA: pergunte o PESO do pet e busque 'roupa cirurgica' + peso. NÃO confunda com bolsa/caixa de transporte.",
-    "- VERMÍFUGO (sem marca): pergunte cão ou gato e busque 'verme cao' ou 'verme gato'.",
+    "- VERMÍFUGO / ANTIPULGAS / ANTIPARASITÁRIO: são PRODUTOS do catálogo — NUNCA encaminhe para atendente só porque o cliente quer vermifugar ou tratar pulgas/carrapatos. Se já souber a espécie pelo contexto, BUSQUE IMEDIATAMENTE: buscar_produtos({ subgrupo: 'Gato', texto: 'verme' }) ou buscar_produtos({ subgrupo: 'Cão', texto: 'verme' }). Só pergunte a espécie se ela realmente não estiver na conversa.",
     "- Quando buscar_produtos retornar produtos, dê UMA ÚNICA frase de introdução curta (ex.: 'Achei essas opções pra você 🐾' ou 'Não temos X, mas tenho essas opções com Y 🐾'). NUNCA liste nomes, preços ou detalhes dos produtos no texto — os cards com foto e preço são enviados automaticamente pelo sistema. Qualquer lista de produtos no texto será ignorada.",
     "- Se NÃO TEMOS o que o cliente pediu (buscar_produtos voltou 0): CHAME encaminhar_para_atendente — é melhor o atendente confirmar do que o bot responder errado.",
     "- OBRIGATÓRIO ao ENVIAR: quando disser que está mostrando produtos, TEM que ter chamado buscar_produtos na MESMA resposta. Quando PERGUNTAR 'posso te mandar opções?', NÃO chame buscar_produtos — espere o cliente responder.",
