@@ -4,7 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 const { triar, menuPrincipal } = require("./triage");
-const { responder, limparHistorico, registrarTurno, resumirConversa } = require("./ai");
+const { responder, limparHistorico, registrarTurno, resumirConversa, buscarProdutos } = require("./ai");
 const config = require("./config");
 const clientes = require("./clientes");
 const equipe = require("./equipe");
@@ -347,6 +347,33 @@ async function finalizar(contactId, enviarDespedida) {
   }
 }
 
+// Palavras que indicam pergunta de serviço/logística/comparação — nenhum produto do catálogo vai responder.
+// Prefixos/palavras que indicam serviço/logística/comparação. SEM \b no final para que prefixos
+// como "vacin" casem "vacinar"/"vacinação" e "consult" case "consulta"/"consultar".
+const _RE_SERVICO = /\b(banho|tosa|consult|veterin|vacin|vermifug|castrar|cirurgi|agend|horari|hor[aá]rio|endere[cç]o|funciona|fecha|abre|parcel|pagament|frete|taxi|t[aá]xi|entrega|descont|promoc|indica[cç]|diferen|recomend|comparar|versus|d[uú]vida|qual\s+[eéeh]\s+o\s+melhor|o\s+que\s+[eéeh]\s+melhor)/i;
+
+// Extrai o termo de busca de uma mensagem de produto. Retorna null se for pergunta de serviço/logística,
+// saudação pura ou termo genérico sem suficiente especificidade.
+function _extrairTermoBusca(texto) {
+  const t = String(texto || "").trim();
+  if (!t || t.length < 3) return null;
+  if (_RE_SERVICO.test(t)) return null;
+
+  const termo = t
+    .replace(/^(ol[aá][!,.]?\s*|oi[!,.]?\s*|bom\s+dia[!,.]?\s*|boa\s+tarde[!,.]?\s*|boa\s+noite[!,.]?\s*)+/i, "")
+    .replace(/\bvoc[eê]s?\s+t[eê]m\s+/i, "")
+    .replace(/^t[eê]m\s+/i, "")
+    .replace(/^qual\s+[oa]\s+(?:pre[cç]o|valor)\s+d[oae]?\s*/i, "")
+    .replace(/^quanto\s+(?:custa|[eéeh]|fica)\s+(?:[oa]\s+)?/i, "")
+    .replace(/[?!.…]+$/, "")
+    .replace(/\s+(?:dispon[ií]vel|a[ií]|aqui|por\s+a[ií])$/i, "")
+    .trim();
+
+  if (!termo || termo.length < 3) return null;
+  if (/^(?:ra[cç][aã]o|rem[eé]dio|produto|medicamento|alimento|comida|petisco|sach[eê])s?$/i.test(termo)) return null;
+  return termo;
+}
+
 // Detecta pedido com itens e quantidades já definidos (ex: "1 saca de pipicat, 2 latas de patê chanin").
 // Critério: pelo menos 2 ocorrências de dígito + unidade/item, ou 1 ocorrência + vírgula/quebra separando mais itens.
 function _ehPedidoPronto(texto) {
@@ -610,8 +637,34 @@ async function processar(from, texto, nomeWpp) {
     await abrirHandoff(from, "Cliente quer repetir o último pedido.");
     return;
   }
+
+  // ── Busca direta (sem IA) ────────────────────────────────────────────────
+  const termoDireto = _extrairTermoBusca(texto);
+  if (termoDireto) {
+    const resultados = buscarProdutos({ texto: termoDireto });
+    if (resultados.produtos.length > 0) {
+      await enviar(from, "Achei essas opções pra você 🐾");
+      await enviarProdutos(from, resultados.produtos);
+      registrarTurno(from, texto, `(busca direta: "${termoDireto}" → ${resultados.total} produto(s))`);
+      agendarInatividade(from);
+      _agendarSalvar();
+      return;
+    }
+    // Sem resultados → encaminha ao atendente sem gastar IA
+    await enviar(from, config.preencher(dados.mensagens.atendente || "Vou chamar um atendente! 🐾"));
+    pausar(from);
+    await abrirHandoff(from, `Produto não encontrado no catálogo: "${termoDireto}"`);
+    _agendarSalvar();
+    return;
+  }
+
   const resp = await responder(from, texto);
-  await enviar(from, (resp.texto || "").trim());
+  let _textoResp = (resp.texto || "").trim();
+  // Se há cards de produtos para enviar, garante que o texto seja só a intro (sem lista duplicada)
+  if (resp.produtos && resp.produtos.length) {
+    _textoResp = _textoResp.replace(/\n+[•\-\*\d][\s\S]*/g, "").trim();
+  }
+  await enviar(from, _textoResp);
   if (resp.encaminhar) {
     pausar(from);
     await abrirHandoff(from, resp.motivo || "A IA encaminhou para um atendente.");

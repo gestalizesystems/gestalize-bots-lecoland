@@ -390,7 +390,7 @@ function montarContexto(cliente) {
     "- MAIS BARATO / MAIS EM CONTA: CHAME buscar_produtos com ordenarPor='preco' e indique o de menor preço.",
     "- ROUPA CIRÚRGICA: pergunte o PESO do pet e busque 'roupa cirurgica' + peso. NÃO confunda com bolsa/caixa de transporte.",
     "- VERMÍFUGO (sem marca): pergunte cão ou gato e busque 'verme cao' ou 'verme gato'.",
-    "- Quando buscar_produtos retornar produtos, dê uma resposta CURTA de introdução (ex.: 'Achei essas opções pra você 🐾'). NÃO liste os produtos em texto — as fotos são enviadas automaticamente.",
+    "- Quando buscar_produtos retornar produtos, dê UMA ÚNICA frase de introdução curta (ex.: 'Achei essas opções pra você 🐾' ou 'Não temos X, mas tenho essas opções com Y 🐾'). NUNCA liste nomes, preços ou detalhes dos produtos no texto — os cards com foto e preço são enviados automaticamente pelo sistema. Qualquer lista de produtos no texto será ignorada.",
     "- Se NÃO TEMOS o que o cliente pediu (buscar_produtos voltou 0): CHAME encaminhar_para_atendente — é melhor o atendente confirmar do que o bot responder errado.",
     "- OBRIGATÓRIO ao ENVIAR: quando disser que está mostrando produtos, TEM que ter chamado buscar_produtos na MESMA resposta. Quando PERGUNTAR 'posso te mandar opções?', NÃO chame buscar_produtos — espere o cliente responder.",
     "- Nunca invente produtos, marcas ou preços — use exclusivamente o que a função retornar.",
