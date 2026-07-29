@@ -664,7 +664,37 @@ async function processar(from, texto, nomeWpp) {
     return;
   }
 
-  const resp = await responder(from, texto);
+  // ── Pre-busca de vermífugo em mensagens mistas (serviço + vermífugo) ─────
+  // Ex.: "vacinar e vermifugar meu gato" — "vacin" bloqueia a busca direta,
+  // mas vermífugo é produto do catálogo: enviamos os cards e passamos à IA
+  // apenas o restante (vacinas, consulta, etc.).
+  let textoParaIA = texto;
+  if (/\bvermifug/i.test(texto)) {
+    const ehGato = /\bgat[oa]s?\b/i.test(texto);
+    const ehCao = /\b(c[aã]o|c[aã]es|cachorro[s]?|cadela[s]?)\b/i.test(texto);
+    const termoVerme = ehGato ? "verme gato" : ehCao ? "verme cao" : "verme";
+    const rv = buscarProdutos({ texto: termoVerme });
+    if (rv.produtos.length > 0) {
+      await enviar(from, "Aqui estão as opções de vermífugo pra você 🐾");
+      await enviarProdutos(from, rv.produtos);
+      textoParaIA = texto
+        .replace(/\be\s+vermifug\w*/gi, "")
+        .replace(/\bvermifug\w*\s+e\s+/gi, "")
+        .replace(/[,]\s*vermifug\w*/gi, "")
+        .replace(/\bvermifug\w*\s*/gi, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      if (!textoParaIA || textoParaIA.length < 5) {
+        registrarTurno(from, texto, `(vermífugo: ${rv.total} produto(s) enviados)`);
+        agendarInatividade(from);
+        _agendarSalvar();
+        return;
+      }
+      // Ainda há conteúdo (ex.: pergunta sobre vacinas) → IA responde o restante
+    }
+  }
+
+  const resp = await responder(from, textoParaIA);
   let _textoResp = (resp.texto || "").trim();
   // Se há cards de produtos para enviar, garante que o texto seja só a intro (sem lista duplicada)
   if (resp.produtos && resp.produtos.length) {
