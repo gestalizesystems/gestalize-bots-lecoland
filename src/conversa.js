@@ -361,10 +361,14 @@ function _extrairTermoBusca(texto) {
 
   const termo = t
     .replace(/^(ol[aá][!,.]?\s*|oi[!,.]?\s*|bom\s+dia[!,.]?\s*|boa\s+tarde[!,.]?\s*|boa\s+noite[!,.]?\s*)+/i, "")
+    .replace(/^(?:gostaria|queria)\s+de\s+/i, "")       // "gostaria de [verbo]" → só o verbo
+    .replace(/^(?:quero|preciso)\s+(?:comprar\s+|de\s+)?/i, "")
     .replace(/\bvoc[eê]s?\s+t[eê]m\s+/i, "")
     .replace(/^t[eê]m\s+/i, "")
     .replace(/^qual\s+[oa]\s+(?:pre[cç]o|valor)\s+d[oae]?\s*/i, "")
     .replace(/^quanto\s+(?:custa|[eéeh]|fica)\s+(?:[oa]\s+)?/i, "")
+    .replace(/\s+(?:meu|minha|meus|minhas)\s+/gi, " ")  // possessivos ("meu gato" → "gato")
+    .replace(/\s+de\s+\d+\s*(?:meses?|anos?|semanas?|dias?)\b/gi, "") // idade do pet ("de 5 meses")
     .replace(/[?!.…]+$/, "")
     .replace(/\s+(?:dispon[ií]vel|a[ií]|aqui|por\s+a[ií])$/i, "")
     .trim();
