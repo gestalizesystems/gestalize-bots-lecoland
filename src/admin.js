@@ -332,7 +332,9 @@ function iniciarAdmin(porta) {
             // Texto → debounce: aguarda 1,5s para juntar mensagens em rajada antes de processar.
             // Mídia → descarrega qualquer texto pendente e enfileira imediatamente.
             if (msg.type === "text" && msg.text) {
-              _agendarTexto(from, ctxAd + (msg.text.body || ""), nomeWpp);
+              const _corpo = msg.text.body || "";
+              // \x1F = marcador interno: cliente respondeu/citou uma msg anterior do bot
+              _agendarTexto(from, ctxAd + (msg.context ? "\x1F" + _corpo : _corpo), nomeWpp);
             } else if (msg.type === "image" && msg.image && msg.image.id) {
               _flushTexto(from);
               enfileirar(from, () => processarImagem(from, msg.image.id, (ctxAd + (msg.image.caption || "")).trim(), nomeWpp));

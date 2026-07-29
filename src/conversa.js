@@ -405,7 +405,11 @@ function _ehPedidoPronto(texto) {
 }
 
 // Processa uma mensagem recebida do cliente.
-async function processar(from, texto, nomeWpp) {
+async function processar(from, _textoRaw, nomeWpp) {
+  // \x1F = marcador interno de "citação" (cliente respondeu a uma mensagem anterior do bot)
+  const ehCitacao = typeof _textoRaw === "string" && _textoRaw.startsWith("\x1F");
+  const texto = ehCitacao ? _textoRaw.slice(1) : (_textoRaw || "");
+
   // Inicializa preBot na primeira mensagem após as credenciais estarem disponíveis.
   if (!preBotIniciado) garantirPreBot();
 
@@ -665,7 +669,9 @@ async function processar(from, texto, nomeWpp) {
   }
 
   // ── Busca direta (sem IA) ────────────────────────────────────────────────
-  const termoDireto = _extrairTermoBusca(texto);
+  // Citações são roteadas direto à IA: "essa" refere-se a um produto anterior
+  // que só o histórico de conversa identifica.
+  const termoDireto = ehCitacao ? null : _extrairTermoBusca(texto);
   if (termoDireto) {
     const resultados = buscarProdutos({ texto: termoDireto });
     if (resultados.produtos.length > 0) {
