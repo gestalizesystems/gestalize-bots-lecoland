@@ -158,10 +158,18 @@ const SINONIMOS = {
   sensivel: ["sensivel", "sensitive"],
   renal: ["renal", "kidney"],
   light: ["light", "control"],
+  // Parasitas / vermífugos — "verme" via SINONIMOS não casa "VERMELHO" (alvo não contém "vermifug")
+  verme: ["vermifug", "antiparasit"],
+  vermes: ["vermifug", "antiparasit"],
+  vermifugo: ["vermifug", "antiparasit"],
+  vermifuge: ["vermifug", "antiparasit"],
+  vermifugar: ["vermifug", "antiparasit"],
+  pulga: ["pulga", "antipulga", "antipulgas", "ectoparasit", "antipara"],
+  carrapato: ["carrapato", "carrapatos", "ectoparasit", "antipara"],
 };
 // Palavras GENÉRICAS de categoria (não identificam a marca/item) — dropadas PRIMEIRO no relaxamento,
 // pra não sequestrar a busca (ex.: "ração chanin" nunca deve virar "ração" e trazer outra marca).
-const GENERICOS = new Set(["racao", "racoes", "comida", "alimento", "produto", "item", "sabor", "racaozinha"]);
+const GENERICOS = new Set(["racao", "racoes", "comida", "alimento", "produto", "item", "sabor", "racaozinha", "remedio", "remedios", "medicamento", "medicamentos", "suplemento"]);
 // "Saca / saco / fechada / pacote" = ração ENSACADA (fechada) — o oposto de granel. Quando aparece,
 // a busca EXCLUI os produtos a granel e mostra só as sacas fechadas (7,5kg, 10kg, 15kg, 20kg, 25kg...).
 const SACA = new Set(["saca", "sacas", "saco", "sacos", "sacaria", "fechada", "fechado", "fechadas", "pacote", "pacotes", "ensacada", "ensacado"]);

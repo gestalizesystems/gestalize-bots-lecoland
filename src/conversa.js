@@ -350,7 +350,7 @@ async function finalizar(contactId, enviarDespedida) {
 // Palavras que indicam pergunta de serviço/logística/comparação — nenhum produto do catálogo vai responder.
 // Prefixos/palavras que indicam serviço/logística/comparação. SEM \b no final para que prefixos
 // como "vacin" casem "vacinar"/"vacinação" e "consult" case "consulta"/"consultar".
-const _RE_SERVICO = /\b(banho|tosa|consult|veterin|vacin|vermifug|castrar|cirurgi|agend|horari|hor[aá]rio|endere[cç]o|funciona|fecha|abre|parcel|pagament|frete|taxi|t[aá]xi|entrega|descont|promoc|indica[cç]|diferen|recomend|comparar|versus|d[uú]vida|qual\s+[eéeh]\s+o\s+melhor|o\s+que\s+[eéeh]\s+melhor)/i;
+const _RE_SERVICO = /\b(banho|tosa|consult|veterin|vacin|castrar|cirurgi|agend|horari|hor[aá]rio|endere[cç]o|funciona|fecha|abre|parcel|pagament|frete|taxi|t[aá]xi|entrega|descont|promoc|indica[cç]|diferen|recomend|comparar|versus|d[uú]vida|qual\s+[eéeh]\s+o\s+melhor|o\s+que\s+[eéeh]\s+melhor)/i;
 
 // Extrai o termo de busca de uma mensagem de produto. Retorna null se for pergunta de serviço/logística,
 // saudação pura ou termo genérico sem suficiente especificidade.
