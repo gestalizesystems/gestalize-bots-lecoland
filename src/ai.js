@@ -279,14 +279,17 @@ async function executarFuncao(nome, args, contactId) {
   }
   if (nome === "obter_info_granel") {
     const especie = (args && args.especie) || "";
-    const extras = config.get().mensagensExtras || [];
+    const dados = config.get();
+    // Busca em mensagensExtras E em faqRapido (o usuário pode cadastrar em qualquer um dos dois)
+    const todas = [...(dados.mensagensExtras || []), ...(dados.faqRapido || []), ...(dados.servicos || [])];
     const ehGato = /^gat/i.test(especie);
-    const found = extras.find((x) => {
-      const t = norm(x.titulo);
-      return t.includes("granel") && (ehGato ? (t.includes("gato") || t.includes("cat")) : (t.includes("cao") || t.includes("caes") || t.includes("cao") || t.includes("dog") || t.includes("can")));
-    });
+    const temEspecie = (t) => ehGato
+      ? (t.includes("gato") || t.includes("cat") || t.includes("felin"))
+      : (t.includes("cao") || t.includes("caes") || t.includes("cach") || t.includes("dog") || t.includes("can"));
+    // Busca: "granel" + espécie correta no título
+    const found = todas.find((x) => { const t = norm(x.titulo); return t.includes("granel") && temEspecie(t); });
     if (found) return { titulo: found.titulo, resposta: found.resposta, ok: true };
-    return { ok: false, erro: "Resposta rápida de granel não encontrada. Encaminhe para um atendente." };
+    return { ok: false, naoEncontrado: true, erro: "Resposta rápida de granel não encontrada para essa espécie. Diga ao cliente: 'Deixa eu verificar as opções de granel pra você e já te passo! 🐾' — NÃO chame encaminhar_para_atendente." };
   }
   if (nome === "encaminhar_para_atendente") {
     return { ok: true, instrucao: "Escreva uma mensagem curta e simpática avisando o cliente que você já vai chamar um atendente humano para continuar o atendimento por aqui." };
@@ -374,7 +377,7 @@ function montarContexto(cliente) {
     "- RECEITA / LISTA DE REMÉDIOS: quando chegar uma receita com vários itens, CHAME buscar_produtos para CADA item (pelo nome/marca) antes de dizer se tem ou não. Os produtos encontrados são enviados com foto automaticamente.",
     "- RAÇÃO — MARCA + SABOR/VARIANTE JÁ INFORMADOS (prioridade máxima): se o cliente mencionar MARCA + SABOR ou VARIANTE específica (ex.: 'chanin peixe', 'friskies mix', 'golden salmão', 'fargo frango 25kg', 'premier gato castrado'), busque DIRETO com buscar_produtos usando SÓ o texto informado (ex.: texto 'chanin peixe 25kg'). NÃO pergunte cão/gato, adulto/filhote, saca/granel. NÃO inclua 'cao' nem 'gato' no texto da busca — a marca+variante já identifica o produto. Se o cliente informar tamanho em kg, isso é SACA (inclua no texto). Se quiser granel, ele dirá 'granel' ou 'a quilo'.",
     "- RAÇÃO (sem marca ou variante definidas): quando o cliente pedir ração genericamente (ex.: 'quero uma ração', 'tem ração pra gato?'), aí sim pergunte UMA coisa por vez, só o que faltar: (1) cão ou gato, (2) adulto ou filhote, (3) necessidade especial (castrado, controle de peso, idoso). NÃO pergunte NOME nem RAÇA do pet (só pra banho/tosa/consulta). Com essas infos, CHAME buscar_produtos com o texto montado (ex.: 'racao gato castrado'). NÃO inclua a espécie na query quando buscar por marca específica.",
-    "- A GRANEL / QUILO / FRACIONADO (sem marca): quando o cliente pedir ração 'no quilo', 'granel', 'fracionado' SEM especificar marca ou sabor, NÃO chame buscar_produtos. Em vez disso: (1) se ainda não souber se é para cão ou gato, PERGUNTE 'É para cão ou gato? 🐾'; (2) assim que souber a espécie, CHAME obter_info_granel(especie='cao' ou 'gato') — a resposta registrada será enviada automaticamente. Quando o cliente CITAR uma marca ou sabor específico junto com granel (ex.: 'chanin frango no quilo'), aí sim busque com buscar_produtos usando texto 'granel <marca> <sabor>' — sem adicionar espécie.",
+    "- A GRANEL / QUILO / FRACIONADO (sem marca): quando o cliente pedir ração 'no quilo', 'granel', 'fracionado' SEM especificar marca ou sabor, NÃO chame buscar_produtos. SEMPRE pergunte a espécie na MESMA mensagem que detectar o pedido de granel: 'É para cão ou gato? 🐾' — NUNCA assuma a espécie pelo contexto anterior da conversa (o cliente pode ter trocado de assunto). Somente DEPOIS que o cliente responder explicitamente nessa mesma resposta ou na mensagem seguinte, CHAME obter_info_granel(especie='cao' ou 'gato'). Quando o cliente CITAR uma marca ou sabor específico junto com granel (ex.: 'chanin frango no quilo'), aí sim busque com buscar_produtos usando texto 'granel <marca> <sabor>' — sem adicionar espécie.",
     "- ESPÉCIE (NUNCA MISTURE): se o cliente pediu para GATO, só ofereça produtos de GATO; se pediu para CÃO, só de CÃO. É PROIBIDO mostrar ração/produto de cão quando pediram para gato (e vice-versa). Se não tivermos para a espécie pedida, diga que não temos e ofereça buscar outra opção PARA A MESMA ESPÉCIE — nunca sugira a outra espécie.",
     "- MARCAS DE UMA ESPÉCIE SÓ: algumas marcas são só de cão ou só de gato (veja a base de conhecimento). Se o cliente citar essas marcas, NÃO pergunte 'cão ou gato' — busque DIRETO pela marca.",
     "- RAÇÃO — SACA OU GRANEL: pergunte 'Você quer em *saca* (fechada) ou a *granel* (por quilo)? 🐾' quando o cliente pedir ração genericamente e não tiver deixado claro. PULE a pergunta se: (a) o cliente já informou tamanho em kg (ex.: '25kg' = saca); (b) o cliente disse 'granel', 'a quilo', 'fracionado'; (c) o cliente especificou marca+sabor (busque direto, conforme regra acima). SACA → texto 'saca <ração>'; GRANEL → texto 'granel <ração>'.",
@@ -474,10 +477,13 @@ async function responder(contactId, mensagem) {
         if (chamada.name === "buscar_produtos" && resultado && Array.isArray(resultado.produtos)) {
           for (const p of resultado.produtos) if (!produtos.some((x) => x.nome === p.nome)) produtos.push(p);
         }
+        let resultadoParaIA = resultado;
         if (chamada.name === "obter_info_granel" && resultado && resultado.ok && resultado.resposta) {
           respostaGranel = resultado.resposta;
+          // Não envia o conteúdo à IA para ela não duplicar na resposta de texto.
+          resultadoParaIA = { titulo: resultado.titulo, ok: true, instrucao: "Conteúdo de granel encontrado e será enviado automaticamente após sua mensagem. Escreva APENAS uma frase curta de confirmação, como 'Aqui estão as opções de granel pra [cão/gato]! 🐾' — NÃO copie nem liste os itens." };
         }
-        partesResposta.push({ functionResponse: { name: chamada.name, response: resultado } });
+        partesResposta.push({ functionResponse: { name: chamada.name, response: resultadoParaIA } });
       }
       working.push({ role: "user", parts: partesResposta });
 

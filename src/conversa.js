@@ -67,6 +67,7 @@ const jaSaudou = new Set();            // contatos que já receberam o fluxo de 
 const aguardandoNome = new Map();      // contactId -> { textoOriginal, rTriagem }
 const aguardandoNps = new Set();
 const aguardandoNpsComentario = new Map();
+const aguardandoGranelEspecie = new Set(); // aguardando o cliente dizer "cão" ou "gato" para granel
 const historicoConversa = new Map();
 
 // Restaura estado a partir do snapshot salvo no Volume.
@@ -173,6 +174,30 @@ function ehDespedidaForte(t) {
   const n = normaliza(t);
   if (!n || n.length > 22) return false;
   return DESPEDIDA.some((p) => n === p || n.includes(p));
+}
+
+// Detecta espécie (cão/gato) explicitada na mensagem para o fluxo de granel.
+function detectarEspecieGranel(texto) {
+  const t = normaliza(String(texto || ""));
+  if (/\bgat[ao]s?\b|felino|\bcat\b/.test(t)) return "gato";
+  if (/\b(cao|caes|cachorro|cachorros|cadela|dog|canino)\b/.test(t)) return "cao";
+  return null;
+}
+
+// Busca a resposta rápida de granel correta no faqRapido / mensagensExtras.
+function buscarRespostaGranel(especie) {
+  const dados = config.get();
+  const todas = [...(dados.faqRapido || []), ...(dados.mensagensExtras || [])];
+  const ehGato = especie === "gato";
+  const found = todas.find((x) => {
+    const t = normaliza(x.titulo || "");
+    const temGranel = t.includes("granel");
+    const temEspecie = ehGato
+      ? (t.includes("gato") || t.includes("cat") || t.includes("felin"))
+      : (t.includes("cao") || t.includes("caes") || t.includes("cach") || t.includes("dog") || t.includes("can"));
+    return temGranel && temEspecie;
+  });
+  return found ? config.preencher(found.resposta) : null;
 }
 
 function ehPedidoRepetido(texto) {
@@ -297,6 +322,7 @@ async function finalizar(contactId, enviarDespedida) {
   aguardandoNome.delete(contactId);
   aguardandoNps.delete(contactId);
   aguardandoNpsComentario.delete(contactId);
+  aguardandoGranelEspecie.delete(contactId);
   historicoConversa.delete(contactId);
   ultimaMsgTs.delete(contactId);
   pausados.delete(contactId);
@@ -328,6 +354,7 @@ async function processar(from, texto, nomeWpp) {
     jaSaudou.delete(from);
     menuContexto.delete(from);
     aguardandoNome.delete(from);
+    aguardandoGranelEspecie.delete(from);
     const f = aguardandoFecho.get(from);
     if (f && f.timer) clearTimeout(f.timer);
     aguardandoFecho.delete(from);
@@ -379,6 +406,21 @@ async function processar(from, texto, nomeWpp) {
       await enviarConviteRedes(from);
     }
     return;
+  }
+
+  // ── Granel: aguardando espécie (cão/gato) ──────────────────────────────
+  if (aguardandoGranelEspecie.has(from)) {
+    aguardandoGranelEspecie.delete(from);
+    const especie = detectarEspecieGranel(texto);
+    if (especie) {
+      const respostaGranel = buscarRespostaGranel(especie);
+      if (respostaGranel) {
+        await enviar(from, respostaGranel);
+        agendarInatividade(from);
+        return;
+      }
+    }
+    // Não identificou a espécie — cai no fluxo normal abaixo
   }
 
   // ── Fora do horário ─────────────────────────────────────────────────────
@@ -550,6 +592,19 @@ async function processar(from, texto, nomeWpp) {
         await abrirHandoff(from, "Cliente pediu para falar com um atendente.");
         return;
       }
+      if (r.tipo === "opcao" && /granel/i.test(r.titulo || "")) {
+        aguardandoNome.delete(from);
+        const especie = detectarEspecieGranel(texto);
+        const respostaGranel = especie ? buscarRespostaGranel(especie) : null;
+        if (respostaGranel) {
+          await enviar(from, respostaGranel);
+        } else {
+          aguardandoGranelEspecie.add(from);
+          await enviar(from, "É para cão ou gato? 🐾");
+        }
+        agendarInatividade(from);
+        return;
+      }
       if (r.resposta) {
         await enviar(from, r.resposta);
         if (r.tipo === "opcao" || r.tipo === "mensagem") {
@@ -608,6 +663,20 @@ async function processar(from, texto, nomeWpp) {
 
   // Saudação em conversa já iniciada — menu foi enviado no início, não repete
   if (r.saudacao) {
+    agendarInatividade(from);
+    return;
+  }
+
+  // ── Granel: responde com a resposta rápida certa sem acionar a IA ────────
+  if (r.tipo === "opcao" && /granel/i.test(r.titulo || "")) {
+    const especie = detectarEspecieGranel(texto);
+    const respostaGranel = especie ? buscarRespostaGranel(especie) : null;
+    if (respostaGranel) {
+      await enviar(from, respostaGranel);
+    } else {
+      aguardandoGranelEspecie.add(from);
+      await enviar(from, "É para cão ou gato? 🐾");
+    }
     agendarInatividade(from);
     return;
   }
