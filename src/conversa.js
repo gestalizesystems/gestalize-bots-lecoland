@@ -377,6 +377,9 @@ function _extrairTermoBusca(texto) {
   if (/^(?:ra[cç][aã]o|rem[eé]dio|produto|medicamento|alimento|comida|petisco|sach[eê])s?$/i.test(termo)) return null;
   // Respostas conversacionais (negação, confirmação, "ele não tomou") → cai na IA para manter contexto
   if (/^(n[aã]o|sim|claro|ok\b|certo|exato|nunca|nenhum[a]?|tudo\s+bem|tudo\s+certo|isso|esse|esta)/i.test(termo)) return null;
+  // Qualificadores de apresentação sem produto — a IA usa o histórico pra entender o contexto
+  if (/^injet[aá]vel[!?.]?$/i.test(termo)) return null;
+  if (/^anticoncepcional[!?.]?$/i.test(termo)) return null;
   return termo;
 }
 
@@ -641,6 +644,20 @@ async function processar(from, texto, nomeWpp) {
     await enviar(from, config.preencher(dados.mensagens.atendente));
     pausar(from);
     await abrirHandoff(from, "Cliente quer repetir o último pedido.");
+    return;
+  }
+
+  // ── Produtos que não trabalhamos — resposta direta ───────────────────────
+  if (/\binjet[aá]vel\b/i.test(texto) && /\bverm[ei]/i.test(texto)) {
+    await enviar(from, "Vermífugo injetável não trabalhamos por aqui 🐾 Temos apenas nas versões *comprimido* ou *líquido*. Quer ver as opções?");
+    agendarInatividade(from);
+    _agendarSalvar();
+    return;
+  }
+  if (/\banticoncepcional\b/i.test(texto)) {
+    await enviar(from, "Anticoncepcional para animais não trabalhamos por aqui 🐾 Para essa necessidade, recomendamos consultar um médico veterinário.");
+    agendarInatividade(from);
+    _agendarSalvar();
     return;
   }
 
