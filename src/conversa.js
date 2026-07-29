@@ -380,6 +380,9 @@ function _extrairTermoBusca(texto) {
   // Qualificadores de apresentação sem produto — a IA usa o histórico pra entender o contexto
   if (/^injet[aá]vel[!?.]?$/i.test(termo)) return null;
   if (/^anticoncepcional[!?.]?$/i.test(termo)) return null;
+  // Frases explicativas ou reativas sem nome de produto ("já vi", "é porque", "mas é que")
+  if (/^j[aá]\s+(vi|sei|entendi|vejo|li|visto)\b/i.test(termo)) return null;
+  if (/^([eéè]\s+porque|[eéè]\s+que\b|porque\b|pois\b|mas\s+[eéè]|s[oó]\s+que\b)/i.test(termo)) return null;
   return termo;
 }
 

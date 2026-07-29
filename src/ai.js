@@ -199,7 +199,7 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
   const cat = config.get().catalogo || {};
   const produtos = (cat.produtos || []).filter((p) => p && p.ativo !== false);
   const g = norm(grupo), sg = norm(subgrupo), esp = norm(especificacao), tx = norm(texto);
-  let palavrasTx = tx.split(/\s+/).filter((w) => w && !STOPWORDS.has(w)); // casa por PALAVRA (qualquer ordem), sem conectivos
+  let palavrasTx = tx.split(/\s+/).filter((w) => w && w.length >= 3 && !STOPWORDS.has(w)); // ≥3 chars evita "vi"/"pé" casarem por substring
   // "saca / saco / fechada / pacote" = ração ensacada → exclui granel. É modificador, sai da busca por texto.
   const querSaca = palavrasTx.some((w) => SACA.has(w));
   palavrasTx = palavrasTx.filter((w) => !SACA.has(w));
