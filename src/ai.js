@@ -158,15 +158,16 @@ const SINONIMOS = {
   sensivel: ["sensivel", "sensitive"],
   renal: ["renal", "kidney"],
   light: ["light", "control"],
-  // Parasitas / vermífugos — "verme" via SINONIMOS não casa "VERMELHO" (alvo não contém "vermifug")
-  verme: ["vermifug", "antiparasit"],
-  vermes: ["vermifug", "antiparasit"],
-  vermifugo: ["vermifug", "antiparasit"],
-  vermifuge: ["vermifug", "antiparasit"],
-  vermifugar: ["vermifug", "antiparasit"],
-  pulga: ["pulga", "antipulga", "antipulgas", "ectoparasit", "antipara"],
-  carrapato: ["carrapato", "carrapatos", "ectoparasit", "antipara"],
 };
+// Sinônimos com match de PALAVRA INTEIRA (não substring). Usados quando o alvo tem a tag exata mas
+// como prefixo de outra palavra causaria falso positivo — ex.: "verme" vs "vermelha".
+// Matching: (" " + alvo + " ").includes(" " + termo + " ") — palavra delimitada por espaços.
+const SINONIMOS_EXATOS = {
+  verme: ["verme"], vermes: ["verme"],
+  vermifugo: ["verme"], vermifuge: ["verme"], vermifugar: ["verme"],
+  pulga: ["pulga"], carrapato: ["carrapato"],
+};
+
 // Palavras GENÉRICAS de categoria (não identificam a marca/item) — dropadas PRIMEIRO no relaxamento,
 // pra não sequestrar a busca (ex.: "ração chanin" nunca deve virar "ração" e trazer outra marca).
 const GENERICOS = new Set(["racao", "racoes", "comida", "alimento", "produto", "item", "sabor", "racaozinha", "remedio", "remedios", "medicamento", "medicamentos", "suplemento"]);
@@ -202,6 +203,7 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
   const alvoDe = (p) => [p.nome, p.descricao, p.grupo, ...(p.subgrupos || []), ...(p.especificacoes || [])].map(normAlvo).join(" ");
   // Uma palavra casa se QUALQUER um dos seus sinônimos aparecer (ex.: "gato" casa "cat"; "quilo" casa "granel").
   const casaPalavra = (alvo, w) => {
+    if (SINONIMOS_EXATOS[w]) return SINONIMOS_EXATOS[w].some((s) => (" " + alvo + " ").includes(" " + s + " "));
     if (SINONIMOS[w]) return SINONIMOS[w].some((s) => alvo.includes(s));
     if (/^\d/.test(w)) {
       // Quantidade (ex.: "7kg", "10kg"): casa o tamanho ESCRITO no nome, com decimal OPCIONAL e
