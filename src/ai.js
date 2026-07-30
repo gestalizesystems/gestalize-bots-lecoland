@@ -119,7 +119,7 @@ function norm(s) {
 const STOPWORDS = new Set([
   "de", "do", "da", "dos", "das", "para", "pra", "pro", "com", "e", "o", "a", "os", "as", "em", "no", "na", "ml", "mg",
   // Pronomes pessoais/possessivos — nunca identificam um produto
-  "ele", "ela", "eles", "elas", "eu", "tu", "nos", "voce", "voces",
+  "ele", "ela", "eles", "elas", "eu", "tu", "nos", "voce", "voces", "pet",
   "meu", "minha", "meus", "minhas", "seu", "sua", "seus", "suas",
   // Indefinidos e advérbios conversacionais — nunca identificam um produto
   "nenhum", "nenhuma", "nenhuns", "nenhumas", "nada", "ninguem",
@@ -405,6 +405,7 @@ function montarContexto(cliente) {
     "- RAÇÃO COM MARCA (saca ou granel): se o cliente citar uma marca de ração sem deixar claro saca/granel, pergunte 'Você quer em *saca* (fechada) ou a *granel* (por quilo)? 🐾'. Se SACA → buscar_produtos com texto '<marca> [sabor] [tamanho]'. Se GRANEL → buscar_produtos com texto 'granel <marca>'. Se o cliente já informou tamanho em kg → é saca, busque direto.",
     "- RAÇÃO GENÉRICA (sem marca): quando o cliente pedir ração sem citar marca (ex.: 'tem ração pra gato?'), pergunte UMA coisa por vez: (1) cão ou gato, (2) adulto ou filhote, (3) necessidade especial. Com essas infos, CHAME buscar_produtos com o texto montado (ex.: 'racao gato castrado').",
     "- RAÇÃO A GRANEL (sem marca específica): se o cliente pedir 'no quilo', 'granel', 'fracionado' para ração de cão ou gato, NÃO chame buscar_produtos — SEMPRE use obter_info_granel. Pergunte a espécie se não souber.",
+    "- GRANULADO (areia/substrato): 'granulado de madeira', 'granulado vegetal', 'granulado de papel' são AREIA ou SUBSTRATO — produto do catálogo, NÃO ração a granel. Use buscar_produtos({ texto: 'granulado madeira' }) ou similar. NUNCA use obter_info_granel para granulado de madeira/vegetal.",
     "- RAÇÃO PARA AVES (calopsita, periquito, papagaio, canário, etc.): NUNCA use obter_info_granel para aves. Busque SEMPRE com buscar_produtos({ texto: 'granel <espécie>' }) — ex.: 'granel calopsita', 'granel papagaio'. Não pergunte cão ou gato.",
     "- ESPÉCIE (NUNCA MISTURE): se o cliente pediu para GATO, só ofereça produtos de GATO; se pediu para CÃO, só de CÃO.",
     "- RAÇÃO — SACA OU GRANEL: NUNCA pergunte saca/granel para areia, petisco, medicamento ou acessório — só para RAÇÃO.",

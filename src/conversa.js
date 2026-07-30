@@ -69,6 +69,7 @@ const aguardandoNps = new Map(); // contactId → timestamp em que o NPS foi env
 const aguardandoNpsComentario = new Map();
 const aguardandoGranelEspecie = new Set(); // aguardando o cliente dizer "cão" ou "gato" para granel
 const historicoConversa = new Map();
+const proximaMsgParaIA = new Set();        // próxima msg desse contato vai direto à IA (bot fez pergunta ou respondeu menu de serviço)
 
 // Restaura estado a partir do snapshot salvo no Volume.
 (function restaurarSessoes() {
@@ -289,6 +290,7 @@ function limparInatividade(contactId) {
 
 function pausar(contactId) {
   pausados.set(contactId, { ultimaMsg: Date.now() });
+  proximaMsgParaIA.delete(contactId);
   agendarInatividade(contactId);
 }
 function registrarSessaoAtendente(contactId) {
@@ -326,6 +328,7 @@ async function finalizar(contactId, enviarDespedida) {
   if (f && f.timer) clearTimeout(f.timer);
   aguardandoFecho.delete(contactId);
   menuContexto.delete(contactId);
+  proximaMsgParaIA.delete(contactId);
   jaSaudou.delete(contactId);
   aguardandoNome.delete(contactId);
   aguardandoNps.delete(contactId);
@@ -352,12 +355,18 @@ async function finalizar(contactId, enviarDespedida) {
 // como "vacin" casem "vacinar"/"vacinação" e "consult" case "consulta"/"consultar".
 const _RE_SERVICO = /\b(banho|tosa|consult|veterin|vacin|castrar|cirurgi|agend|horari|hor[aá]rio|endere[cç]o|funciona|fecha|abre|parcel|pagament|frete|taxi|t[aá]xi|entrega|descont|promoc|indica[cç]|diferen|recomend|comparar|versus|d[uú]vida|qual\s+[eéeh]\s+o\s+melhor|o\s+que\s+[eéeh]\s+melhor)/i;
 
+// Sinal mínimo de intenção de produto. Sem qualquer um desses sinais, a mensagem
+// é provavelmente conversacional e deve ir para a IA (que tem o histórico).
+const _RE_SINAL_PRODUTO = /\b(?:quero|queria|preciso|comprar|comprando|me\s+manda|me\s+envi[ao]|me\s+pass[ae]|poderia\s+(?:mandar|enviar)|voc[eê]s?\s+t[eê]m|quanto\s+(?:custa|[eéê]|fica)|qual\s+o?\s*(?:pre[cç]o|valor)\b|pre[cç]o\s+d[oa]\b|valor\s+d[oa]\b|ra[cç][aõo]es?|petisco|brinquedo|coleira|areia|granulad|shampoo|sachê?|vermifug|antipulg|carrapato|comedouro|bebedouro|caminh[a]|arranhador|comprimido|l[ií]quido\s+(?:para|pra)\b|saca\s+(?:de\s+)?|fardo\s+de)\b/i;
+
 // Extrai o termo de busca de uma mensagem de produto. Retorna null se for pergunta de serviço/logística,
 // saudação pura ou termo genérico sem suficiente especificidade.
 function _extrairTermoBusca(texto) {
   const t = String(texto || "").trim();
   if (!t || t.length < 3) return null;
   if (_RE_SERVICO.test(t)) return null;
+  // Exige sinal mínimo de intenção de produto. Sem ele, é conversa geral → IA com histórico.
+  if (!_RE_SINAL_PRODUTO.test(t) && !/^t[eê]m\s/i.test(t)) return null;
 
   const termo = t
     .replace(/^(ol[aá][!,.]?\s*|oi[!,.]?\s*|bom\s+dia[!,.]?\s*|boa\s+tarde[!,.]?\s*|boa\s+noite[!,.]?\s*)+/i, "")
@@ -399,7 +408,7 @@ function _ehPedidoPronto(texto) {
     // Lista: separador após o item
     if (/,|(\se\s)/.test(restante) && restante.length > 10) return true;
     // Item único com intenção de compra clara
-    if (/\b(gostaria|quero|queria|preciso|me manda|pode mandar|manda|peço|pedindo|por favor|quero pedir|gostaria de pedir)\b/.test(t)) return true;
+    if (/\b(gostaria|quero|queria|preciso|me manda|pode mandar|poderia mandar|poderia enviar|manda|peço|pedindo|por favor|quero pedir|gostaria de pedir)\b/.test(t)) return true;
   }
   return false;
 }
@@ -409,6 +418,10 @@ async function processar(from, _textoRaw, nomeWpp) {
   // \x1F = marcador interno de "citação" (cliente respondeu a uma mensagem anterior do bot)
   const ehCitacao = typeof _textoRaw === "string" && _textoRaw.startsWith("\x1F");
   const texto = ehCitacao ? _textoRaw.slice(1) : (_textoRaw || "");
+
+  // Flag: a IA interagiu na mensagem anterior e tem contexto relevante para esta.
+  const bypassParaIA = proximaMsgParaIA.has(from);
+  if (bypassParaIA) proximaMsgParaIA.delete(from);
 
   // Inicializa preBot na primeira mensagem após as credenciais estarem disponíveis.
   if (!preBotIniciado) garantirPreBot();
@@ -642,6 +655,10 @@ async function processar(from, _textoRaw, nomeWpp) {
       registrarTurno(from, texto, nota + r.resposta);
       if (r.titulo) metricas.registrarServico(r.titulo);
     }
+    // Bot fez pergunta ou é menu de serviço que abre conversa → próxima msg usa IA com contexto
+    if (r.resposta.includes("?") || (r.tipo === "opcao" && /banho|tosa|consult|veterin|loja/i.test(r.titulo || ""))) {
+      proximaMsgParaIA.set(from, true);
+    }
     agendarInatividade(from);
     return;
   }
@@ -669,9 +686,8 @@ async function processar(from, _textoRaw, nomeWpp) {
   }
 
   // ── Busca direta (sem IA) ────────────────────────────────────────────────
-  // Citações são roteadas direto à IA: "essa" refere-se a um produto anterior
-  // que só o histórico de conversa identifica.
-  const termoDireto = ehCitacao ? null : _extrairTermoBusca(texto);
+  // Citações e mensagens pós-IA/pós-menu-de-serviço vão direto à IA com contexto.
+  const termoDireto = (ehCitacao || bypassParaIA) ? null : _extrairTermoBusca(texto);
   if (termoDireto) {
     const resultados = buscarProdutos({ texto: termoDireto });
     if (resultados.produtos.length > 0) {
@@ -728,9 +744,11 @@ async function processar(from, _textoRaw, nomeWpp) {
   }
   await enviar(from, _textoResp);
   if (resp.encaminhar) {
-    pausar(from);
+    pausar(from); // já limpa proximaMsgParaIA
     await abrirHandoff(from, resp.motivo || "A IA encaminhou para um atendente.");
   } else {
+    // IA respondeu → próxima mensagem começa com contexto da IA (melhora acerto)
+    proximaMsgParaIA.set(from, true);
     agendarInatividade(from);
   }
   if (resp.produtos && resp.produtos.length) await enviarProdutos(from, resp.produtos);
