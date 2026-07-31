@@ -666,6 +666,15 @@ async function processar(from, _textoRaw, nomeWpp) {
   if (resp.produtos && resp.produtos.length) {
     _textoResp = _textoResp.replace(/\n+[•\-\*\d][\s\S]*/g, "").trim();
   }
+  // Rede de segurança: IA prometeu produtos ("Achei…", "Encontrei…") mas busca retornou vazio →
+  // o texto seria mentira. Encaminha ao atendente silenciosamente.
+  if (!resp.encaminhar && (!resp.produtos || !resp.produtos.length) && /\b(achei|encontrei|aqui est[aã]|aqui v[aã]o|seguem as|veja as|essas opç[oõ]es|essas opções|esses produtos)\b/i.test(_textoResp)) {
+    await enviar(from, "Deixa eu verificar com um atendente o que temos disponível! 🐾");
+    pausar(from);
+    await abrirHandoff(from, "Produto não encontrado no catálogo — atendente confirma disponibilidade.");
+    _agendarSalvar();
+    return;
+  }
   await enviar(from, _textoResp);
   if (resp.encaminhar) {
     pausar(from); // já limpa proximaMsgParaIA

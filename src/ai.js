@@ -435,13 +435,13 @@ function montarContexto(cliente) {
     "- ESPÉCIE (NUNCA MISTURE): se o cliente pediu para GATO, só ofereça produtos de GATO; se pediu para CÃO, só de CÃO.",
     "- RAÇÃO — SACA OU GRANEL: NUNCA pergunte saca/granel para areia, petisco, medicamento ou acessório — só para RAÇÃO.",
     "- TAMANHO EM KG = SACA: se o cliente pedir tamanho específico (ex.: '15kg'), é saca — busque '<marca> <tamanho>'. Se retornar 0, busque sem o kg para ver tamanhos disponíveis e informe.",
-    "- MARCA PEDIDA — NUNCA SUBSTITUA: mostre SOMENTE produtos da marca pedida. Se buscar_produtos não retornar a marca, pergunte 'Não temos [X] no momento, mas posso te mandar outras opções? 🐾' e ESPERE. Só busque parecidos após o cliente confirmar.",
+    "- MARCA PEDIDA — NUNCA SUBSTITUA: mostre SOMENTE produtos da marca pedida. Se buscar_produtos não retornar a marca específica (0 resultados), CHAME encaminhar_para_atendente com motivo 'Cliente quer [marca+tamanho] — verificar disponibilidade.' NÃO diga 'não temos' e NÃO ofereça substitutos por conta própria — o atendente confirma se o produto existe no estoque real.",
     "- MAIS BARATO / MAIS EM CONTA: CHAME buscar_produtos com ordenarPor='preco' e indique o de menor preço.",
     "- ROUPA CIRÚRGICA: pergunte o PESO do pet e busque 'roupa cirurgica' + peso. NÃO confunda com bolsa/caixa de transporte.",
     "- VERMÍFUGO / ANTIPULGAS / ANTIPARASITÁRIO: são PRODUTOS do catálogo — NUNCA encaminhe para atendente só porque o cliente quer vermifugar ou tratar pulgas/carrapatos. Se já souber a espécie pelo contexto, BUSQUE IMEDIATAMENTE: buscar_produtos({ subgrupo: 'Gato', texto: 'verme' }) ou buscar_produtos({ subgrupo: 'Cão', texto: 'verme' }). Só pergunte a espécie se ela realmente não estiver na conversa.",
     "- Quando buscar_produtos retornar produtos, dê UMA ÚNICA frase de introdução curta (ex.: 'Achei essas opções pra você 🐾' ou 'Não temos X, mas tenho essas opções com Y 🐾'). NUNCA liste nomes, preços ou detalhes dos produtos no texto — os cards com foto e preço são enviados automaticamente pelo sistema. Qualquer lista de produtos no texto será ignorada.",
-    "- Se NÃO TEMOS o que o cliente pediu (buscar_produtos voltou 0): CHAME encaminhar_para_atendente — é melhor o atendente confirmar do que o bot responder errado.",
-    "- OBRIGATÓRIO ao ENVIAR: quando disser que está mostrando produtos, TEM que ter chamado buscar_produtos na MESMA resposta. Quando PERGUNTAR 'posso te mandar opções?', NÃO chame buscar_produtos — espere o cliente responder.",
+    "- Se buscar_produtos retornar 0 resultados: NUNCA escreva 'Achei', 'encontrei', 'aqui estão as opções' ou qualquer frase que sugira que produtos foram encontrados — seria uma mentira que confunde o cliente. SEMPRE CHAME encaminhar_para_atendente — o atendente confirma se o produto existe de verdade no estoque.",
+    "- OBRIGATÓRIO ao ENVIAR: quando disser que está mostrando produtos, TEM que ter chamado buscar_produtos na MESMA resposta e a função TEM que ter retornado produtos (total > 0). Quando PERGUNTAR 'posso te mandar opções?', NÃO chame buscar_produtos — espere o cliente responder.",
     "- Nunca invente produtos, marcas ou preços — use exclusivamente o que a função retornar.",
     "",
     "TAXA DE ENTREGA / TÁXI DOG:",
@@ -517,6 +517,15 @@ async function responder(contactId, mensagem) {
           for (const p of resultado.produtos) if (!produtos.some((x) => x.nome === p.nome)) produtos.push(p);
         }
         let resultadoParaIA = resultado;
+        // Quando buscar_produtos retorna 0 itens, reforça a instrução para o modelo não alucinar
+        // "Achei opções" nem dizer "não temos" — o atendente confirma a disponibilidade real.
+        if (chamada.name === "buscar_produtos" && resultado && resultado.total === 0) {
+          resultadoParaIA = {
+            total: 0,
+            produtos: [],
+            instrucao: "RESULTADO: ZERO produtos encontrados. PROIBIDO dizer 'Achei', 'encontrei', 'aqui estão as opções' ou qualquer frase que indique que produtos foram encontrados — seria mentira. OBRIGATÓRIO: CHAME encaminhar_para_atendente com motivo descrevendo o produto que o cliente buscou. O atendente humano vai confirmar se o item existe no estoque.",
+          };
+        }
         if (chamada.name === "obter_info_granel" && resultado && resultado.ok && resultado.resposta) {
           respostaGranel = resultado.resposta;
           // Não envia o conteúdo à IA para ela não duplicar na resposta de texto.
