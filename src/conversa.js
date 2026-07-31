@@ -353,62 +353,30 @@ async function finalizar(contactId, enviarDespedida) {
 // Palavras que indicam pergunta de serviço/logística/comparação — nenhum produto do catálogo vai responder.
 // Prefixos/palavras que indicam serviço/logística/comparação. SEM \b no final para que prefixos
 // como "vacin" casem "vacinar"/"vacinação" e "consult" case "consulta"/"consultar".
-const _RE_SERVICO = /\b(banho|tosa|consult|veterin|vacin|castrar|cirurgi|agend|horari|hor[aá]rio|endere[cç]o|funciona|fecha|abre|parcel|pagament|frete|taxi|t[aá]xi|entrega|descont|promoc|indica[cç]|diferen|recomend|comparar|versus|d[uú]vida|qual\s+[eéeh]\s+o\s+melhor|o\s+que\s+[eéeh]\s+melhor)/i;
+const _RE_SERVICO = /\b(banho|tosa|consult|veterin|vacin|castrar|cirurgi|agend|horari|hor[aá]rio|endere[cç]o|funciona|fecha|abre|parcel|pagament|frete|taxi|t[aá]xi|entrega|descont|promoc|indica[cç]|diferen|recomend|comparar|versus|d[uú]vida|qual\s+[eéeh]\s+o\s+melhor|o\s+que\s+[eéeh]\s+melhor|reclama[cç]|n[aã]o\s+foi|n[aã]o\s+voltou|n[aã]o\s+devolveu|esqueceu|esqueceram|perdeu|perderam|sumiu|sumiram|veio\s+errad|veio\s+quebrad|cobr[ao]u\s+errad|verificar|ficou\s+a[ií]|ficou\s+l[aá]|ficou\s+esqu|deixou\s+(?:a[ií]|l[aá])|deixaram\s+(?:a[ií]|l[aá])|n[aã]o\s+devolver|n[aã]o\s+trouxe|n[aã]o\s+entregou|cadê|cade\b|quero\s+reclamar|quero\s+devolver|quero\s+reembolso)/i;
 
-// Sinal mínimo de intenção de produto. Sem qualquer um desses sinais, a mensagem
-// é provavelmente conversacional e deve ir para a IA (que tem o histórico).
-const _RE_SINAL_PRODUTO = /\b(?:quero|queria|preciso|comprar|comprando|me\s+manda|me\s+envi[ao]|me\s+pass[ae]|poderia\s+(?:mandar|enviar)|voc[eê]s?\s+t[eê]m|quanto\s+(?:custa|[eéê]|fica)|qual\s+o?\s*(?:pre[cç]o|valor)\b|pre[cç]o\s+d[oa]\b|valor\s+d[oa]\b|ra[cç][aõo]es?|petisco|brinquedo|coleira|areia|granulad|shampoo|sachê?|vermifug|antipulg|carrapato|comedouro|bebedouro|caminh[a]|arranhador|comprimido|l[ií]quido\s+(?:para|pra)\b|saca\s+(?:de\s+)?|fardo\s+de)\b/i;
-
-// Extrai o termo de busca de uma mensagem de produto. Retorna null se for pergunta de serviço/logística,
-// saudação pura ou termo genérico sem suficiente especificidade.
-function _extrairTermoBusca(texto) {
-  const t = String(texto || "").trim();
-  if (!t || t.length < 3) return null;
-  if (_RE_SERVICO.test(t)) return null;
-  // Exige sinal mínimo de intenção de produto. Sem ele, é conversa geral → IA com histórico.
-  if (!_RE_SINAL_PRODUTO.test(t) && !/^t[eê]m\s/i.test(t)) return null;
-
-  const termo = t
-    .replace(/^(ol[aá][!,.]?\s*|oi[!,.]?\s*|bom\s+dia[!,.]?\s*|boa\s+tarde[!,.]?\s*|boa\s+noite[!,.]?\s*)+/i, "")
-    .replace(/^(?:gostaria|queria)\s+de\s+/i, "")       // "gostaria de [verbo]" → só o verbo
-    .replace(/^(?:quero|preciso)\s+(?:comprar\s+|de\s+)?/i, "")
-    .replace(/\bvoc[eê]s?\s+t[eê]m\s+/i, "")
-    .replace(/^t[eê]m\s+/i, "")
-    .replace(/^qual\s+[oa]\s+(?:pre[cç]o|valor)\s+d[oae]?\s*/i, "")
-    .replace(/^quanto\s+(?:custa|[eéeh]|fica)\s+(?:[oa]\s+)?/i, "")
-    .replace(/\s+(?:meu|minha|meus|minhas)\s+/gi, " ")  // possessivos ("meu gato" → "gato")
-    .replace(/\s+de\s+\d+\s*(?:meses?|anos?|semanas?|dias?)\b/gi, "") // idade do pet ("de 5 meses")
-    .replace(/[?!.…]+$/, "")
-    .replace(/\s+(?:dispon[ií]vel|a[ií]|aqui|por\s+a[ií])$/i, "")
-    .trim();
-
-  if (!termo || termo.length < 3) return null;
-  if (/^(?:ra[cç][aã]o|rem[eé]dio|produto|medicamento|alimento|comida|petisco|sach[eê])s?$/i.test(termo)) return null;
-  // Respostas conversacionais (negação, confirmação, "ele não tomou") → cai na IA para manter contexto
-  if (/^(n[aã]o|sim|claro|ok\b|certo|exato|nunca|nenhum[a]?|tudo\s+bem|tudo\s+certo|isso|esse|esta)/i.test(termo)) return null;
-  // Qualificadores de apresentação sem produto — a IA usa o histórico pra entender o contexto
-  if (/^injet[aá]vel[!?.]?$/i.test(termo)) return null;
-  if (/^anticoncepcional[!?.]?$/i.test(termo)) return null;
-  // Frases explicativas ou reativas sem nome de produto ("já vi", "é porque", "mas é que")
-  if (/^j[aá]\s+(vi|sei|entendi|vejo|li|visto)\b/i.test(termo)) return null;
-  if (/^([eéè]\s+porque|[eéè]\s+que\b|porque\b|pois\b|mas\s+[eéè]|s[oó]\s+que\b)/i.test(termo)) return null;
-  return termo;
-}
 
 // Detecta pedido com itens e quantidades já definidos (ex: "1 saca de pipicat, 2 latas de patê chanin").
 // Critério: pelo menos 2 ocorrências de dígito + unidade/item, ou 1 ocorrência + vírgula/quebra separando mais itens.
 function _ehPedidoPronto(texto) {
   const t = texto.toLowerCase();
-  const unidades = /\b(\d+)\s*(saca|sacos?|kg|quilo|quilos?|gramas?|g\b|lata|latas?|pote|potes?|pacote|pacotes?|caixa|caixas?|cx|frasco|frascos?|unidade|unidades?|und?|bisnaga|bisnagas?|kit|kits?)/g;
+  // Quantidade: dígito OU número por extenso (um/dois/meia etc.) + unidade de medida/embalagem
+  const _NUM = "(?:\\d+(?:[,.]\\d+)?|um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|meia|meio)";
+  const unidades = new RegExp(
+    "\\b" + _NUM + "\\s*(?:saca|sacos?|fardos?|kg|kilo|quilo|quilos?|gramas?|g\\b|lata|latas?|pote|potes?|pacote|pacotes?|caixa|caixas?|cx|frasco|frascos?|unidade|unidades?|und?|bisnaga|bisnagas?|kit|kits?)",
+    "gi"
+  );
   const ocorrencias = [...t.matchAll(unidades)];
+  // 2+ itens com quantidade → pedido pronto sem dúvida
   if (ocorrencias.length >= 2) return true;
   if (ocorrencias.length === 1) {
     const pos = ocorrencias[0].index;
-    const restante = t.slice(pos + ocorrencias[0][0].length);
-    // Lista: separador após o item
-    if (/,|(\se\s)/.test(restante) && restante.length > 10) return true;
+    const antes = t.slice(0, pos);
+    const depois = t.slice(pos + ocorrencias[0][0].length);
+    // Há uma lista: separador vírgula ou " e " antes OU depois do item
+    if (/,|\se\s/.test(antes) || (/,|\se\s/.test(depois) && depois.length > 10)) return true;
     // Item único com intenção de compra clara
-    if (/\b(gostaria|quero|queria|preciso|me manda|pode mandar|poderia mandar|poderia enviar|manda|peço|pedindo|por favor|quero pedir|gostaria de pedir)\b/.test(t)) return true;
+    if (/\b(gostaria|quero|queria|preciso|me\s+manda|pode\s+mandar|poderia\s+(?:mandar|enviar)|manda|pe[cç]o|pedindo|por\s+favor|quero\s+pedir|gostaria\s+de\s+pedir)\b/.test(t)) return true;
   }
   return false;
 }
@@ -418,10 +386,6 @@ async function processar(from, _textoRaw, nomeWpp) {
   // \x1F = marcador interno de "citação" (cliente respondeu a uma mensagem anterior do bot)
   const ehCitacao = typeof _textoRaw === "string" && _textoRaw.startsWith("\x1F");
   const texto = ehCitacao ? _textoRaw.slice(1) : (_textoRaw || "");
-
-  // Flag: a IA interagiu na mensagem anterior e tem contexto relevante para esta.
-  const bypassParaIA = proximaMsgParaIA.has(from);
-  if (bypassParaIA) proximaMsgParaIA.delete(from);
 
   // Inicializa preBot na primeira mensagem após as credenciais estarem disponíveis.
   if (!preBotIniciado) garantirPreBot();
@@ -573,6 +537,16 @@ async function processar(from, _textoRaw, nomeWpp) {
     else menuContexto.delete(from);
   }
 
+  // ── Story / Status reply: primeira msg já vem como citação, bot não vê o conteúdo ──
+  if (ehCitacao && !jaSaudou.has(from)) {
+    const msgAtendente = config.preencher(dados.mensagens.atendente || "Já vou chamar um atendente! 🐾");
+    await enviar(from, msgAtendente);
+    jaSaudou.add(from);
+    pausar(from);
+    await abrirHandoff(from, "Cliente respondeu a um story/status sem histórico de conversa.");
+    return;
+  }
+
   // ── Primeiro contato (ainda não saudou nesta sessão) ────────────────────
   if (!jaSaudou.has(from)) {
     jaSaudou.add(from);
@@ -685,58 +659,8 @@ async function processar(from, _textoRaw, nomeWpp) {
     return;
   }
 
-  // ── Busca direta (sem IA) ────────────────────────────────────────────────
-  // Citações e mensagens pós-IA/pós-menu-de-serviço vão direto à IA com contexto.
-  const termoDireto = (ehCitacao || bypassParaIA) ? null : _extrairTermoBusca(texto);
-  if (termoDireto) {
-    const resultados = buscarProdutos({ texto: termoDireto });
-    if (resultados.produtos.length > 0) {
-      await enviar(from, "Achei essas opções pra você 🐾");
-      await enviarProdutos(from, resultados.produtos);
-      registrarTurno(from, texto, `(busca direta: "${termoDireto}" → ${resultados.total} produto(s))`);
-      agendarInatividade(from);
-      _agendarSalvar();
-      return;
-    }
-    // Sem resultados → encaminha ao atendente sem gastar IA
-    await enviar(from, config.preencher(dados.mensagens.atendente || "Vou chamar um atendente! 🐾"));
-    pausar(from);
-    await abrirHandoff(from, `Produto não encontrado no catálogo: "${termoDireto}"`);
-    _agendarSalvar();
-    return;
-  }
-
-  // ── Pre-busca de vermífugo em mensagens mistas (serviço + vermífugo) ─────
-  // Ex.: "vacinar e vermifugar meu gato" — "vacin" bloqueia a busca direta,
-  // mas vermífugo é produto do catálogo: enviamos os cards e passamos à IA
-  // apenas o restante (vacinas, consulta, etc.).
-  let textoParaIA = texto;
-  if (/\bvermifug/i.test(texto)) {
-    const ehGato = /\bgat[oa]s?\b/i.test(texto);
-    const ehCao = /\b(c[aã]o|c[aã]es|cachorro[s]?|cadela[s]?)\b/i.test(texto);
-    const termoVerme = ehGato ? "verme gato" : ehCao ? "verme cao" : "verme";
-    const rv = buscarProdutos({ texto: termoVerme });
-    if (rv.produtos.length > 0) {
-      await enviar(from, "Aqui estão as opções de vermífugo pra você 🐾");
-      await enviarProdutos(from, rv.produtos);
-      textoParaIA = texto
-        .replace(/\be\s+vermifug\w*/gi, "")
-        .replace(/\bvermifug\w*\s+e\s+/gi, "")
-        .replace(/[,]\s*vermifug\w*/gi, "")
-        .replace(/\bvermifug\w*\s*/gi, "")
-        .replace(/\s{2,}/g, " ")
-        .trim();
-      if (!textoParaIA || textoParaIA.length < 5) {
-        registrarTurno(from, texto, `(vermífugo: ${rv.total} produto(s) enviados)`);
-        agendarInatividade(from);
-        _agendarSalvar();
-        return;
-      }
-      // Ainda há conteúdo (ex.: pergunta sobre vacinas) → IA responde o restante
-    }
-  }
-
-  const resp = await responder(from, textoParaIA);
+  // ── IA: decide buscar produto, responder ou encaminhar ao atendente ───────
+  const resp = await responder(from, texto);
   let _textoResp = (resp.texto || "").trim();
   // Se há cards de produtos para enviar, garante que o texto seja só a intro (sem lista duplicada)
   if (resp.produtos && resp.produtos.length) {
@@ -787,4 +711,6 @@ function conversasAtivas() {
   });
 }
 
-module.exports = { configurar, processar, pausar, retomar, concluirAtendimento, registrarSessaoAtendente, ehMsgBot, conversasAtivas };
+function estaPausado(contactId) { return pausados.has(contactId); }
+
+module.exports = { configurar, processar, pausar, retomar, concluirAtendimento, registrarSessaoAtendente, ehMsgBot, conversasAtivas, abrirHandoff, estaPausado };

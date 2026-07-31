@@ -125,15 +125,17 @@ const STOPWORDS = new Set([
   "nenhum", "nenhuma", "nenhuns", "nenhumas", "nada", "ninguem",
   "ainda", "ja", "so", "ate", "nunca", "sempre", "tambem", "mesmo",
   "isso", "esse", "essa", "esses", "essas", "este", "esta", "estes", "estas", "aquele", "aquela",
+  // Verbos auxiliares conversacionais — nunca identificam um produto
+  "vou", "vai", "vem", "ira", "iria", "sera", "serei", "vim", "foi", "fui", "tem",
 ]);
 
 // Sinônimos de busca: a palavra da esquerda casa se QUALQUER termo à direita aparecer no produto.
-// Resolve os nomes técnicos do catálogo: gato↔cat, cão↔dog, e "a quilo/kg/fracionado" = GRANEL.
+// Resolve os nomes técnicos do catálogo: "a quilo/kg/fracionado" = GRANEL.
+// ESPÉCIE (gato/cão) ficam em SINONIMOS_EXATOS (match palavra inteira) para evitar que
+// "cao" case dentro de "racao", devolvendo produtos da espécie errada.
 const ESPECIE_GATO = ["gato", "gata", "gatos", "cat", "cats", "felino", "felina", "feline"];
 const ESPECIE_CAO = ["cao", "cachorro", "cachorros", "caes", "cadela", "dog", "dogs", "canino", "canina", "canine"];
 const SINONIMOS = {
-  gato: ESPECIE_GATO, gata: ESPECIE_GATO, gatos: ESPECIE_GATO, cat: ESPECIE_GATO, felino: ESPECIE_GATO, feline: ESPECIE_GATO,
-  cao: ESPECIE_CAO, caes: ESPECIE_CAO, cachorro: ESPECIE_CAO, cachorros: ESPECIE_CAO, cadela: ESPECIE_CAO, dog: ESPECIE_CAO, canino: ESPECIE_CAO,
   granel: ["granel", "fracionad"],
   quilo: ["granel", "fracionad"],
   quilos: ["granel", "fracionad"],
@@ -168,10 +170,15 @@ const SINONIMOS = {
   renal: ["renal", "kidney"],
   light: ["light", "control"],
 };
-// Sinônimos com match de PALAVRA INTEIRA (não substring). Usados quando o alvo tem a tag exata mas
-// como prefixo de outra palavra causaria falso positivo — ex.: "verme" vs "vermelha".
+// Sinônimos com match de PALAVRA INTEIRA (não substring).
 // Matching: (" " + alvo + " ").includes(" " + termo + " ") — palavra delimitada por espaços.
+// ESPÉCIE obrigatoriamente aqui: "cao" é substring de "racao", então match simples devolve
+// ração de gato para buscas de cachorro (e vice-versa).
 const SINONIMOS_EXATOS = {
+  // Espécie — match exato para não confundir "racao" com "cao" nem "gato" com substring de marca
+  gato: ESPECIE_GATO, gata: ESPECIE_GATO, gatos: ESPECIE_GATO, cat: ESPECIE_GATO, felino: ESPECIE_GATO, feline: ESPECIE_GATO,
+  cao: ESPECIE_CAO, caes: ESPECIE_CAO, cachorro: ESPECIE_CAO, cachorros: ESPECIE_CAO, cadela: ESPECIE_CAO, dog: ESPECIE_CAO, canino: ESPECIE_CAO,
+  // Antiparasitário — evita "verme" casar "vermelha", "pulga" casar prefixos etc.
   verme: ["verme"], vermes: ["verme"],
   vermifugo: ["verme"], vermifuge: ["verme"], vermifugar: ["verme"],
   pulga: ["pulga"], carrapato: ["carrapato"],
@@ -179,7 +186,7 @@ const SINONIMOS_EXATOS = {
 
 // Palavras GENÉRICAS de categoria (não identificam a marca/item) — dropadas PRIMEIRO no relaxamento,
 // pra não sequestrar a busca (ex.: "ração chanin" nunca deve virar "ração" e trazer outra marca).
-const GENERICOS = new Set(["racao", "racoes", "comida", "alimento", "produto", "item", "sabor", "racaozinha", "remedio", "remedios", "medicamento", "medicamentos", "suplemento"]);
+const GENERICOS = new Set(["racao", "racoes", "comida", "alimento", "produto", "item", "sabor", "racaozinha", "remedio", "remedios", "medicamento", "medicamentos", "suplemento", "vitamina", "vitaminas", "mineral", "minerais", "nutricional", "nutritivo", "nutritiva"]);
 // "Saca / saco / fechada / pacote" = ração ENSACADA (fechada) — o oposto de granel. Quando aparece,
 // a busca EXCLUI os produtos a granel e mostra só as sacas fechadas (7,5kg, 10kg, 15kg, 20kg, 25kg...).
 const SACA = new Set(["saca", "sacas", "saco", "sacos", "sacaria", "fechada", "fechado", "fechadas", "pacote", "pacotes", "ensacada", "ensacado"]);
@@ -203,6 +210,8 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
   // "saca / saco / fechada / pacote" = ração ensacada → exclui granel. É modificador, sai da busca por texto.
   const querSaca = palavrasTx.some((w) => SACA.has(w));
   palavrasTx = palavrasTx.filter((w) => !SACA.has(w));
+  // Sem nenhuma palavra útil E sem filtros estruturais → não retorna tudo (filtrarPor([]) é vacuosamente verdadeiro).
+  if (!g && !sg && !esp && !palavrasTx.length) return { total: 0, produtos: [] };
   const casa = (valor, alvo) => valor && (norm(valor).includes(alvo) || alvo.includes(norm(valor)));
   const casaLista = (lista, alvo) => Array.isArray(lista) && lista.some((x) => casa(x, alvo));
   // Alvo da busca por texto: nome + descrição + tags (grupo/subgrupos/especificações).
@@ -256,8 +265,20 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
     // 1) Remove palavras que não casam com NADA (typo/abreviação que zera o AND, ex.: "suspensao"
     //    quando o nome traz "SUSP"). Assim "hepvet suspensao" → "hepvet".
     if (!achados.length) {
-      outras = outras.filter((w) => cnt(w) > 0);
-      achados = (ancoras.length || outras.length) ? filtrarPor([...ancoras, ...outras]) : [];
+      const outrasFiltradas = outras.filter((w) => cnt(w) > 0);
+      const perdeuIdentificador = outrasFiltradas.length < outras.length; // alguma palavra específica foi removida
+      outras = outrasFiltradas;
+      // Se o identificador específico foi removido (não existe no catálogo) e só restam âncoras
+      // de espécie/granel, a busca ficou genérica demais — "renapro dog" → "dog" → todos os dogs.
+      // Melhor retornar 0 e acionar handoff do que devolver produtos errados.
+      if (perdeuIdentificador && !outras.length && ancoras.length) {
+        achados = [];
+      // Se só restaram genéricos sem âncoras, mesma lógica: não arrisca uma busca ampla.
+      } else if (!ancoras.length && outras.length && outras.every((w) => GENERICOS.has(w))) {
+        achados = [];
+      } else {
+        achados = (ancoras.length || outras.length) ? filtrarPor([...ancoras, ...outras]) : [];
+      }
     }
     // 2) Ainda 0: dropa a 'outra' MENOS seletiva (casa com mais produtos), preservando a mais
     //    distintiva (a marca). Nunca dropa a última → não retorna resultado amplo/genérico.
@@ -392,7 +413,11 @@ function montarContexto(cliente) {
     "- O QUE VENDEMOS — ANIMAIS: vendemos apenas calopsita, periquito australiano e hamster. NÃO vendemos cachorro, gato nem nenhum outro animal além desses três. Se perguntarem por outro animal, diga gentilmente que não trabalhamos com a venda dele. (Para preço/disponibilidade desses que vendemos, encaminhe para um atendente.)",
     "- O QUE VENDEMOS — PRODUTOS: vendemos artigos para animais aquáticos, répteis, roedores e aves (comida, comedouros, gaiolas, aquários, acessórios, etc.).",
     "- NÃO TRABALHAMOS COM: (1) Vermífugo/remédio para verme INJETÁVEL — não temos essa apresentação; temos apenas comprimido ou líquido (oral). (2) Anticoncepcional para animais — não trabalhamos com esse tipo de medicamento. Informe ao cliente com gentileza e, se quiser, sugira procurar um veterinário ou outra petshop especializada.",
+    "- RECLAMAÇÃO / PROBLEMA COM SERVIÇO OU PRODUTO JÁ COMPRADO — PRIORIDADE MÁXIMA: se a mensagem indicar um problema com algo já adquirido ou serviço já prestado, NÃO busque produtos — CHAME encaminhar_para_atendente com motivo 'Reclamação do cliente.' IMEDIATAMENTE. Exemplos que SEMPRE são reclamação: 'não foi devolvido', 'não devolveram', 'ficou aí', 'ficou lá', 'deixou aí', 'esqueceu', 'esqueceram', 'perderam meu item', 'cadê', 'sumiu', 'veio errado', 'veio quebrado', 'não funcionou', 'não foi feito', 'cobrou errado', 'quero reclamar', 'pode verificar', 'faltou', 'não voltou', 'não entregou'. ATENÇÃO: mesmo que a mensagem mencione um produto (ex.: 'a escova ficou aí', 'o shampoo veio errado'), NÃO chame buscar_produtos — é reclamação, não pedido. Esta regra tem prioridade ABSOLUTA sobre a REGRA GERAL de nome/marca.",
     "- Quando precisar de um atendente humano (exames com guia, fechar valor de pacote de cliente frequente, venda de aves/animais, reclamações, ou algo fora do seu conhecimento), CHAME a função encaminhar_para_atendente e avise o cliente que vai chamar alguém. Não invente que já resolveu.",
+    "- MENSAGEM FORA DE CONTEXTO / DÚVIDA GERAL: se a mensagem não for sobre produtos, serviços, preços, entregas, banho/tosa ou outra dúvida do pet shop — por exemplo mensagens pessoais, perguntas sobre adoção de animais, fotos de terceiros, perguntas sobre funcionários específicos pelo nome ou conteúdo sem relação com a loja — NÃO tente responder nem chame buscar_produtos. CHAME encaminhar_para_atendente com motivo 'Mensagem fora do escopo do bot.'.",
+    "- REFERÊNCIA VISUAL SEM NOME ('tem esse produto?', 'vocês têm isso?', 'tem esse aí?', 'esse aqui', 'tem esse item?'): quando o cliente perguntar por 'esse/isso/aquele produto' SEM citar nome, marca ou tipo do produto — a mensagem veio provavelmente junto de uma imagem que o bot não consegue ver. NÃO tente adivinhar o produto. CHAME encaminhar_para_atendente com motivo 'Cliente perguntou sobre produto sem identificar o nome.'.",
+    "- MENSAGEM DE ESPERA / CONFIRMAÇÃO PENDENTE: quando o cliente indicar que vai confirmar em breve, vai mandar a lista, vai verificar ou está aguardando — ex.: 'já vou confirmar', 'vou te mandar', 'deixa eu ver', 'espera um pouco', 'vou pegar a informação', 'já já confirmo', 'vou checar' — NÃO busque produtos. Responda apenas com mensagem curta de espera ('Claro, pode chamar quando quiser! 🐾' ou similar), sem chamar nenhuma função.",
     "- RECEITA / MEDICAMENTOS: quando o cliente mandar uma receita (lista de medicamentos), BUSQUE cada item no catálogo com buscar_produtos e informe os que TEMOS com o VALOR. Se tivermos PELO MENOS UM, NÃO encaminhe — passe os valores dos que temos e, para os que faltarem, diga que confirma com um atendente. Só encaminhe para o atendente se NENHUM dos medicamentos da receita estiver no catálogo, OU quando o cliente pedir a ENTREGA do medicamento (aí o atendente finaliza).",
     "",
     "PRODUTOS / CATÁLOGO (vale para QUALQUER produto: ração, petisco, brinquedo, acessório, areia, cosmético...):",

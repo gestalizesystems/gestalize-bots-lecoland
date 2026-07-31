@@ -36,36 +36,25 @@ async function processarAudio(from, mediaId, nomeWpp) {
   }
 }
 
-// Lê um documento recebido (ex.: PDF de receita), extrai os medicamentos e processa como texto.
+// Documento recebido (PDF, receita etc.) → encaminha direto para atendente humano.
 async function processarDocumento(from, mediaId, mimeType, nomeWpp) {
+  if (conversa.estaPausado(from)) return; // já em atendimento humano ou handoff em andamento
   try {
-    const { buffer, mimeType: mt } = await wa.baixarMidia(mediaId);
-    try { await wa.enviarTexto(from, "📄 Recebi seu documento! Já vou verificar os itens. 🐾"); } catch (_) {}
-    const lista = await ai.lerDocumento(buffer.toString("base64"), mt || mimeType);
-    if (lista && lista.toUpperCase() !== "NENHUM") {
-      await conversa.processar(from, `Mandei uma receita com estes itens: ${lista}. Quais vocês têm e quanto custa cada um?`, nomeWpp);
-    } else {
-      await conversa.processar(from, "Enviei um documento (receita). Vocês conseguem ver e me passar os valores?", nomeWpp);
-    }
+    await wa.enviarTexto(from, "📄 Recebi seu documento! Vou chamar um de nossos atendentes para te ajudar. 🐾");
+    conversa.pausar(from);
+    await conversa.abrirHandoff(from, "Cliente enviou um documento/receita.");
   } catch (e) {
     console.error("Falha ao processar documento:", e.message);
   }
 }
 
-// Cliente mandou uma FOTO (ex.: print de anúncio do Instagram): identifica o produto e responde.
+// Imagem recebida → encaminha direto para atendente humano.
 async function processarImagem(from, mediaId, caption, nomeWpp) {
+  if (conversa.estaPausado(from)) return; // já em atendimento humano ou handoff em andamento
   try {
-    const { buffer, mimeType } = await wa.baixarMidia(mediaId);
-    const produto = await ai.identificarProdutoImagem(buffer.toString("base64"), mimeType, caption);
-    let texto;
-    if (produto && produto.toUpperCase() !== "NENHUM") {
-      texto = `O cliente enviou uma FOTO de um produto: ${produto}.${caption ? ` Ele escreveu: "${caption}".` : ""} Busque no catálogo e passe as informações/valor. Se não tiver exatamente, mande opções parecidas.`;
-    } else if (caption && caption.trim()) {
-      texto = caption.trim();
-    } else {
-      texto = "O cliente mandou uma foto mas não deu pra identificar o produto. Pergunte gentilmente o que ele procura.";
-    }
-    await conversa.processar(from, texto, nomeWpp);
+    await wa.enviarTexto(from, "📷 Recebi sua foto! Vou chamar um de nossos atendentes para te ajudar. 🐾");
+    conversa.pausar(from);
+    await conversa.abrirHandoff(from, "Cliente enviou uma imagem/foto.");
   } catch (e) {
     console.error("Falha ao processar imagem:", e.message);
   }
@@ -101,14 +90,22 @@ function enfileirar(from, tarefa) {
 // Debounce de texto: junta mensagens em rajada antes de processar (evita respostas intermediárias).
 const _debounceTexto = new Map(); // contactId -> { timer, partes, nomeWpp }
 const DEBOUNCE_MS = 2500;
+// Contatos que receberam imagem/documento recentemente: suprime texto já enfileirado.
+const _midiaPendente = new Set();
 function _agendarTexto(from, textoCompleto, nomeWpp) {
   const buf = _debounceTexto.get(from) || { partes: [], nomeWpp };
   buf.partes.push(textoCompleto);
   if (!buf.nomeWpp) buf.nomeWpp = nomeWpp;
   if (buf.timer) clearTimeout(buf.timer);
+  const partes = buf.partes;
+  const nome = buf.nomeWpp;
   buf.timer = setTimeout(() => {
     _debounceTexto.delete(from);
-    enfileirar(from, () => conversa.processar(from, buf.partes.join("\n"), buf.nomeWpp));
+    enfileirar(from, () => {
+      // Se imagem/documento chegou depois do timer disparar, descarta o texto.
+      if (_midiaPendente.has(from)) { _midiaPendente.delete(from); return; }
+      return conversa.processar(from, partes.join("\n"), nome);
+    });
   }, DEBOUNCE_MS);
   _debounceTexto.set(from, buf);
 }
@@ -118,6 +115,17 @@ function _flushTexto(from) {
   clearTimeout(buf.timer);
   _debounceTexto.delete(from);
   enfileirar(from, () => conversa.processar(from, buf.partes.join("\n"), buf.nomeWpp));
+}
+// Descarta texto em buffer. Se o timer já disparou, sinaliza via _midiaPendente para
+// que a tarefa enfileirada seja ignorada quando rodar (resolve race condition texto+mídia).
+function _cancelarTexto(from) {
+  const buf = _debounceTexto.get(from);
+  if (buf) {
+    clearTimeout(buf.timer);
+    _debounceTexto.delete(from);
+  }
+  _midiaPendente.add(from);
+  setTimeout(() => _midiaPendente.delete(from), 10000);
 }
 // Em produção (Railway) as imagens vão para o Volume persistente; local usa public/uploads.
 const UPLOAD_DIR = process.env.DATA_DIR ? path.join(process.env.DATA_DIR, "uploads") : path.join(PUBLIC_DIR, "uploads");
@@ -336,13 +344,13 @@ function iniciarAdmin(porta) {
               // \x1F = marcador interno: cliente respondeu/citou uma msg anterior do bot
               _agendarTexto(from, ctxAd + (msg.context ? "\x1F" + _corpo : _corpo), nomeWpp);
             } else if (msg.type === "image" && msg.image && msg.image.id) {
-              _flushTexto(from);
+              _cancelarTexto(from); // texto enviado junto com imagem é descartado — imagem vai ao atendente
               enfileirar(from, () => processarImagem(from, msg.image.id, (ctxAd + (msg.image.caption || "")).trim(), nomeWpp));
             } else if (msg.type === "audio" && msg.audio && msg.audio.id) {
               _flushTexto(from);
               enfileirar(from, () => processarAudio(from, msg.audio.id, nomeWpp));
             } else if (msg.type === "document" && msg.document && msg.document.id) {
-              _flushTexto(from);
+              _cancelarTexto(from); // texto enviado junto com documento é descartado — documento vai ao atendente
               enfileirar(from, () => processarDocumento(from, msg.document.id, msg.document.mime_type, nomeWpp));
             }
           }
