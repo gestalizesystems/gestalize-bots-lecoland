@@ -227,8 +227,9 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
       // Quantidade (ex.: "7kg", "10kg"): casa o tamanho ESCRITO no nome, com decimal OPCIONAL e
       // como token inteiro. Ex.: "7kg" casa "7,5KG"; "10kg" casa "10KG" e "10.1KG"; e nunca pega
       // "1kg" dentro de "10.1kg". Além disso, "1kg/1quilo" também significa ração a GRANEL.
+      // "g" é opcional (kg?) para casas com produtos cadastrados como "25K" em vez de "25KG".
       const num = (w.match(/^\d+/) || [""])[0]; // parte inteira do tamanho
-      if (num && new RegExp("(?<![\\d.,])" + num + "([.,]\\d+)?\\s*kg(?![a-z0-9])").test(alvo)) return true;
+      if (num && new RegExp("(?<![\\d.,])" + num + "([.,]\\d+)?\\s*kg?(?![a-z0-9])").test(alvo)) return true;
       if (num === "1" && /^1\s*(k|kg|kilo|quilo)?$/.test(w)) return alvo.includes("granel") || alvo.includes("fracionad");
       return false;
     }
