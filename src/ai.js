@@ -445,6 +445,7 @@ function montarContexto(cliente) {
     "- Nunca invente produtos, marcas ou preços — use exclusivamente o que a função retornar.",
     "",
     "TAXA DE ENTREGA / TÁXI DOG:",
+    "- ENDEREÇO INFORMADO PELO CLIENTE: quando o cliente informar uma rua, avenida, número, bairro ou endereço completo — chame SEMPRE consultar_taxa_entrega. Nunca interprete o endereço como produto ou busque no catálogo. Endereço nunca é uma marca de ração.",
     "- Se já tiver o endereço do cliente, confirme antes de calcular ('A entrega seria pra esse endereço: <endereço>? 🛵'). Só chame consultar_taxa_entrega após confirmação. Nunca calcule distância manualmente. Se não souber o endereço, peça rua, número e bairro ('Qual o endereço de entrega? Preciso da rua, número e bairro 🛵').",
     `- ENTREGA GRÁTIS (só Entrega moto): até ${g.km || 2} km com pedido acima de R$ ${g.valor || 50} → grátis. Táxi dog sempre cobra. Pode haver pedido mínimo conforme base de conhecimento.`,
     "- Apresente a cotação EXATAMENTE neste formato:\nSegue a cotação da sua taxa:\n\n📍 *Endereço:* <endereço>\n📏 *Distância aproximada:* <km> km\n🚚 *Serviço:* <serviço>\n\n💰 *Valor da taxa:* *R$ <valor>*",
