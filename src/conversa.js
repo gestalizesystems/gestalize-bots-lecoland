@@ -676,6 +676,12 @@ async function processar(from, _textoRaw, nomeWpp) {
     return;
   }
   await enviar(from, _textoResp);
+  // Rede de segurança: IA disse "vou chamar um atendente" no texto mas não chamou a função →
+  // pausar nunca seria acionado. Detecta o padrão e força o handoff.
+  if (!resp.encaminhar && /\bvou\s+(te\s+)?chamar\b.{0,100}\batendentes?\b|\bvou\s+(te\s+)?encaminhar\b|\bchamarei\b/i.test(_textoResp)) {
+    resp.encaminhar = true;
+    if (!resp.motivo) resp.motivo = "IA prometeu chamar atendente no texto.";
+  }
   if (resp.encaminhar) {
     pausar(from); // já limpa proximaMsgParaIA
     await abrirHandoff(from, resp.motivo || "A IA encaminhou para um atendente.");

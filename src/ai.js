@@ -169,6 +169,24 @@ const SINONIMOS = {
   sensivel: ["sensivel", "sensitive"],
   renal: ["renal", "kidney"],
   light: ["light", "control"],
+  // Utensílios: nomes populares que os clientes usam mas não aparecem nos produtos
+  vasilha: ["comedouro", "bebedouro"],
+  pote: ["comedouro", "bebedouro"],
+  tigela: ["comedouro", "bebedouro"],
+  potinho: ["comedouro", "bebedouro"],
+  balde: ["bebedouro"],
+  bebedeiro: ["bebedouro"],
+  comedeiro: ["comedouro"],
+  // Cama / descanso
+  caminha: ["cama"],
+  camazinha: ["cama"],
+  // Transporte
+  bolsinha: ["bolsa", "transporte", "caixa"],
+  caixinha: ["caixa", "transporte"],
+  // Higiene
+  xixi: ["tapete", "absorvente", "higiene"],
+  tapetinho: ["tapete"],
+  absorvente: ["tapete", "absorvente"],
 };
 // Sinônimos com match de PALAVRA INTEIRA (não substring).
 // Matching: (" " + alvo + " ").includes(" " + termo + " ") — palavra delimitada por espaços.
@@ -424,7 +442,8 @@ function montarContexto(cliente) {
     "- PEDIDO (LISTA DE ITENS): se o cliente JÁ manda uma LISTA de itens com quantidades (um pedido para fechar — ex.: '1kg de X, 2kg de Y, 1 fardo de areia'), NÃO fique buscando item por item. Diga que vai te encaminhar para um atendente FINALIZAR o pedido e CHAME encaminhar_para_atendente.",
     "- IMPORTANTE: pergunta sobre UM produto NUNCA é respondida com o menu de saudação nem pedindo para o cliente escolher 1/2/3. SEMPRE use a função buscar_produtos.",
     "- RESPOSTA A CARD/MENSAGEM ANTERIOR: quando o cliente responder/citar uma mensagem do bot pedindo uma variação ('tem essa filhote?', 'e em 15kg?', 'tem pra gato?'), use o HISTÓRICO para identificar o produto referenciado e chame buscar_produtos com o nome + variação. Se buscar_produtos retornar 0 resultados, CHAME encaminhar_para_atendente.",
-    "- REGRA GERAL — NOME/MARCA CITADO (máxima prioridade): se o cliente mencionar QUALQUER nome de produto, marca ou item específico (ex.: 'pipicat', 'chanin', 'amoxicilina', 'bolsa de transporte', 'hepvet'), BUSQUE ESSE NOME DIRETAMENTE com buscar_produtos({ texto: '<nome>' }) usando poucas palavras. Não tente adivinhar a categoria nem reformule a busca — o catálogo encontra pelo nome. Exemplos: 'tem pipicat?' → texto 'pipicat'; 'tem amoxicilina?' → texto 'amoxicilina'; 'tem bolsa de transporte?' → texto 'bolsa transporte'. Esta regra prevalece sobre TODAS as regras de categoria abaixo.",
+    "- REGRA GERAL — NOME/MARCA CITADO (máxima prioridade): se o cliente mencionar QUALQUER nome de produto, marca ou item específico (ex.: 'pipicat', 'chanin', 'amoxicilina', 'bolsa de transporte', 'hepvet'), BUSQUE ESSE NOME DIRETAMENTE com buscar_produtos({ texto: '<nome>' }) usando poucas palavras. Se retornar 0 com o nome + tamanho, tente uma segunda busca só com o nome da marca (sem o tamanho) para ver se existe em outro tamanho. Só chame encaminhar_para_atendente se ambas as buscas retornarem 0. Exemplos: 'tem pipicat?' → texto 'pipicat'; 'tem amoxicilina?' → texto 'amoxicilina'; 'tem bolsa de transporte?' → texto 'bolsa transporte'. Esta regra prevalece sobre TODAS as regras de categoria abaixo.",
+    "- DESCRIÇÃO POPULAR DE PRODUTO: quando o cliente usar um nome popular que não é exatamente o nome técnico do produto (ex.: 'vasilha de água' = bebedouro; 'vasilha de comida' = comedouro; 'caminha' = cama; 'caixinha' = caixa de transporte; 'potinho' = comedouro/bebedouro; 'tapetinho' = tapete higiênico), TRADUZA para o nome correto e busque com buscar_produtos usando esse nome. Nunca busque o nome popular literal.",
     "- RECEITA / LISTA DE REMÉDIOS: quando chegar uma receita com vários itens, CHAME buscar_produtos para CADA item (pelo nome/princípio ativo) antes de dizer se tem ou não.",
     "- MARCAS SÓ DE GATO: CHANIN, KATBOM, FRISKIES, MATISSE são marcas EXCLUSIVAMENTE de ração para GATO. Se o cliente pedir por uma dessas marcas, NÃO pergunte 'cão ou gato' — já sabe que é gato. Pergunte apenas saca ou granel.",
     "- RAÇÃO COM MARCA (saca ou granel): se o cliente citar uma marca de ração sem deixar claro saca/granel, pergunte 'Você quer em *saca* (fechada) ou a *granel* (por quilo)? 🐾'. Se SACA → buscar_produtos com texto '<marca> [sabor] [tamanho]'. Se GRANEL → buscar_produtos com texto 'granel <marca>'. Se o cliente já informou tamanho em kg → é saca, busque direto.",
