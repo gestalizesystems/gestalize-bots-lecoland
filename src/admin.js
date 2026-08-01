@@ -335,6 +335,7 @@ function iniciarAdmin(porta) {
           for (const msg of val.messages || []) {
             if (jaProcessada(msg.id)) continue; // reentrega da Meta → ignora (evita resposta dupla)
             const from = msg.from;
+            if (equipe.ehFuncionario(from)) continue; // membro da equipe → bot não responde
             const nomeWpp = nomes[from] || Object.values(nomes)[0]; // nome do perfil do WhatsApp
             const ctxAd = contextoAnuncio(msg.referral); // veio de anúncio do Instagram/Facebook?
             // Texto → debounce: aguarda 1,5s para juntar mensagens em rajada antes de processar.
