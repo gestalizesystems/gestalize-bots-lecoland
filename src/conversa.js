@@ -690,8 +690,10 @@ async function processar(from, _textoRaw, nomeWpp) {
     proximaMsgParaIA.set(from, true);
     agendarInatividade(from);
   }
-  if (resp.produtos && resp.produtos.length) await enviarProdutos(from, resp.produtos);
-  if (resp.respostaGranel) try { await enviar(from, resp.respostaGranel); } catch (e) { console.error("Falha ao enviar granel:", e.message); }
+  // Quando encaminhando ao atendente, produtos acumulados no loop de function calling
+  // NÃO devem ser enviados — o atendente assume o atendimento a partir daqui.
+  if (!resp.encaminhar && resp.produtos && resp.produtos.length) await enviarProdutos(from, resp.produtos);
+  if (!resp.encaminhar && resp.respostaGranel) try { await enviar(from, resp.respostaGranel); } catch (e) { console.error("Falha ao enviar granel:", e.message); }
   _agendarSalvar();
 }
 
