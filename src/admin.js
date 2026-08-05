@@ -18,6 +18,7 @@ const campanhas = require("./campanhas");
 const wa = require("./wa");
 const onboard = require("./waonboard");
 const ai = require("./ai");
+const catalogoIE = require("./catalogoImportExport");
 
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
@@ -564,6 +565,45 @@ function iniciarAdmin(porta) {
       if (Array.isArray(especificacoes)) cat.especificacoes = especificacoes;
       config.salvar(c);
       res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
+  });
+
+  // Importa a lista de preços do fornecedor (PDF ou Excel, em data URL base64 — mesmo padrão
+  // do upload de imagem). Só atualiza preço/ativo dos produtos; nome/código/grupo/subgrupos/
+  // especificações de cada um continuam exatamente como já estavam cadastrados.
+  app.post("/api/catalogo/importar", async (req, res) => {
+    try {
+      const dataUrl = (req.body && req.body.dataUrl) || "";
+      const nomeArquivo = String((req.body && req.body.nomeArquivo) || "").toLowerCase();
+      const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+      if (!m) throw new Error("Arquivo inválido.");
+      const buf = Buffer.from(m[2], "base64");
+      if (buf.length > 8 * 1024 * 1024) throw new Error("Arquivo muito grande (máx 8MB).");
+      const mime = m[1];
+      const ehExcel = /spreadsheet|excel|\.xlsx?$/i.test(mime) || /\.xlsx?$/i.test(nomeArquivo);
+      const ehPdf = /pdf/i.test(mime) || /\.pdf$/i.test(nomeArquivo);
+      let itens;
+      if (ehExcel) itens = catalogoIE.extrairDoExcel(buf);
+      else if (ehPdf) itens = await catalogoIE.extrairDoPdf(buf);
+      else throw new Error("Envie um arquivo PDF ou Excel (.xlsx).");
+      if (!itens.length) throw new Error("Não consegui encontrar produtos (código + preço) nesse arquivo.");
+      const resultado = catalogoIE.aplicarImportacao(itens);
+      res.json({ ok: true, ...resultado });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
+  });
+
+  // Exporta o catálogo (todos os produtos, ativos e inativos) em PDF pra impressão/download.
+  app.get("/api/catalogo/exportar-pdf", (req, res) => {
+    try {
+      const doc = catalogoIE.gerarPdfExportacao();
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="gestalize_codigo_nome_preco.pdf"`);
+      doc.pipe(res);
+      doc.end();
     } catch (e) {
       res.status(400).json({ ok: false, erro: e.message });
     }

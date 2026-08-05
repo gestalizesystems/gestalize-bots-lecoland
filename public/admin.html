@@ -256,7 +256,13 @@
     .cat-stat .n { font-size: 24px; font-weight: 800; color: var(--navy); }
     .cat-stat .r { font-size: 12.5px; color: var(--suave); font-weight: 600; }
     .cat-topo { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
-    .cat-topo input.busca { flex: 1; min-width: 200px; padding: 11px 14px; border: 1px solid var(--borda); border-radius: 10px; font-size: 14px; font-family: inherit; }
+    .cat-topo input.busca { flex: 0 1 240px; min-width: 160px; padding: 11px 14px; border: 1px solid var(--borda); border-radius: 10px; font-size: 14px; font-family: inherit; }
+    .cat-ie { position: relative; }
+    .cat-ie-menu { display: none; position: absolute; top: calc(100% + 6px); right: 0; background: #fff; border: 1px solid var(--borda); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); min-width: 160px; z-index: 20; overflow: hidden; }
+    .cat-ie-menu.aberto { display: block; }
+    .cat-ie-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 11px 14px; background: none; border: none; text-align: left; font-size: 14px; font-family: inherit; color: var(--texto); cursor: pointer; }
+    .cat-ie-menu button:hover { background: #f1f5f9; }
+    .cat-ie-menu button + button { border-top: 1px solid var(--borda); }
     .prod { display: flex; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--borda); border-radius: 14px; margin-bottom: 12px; background: #fff; }
     .prod.inativo { opacity: .6; }
     .prod-toggle { position: relative; width: 42px; height: 24px; flex: 0 0 auto; cursor: pointer; display: inline-block; }
@@ -499,6 +505,9 @@
         <section class="card page" id="page-atendimentos">
           <h2>🔔 Atendimentos aguardando</h2>
           <p class="dica">Clientes que o bot encaminhou para um humano. Cada um vem com um <b>resumo da conversa feito pela IA</b>, pra você assumir rápido. Responda pelo WhatsApp e clique em “Atendido”.</p>
+          <div class="cat-topo">
+            <input class="busca" id="atBusca" placeholder="🔎 Buscar (nome ou telefone)..." oninput="atPagina=1;renderAtendimentos()" />
+          </div>
           <div id="listaAtendimentos"></div>
           <div id="atPager" class="catpager"></div>
         </section>
@@ -616,7 +625,16 @@
                 <option value="inativos">🚫 Inativos (em falta)</option>
               </select>
               <button class="btn-primary" onclick="abrirProduto()">+ Adicionar produto</button>
+              <div class="cat-ie">
+                <button class="btn-primary" onclick="toggleCatIE(event)">⇅ Importar/Exportar</button>
+                <div class="cat-ie-menu" id="catIeMenu">
+                  <button onclick="catIeImportar()">📥 Importar</button>
+                  <button onclick="catIeExportar()">📤 Exportar</button>
+                </div>
+              </div>
+              <input type="file" id="catIeArquivo" accept=".pdf,.xlsx,.xls" style="display:none" onchange="catIeArquivoEscolhido(this)" />
             </div>
+            <div id="catIeStatus"></div>
             <div id="catProdutos"></div>
             <div id="catPager" class="catpager"></div>
           </div>
@@ -1474,6 +1492,57 @@
       return `<div class="pg-info">${qtd} ${rotulo} · página ${atual} de ${total}</div><div class="pager">${botoes}</div>`;
     }
 
+    // ===== Catálogo: Importar/Exportar (lista de preços do fornecedor) =====
+    function toggleCatIE(ev) {
+      if (ev) ev.stopPropagation();
+      el("catIeMenu").classList.toggle("aberto");
+    }
+    document.addEventListener("click", (ev) => {
+      const menu = el("catIeMenu");
+      if (menu && menu.classList.contains("aberto") && !menu.contains(ev.target)) menu.classList.remove("aberto");
+    });
+    function catIeImportar() {
+      el("catIeMenu").classList.remove("aberto");
+      el("catIeArquivo").value = "";
+      el("catIeArquivo").click();
+    }
+    function catIeExportar() {
+      el("catIeMenu").classList.remove("aberto");
+      window.open("/api/catalogo/exportar-pdf", "_blank");
+    }
+    function catIeArquivoEscolhido(input) {
+      const arquivo = input.files && input.files[0];
+      if (!arquivo) return;
+      const caixa = (cor, bg, borda, html) => `<div style="background:${bg};border:1px solid ${borda};color:${cor};border-radius:10px;padding:12px 14px;font-size:13px;margin-bottom:14px;line-height:1.6">${html}</div>`;
+      el("catIeStatus").innerHTML = caixa("#334155", "#f1f5f9", "var(--borda)", `⏳ Importando "${esc(arquivo.name)}"...`);
+      const leitor = new FileReader();
+      leitor.onload = async () => {
+        try {
+          const r = await fetch("/api/catalogo/importar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dataUrl: leitor.result, nomeArquivo: arquivo.name }),
+          });
+          const d = await r.json();
+          if (!d.ok) throw new Error(d.erro || "Falha ao importar.");
+          el("catIeStatus").innerHTML = caixa("#166534", "#f0fdf4", "#86efac", `
+            ✅ Importação concluída — ${d.totalImportado} produtos na lista.
+            <br>💰 ${d.atualizados} atualizado(s) · ♻️ ${d.reativados} reativado(s) · 🚫 ${d.desativados} desativado(s) (não estavam na lista)${d.semMudanca ? " · " + d.semMudanca + " sem mudança" : ""}
+            ${d.naoEncontrados ? `<br>⚠️ ${d.naoEncontrados} código(s) da lista não existem no catálogo (não foram criados): ${d.codigosNaoEncontrados.slice(0, 15).map(esc).join(", ")}${d.naoEncontrados > 15 ? "…" : ""}` : ""}
+          `);
+          const cfgNovo = await (await fetch("/api/config")).json();
+          cfg = cfgNovo;
+          catalogo = cfg.catalogo || { grupos: [], subgrupos: [], especificacoes: [], produtos: [] };
+          catPagina = 1;
+          renderCatalogo();
+        } catch (e) {
+          el("catIeStatus").innerHTML = caixa("#991b1b", "#fef2f2", "#fecaca", `❌ ${esc(e.message)}`);
+        }
+      };
+      leitor.onerror = () => { el("catIeStatus").innerHTML = caixa("#991b1b", "#fef2f2", "#fecaca", "❌ Não consegui ler o arquivo."); };
+      leitor.readAsDataURL(arquivo);
+    }
+
     // ===== Clientes (memória do bot + funil/tags/anotações) =====
     let clientesLista = [], cliPagina = 1, cliEditTel = null;
     const ETAPAS = {
@@ -1689,15 +1758,18 @@
     function renderAtendimentos() {
       const c = el("listaAtendimentos"); if (!c) return;
       if (!conversasAtivas.length) { c.innerHTML = '<p class="dica">Nenhuma conversa ativa no momento. 🎉</p>'; if (el("atPager")) el("atPager").innerHTML = ""; return; }
+      const q = normCat(el("atBusca") ? el("atBusca").value : "");
+      const lista = q ? conversasAtivas.filter((a) => normCat((a.nome || "") + " " + (a.telefone || "")).includes(q)) : conversasAtivas;
+      if (!lista.length) { c.innerHTML = '<p class="dica">Nenhuma conversa encontrada.</p>'; if (el("atPager")) el("atPager").innerHTML = ""; return; }
       const estadoCfg = {
         aguardando: { bg: "#dbeafe", ico: "🔔", tag: '<span style="background:#2563eb;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">🔵 Aguardando atendente</span>' },
         bot:        { bg: "#dcfce7", ico: "🤖", tag: '<span style="background:#16a34a;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">🟢 Em atendimento BOT</span>' },
         pausado:    { bg: "#fee2e2", ico: "⏸",  tag: '<span style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">🔴 BOT pausado</span>' },
       };
-      const POR = 15, total = conversasAtivas.length, totalPags = Math.ceil(total / POR);
+      const POR = 15, total = lista.length, totalPags = Math.ceil(total / POR);
       atPagina = Math.min(Math.max(1, atPagina), totalPags || 1);
       const ini = (atPagina - 1) * POR;
-      c.innerHTML = conversasAtivas.slice(ini, ini + POR).map(a => {
+      c.innerHTML = lista.slice(ini, ini + POR).map(a => {
         const cfg = estadoCfg[a.estado] || estadoCfg.bot;
         const resumo = a.atendimento ? (a.atendimento.resumo || a.atendimento.motivo || "") : "";
         const ts = a.ultimaMsgTs || (a.atendimento && a.atendimento.atualizadoEm) || 0;
