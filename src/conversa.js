@@ -35,21 +35,42 @@ const PUBLIC_URL = (process.env.PUBLIC_URL || "https://bots.gestalizesystems.com
 const AVISO_SISTEMA = "🔔 Estamos com um novo sistema de atendimento por aqui, ainda em fase de *testes*! Se tiver alguma sugestão, pode deixar no final da conversa. 🐾";
 
 // Envia até 5 produtos achados como foto + nome + preço (formato de catálogo).
+// Se TODOS os envios falharem (instabilidade da Cloud API, mídia rejeitada etc.), o cliente
+// não pode ficar só com a promessa ("achei essas opções") e nada depois — avisa e chama
+// um atendente em vez de engolir o erro em silêncio.
 async function enviarProdutos(from, produtos) {
-  for (const p of (produtos || []).slice(0, 5)) {
+  const lista = (produtos || []).slice(0, 5);
+  let falharam = 0;
+  for (const p of lista) {
     const preco = String(p.preco || "").trim();
     const precoFmt = preco && preco !== "(sob consulta)"
       ? (!/r\$/i.test(preco) && /^[\d.,\s]+$/.test(preco) ? "R$ " + preco : preco)
       : "Sob consulta";
     const legenda = `*${p.nome}*\n💰 ${precoFmt}`;
+    const linkImagem = p.imagem && /^\/uploads\//.test(p.imagem) ? PUBLIC_URL + p.imagem
+      : p.imagem && /^https?:\/\//i.test(p.imagem) ? p.imagem
+      : "";
     try {
-      if (p.imagem && /^\/uploads\//.test(p.imagem)) await enviarImagem(from, PUBLIC_URL + p.imagem, legenda);
-      else if (p.imagem && /^https?:\/\//i.test(p.imagem)) await enviarImagem(from, p.imagem, legenda);
+      if (linkImagem) await enviarImagem(from, linkImagem, legenda);
       else await enviar(from, legenda);
     } catch (e) {
-      console.error("Falha ao enviar produto:", e.message);
-      try { await enviar(from, legenda); } catch (_) {}
+      console.error(`Falha ao enviar produto "${p.nome}":`, e.message);
+      // Só tenta de novo como texto se a 1ª tentativa foi por IMAGEM — repetir a mesma
+      // chamada de texto que acabou de falhar não teria efeito e mascararia o erro real.
+      if (!linkImagem) { falharam++; continue; }
+      try {
+        await enviar(from, legenda);
+      } catch (e2) {
+        console.error(`Falha no fallback de texto pro produto "${p.nome}":`, e2.message);
+        falharam++;
+      }
     }
+  }
+  if (lista.length && falharam === lista.length) {
+    try { await enviar(from, "Tive um problema ao carregar as opções aqui 🙈 Um atendente já te ajuda!"); }
+    catch (e) { console.error("Falha ao enviar aviso de recuperação:", e.message); }
+    pausar(from);
+    await abrirHandoff(from, "Falha ao enviar produtos ao cliente (instabilidade no envio).");
   }
 }
 

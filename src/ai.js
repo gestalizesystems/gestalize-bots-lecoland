@@ -156,8 +156,6 @@ const SINONIMOS = {
   adultos: ["adulto", "adultos", "adult", " ad "],
   senior: ["senior", "idoso", "idosa", "mature"],
   idoso: ["senior", "idoso", "idosa", "mature"],
-  castrado: ["castrado", "castrada", "castrados", "cast", "neutered", "sterili"],
-  castrada: ["castrado", "castrada", "cast", "neutered", "sterili"],
   frango: ["frango", "chicken"],
   chicken: ["frango", "chicken"],
   carne: ["carne", "beef"],
@@ -182,6 +180,11 @@ const SINONIMOS_EXATOS = {
   verme: ["verme"], vermes: ["verme"],
   vermifugo: ["verme"], vermifuge: ["verme"], vermifugar: ["verme"],
   pulga: ["pulga"], carrapato: ["carrapato"],
+  // "cast" (abreviação de castrado/a nos nomes) é curto demais pra substring — bate dentro de
+  // qualquer palavra que contenha essas letras (ex.: "ARRANHA CASTELO", "CASTANHA"), trazendo
+  // produto aleatório sem nenhuma relação com castração.
+  castrado: ["castrado", "castrada", "castrados", "cast", "neutered", "sterili"],
+  castrada: ["castrado", "castrada", "cast", "neutered", "sterili"],
 };
 
 // Palavras GENÉRICAS de categoria (não identificam a marca/item) — dropadas PRIMEIRO no relaxamento,
@@ -206,12 +209,24 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
   const cat = config.get().catalogo || {};
   const produtos = (cat.produtos || []).filter((p) => p && p.ativo !== false);
   const g = norm(grupo), sg = norm(subgrupo), esp = norm(especificacao), tx = norm(texto);
+  // Nem todo produto do catálogo tem grupo/subgrupo/especificação tagueados (cadastro
+  // manual item a item, então alguns ficam pra trás). Filtrar de forma rígida puniria
+  // exatamente esses produtos sem tag com um falso "não temos" (ex.: "golden gato castrado"
+  // com subgrupo="Gato" zeraria se aquele item específico não tiver subgrupo marcado, mesmo
+  // existindo e batendo perfeitamente pelo nome). Por isso o filtro abaixo (em filtrarPor) só
+  // é aplicado produto a produto, exigindo a tag SÓ de quem a tem preenchida — quem não tem
+  // simplesmente não é descartado por isso, e continua valendo pela busca por texto/nome.
+  const grupoEmUso = produtos.some((p) => p.grupo);
+  const subgruposEmUso = produtos.some((p) => Array.isArray(p.subgrupos) && p.subgrupos.length);
+  const especEmUso = produtos.some((p) => Array.isArray(p.especificacoes) && p.especificacoes.length);
   let palavrasTx = tx.split(/\s+/).filter((w) => w && w.length >= 3 && !STOPWORDS.has(w)); // ≥3 chars evita "vi"/"pé" casarem por substring
   // "saca / saco / fechada / pacote" = ração ensacada → exclui granel. É modificador, sai da busca por texto.
   const querSaca = palavrasTx.some((w) => SACA.has(w));
   palavrasTx = palavrasTx.filter((w) => !SACA.has(w));
-  // Sem nenhuma palavra útil E sem filtros estruturais → não retorna tudo (filtrarPor([]) é vacuosamente verdadeiro).
-  if (!g && !sg && !esp && !palavrasTx.length) return { total: 0, produtos: [] };
+  // Sem nenhum critério que o catálogo de fato usa → não retorna tudo (filtrarPor([]) é
+  // vacuosamente verdadeiro). Um filtro que NENHUM produto do catálogo usa não conta como
+  // critério (senão zeraria a busca sozinho, sem chance de cair no fallback por texto).
+  if (!(g && grupoEmUso) && !(sg && subgruposEmUso) && !(esp && especEmUso) && !palavrasTx.length) return { total: 0, produtos: [] };
   const casa = (valor, alvo) => valor && (norm(valor).includes(alvo) || alvo.includes(norm(valor)));
   const casaLista = (lista, alvo) => Array.isArray(lista) && lista.some((x) => casa(x, alvo));
   // Alvo da busca por texto: nome + descrição + tags (grupo/subgrupos/especificações).
@@ -219,6 +234,16 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
   // "AGEMOXI CL 250MG - AMOXICILINA +CLAVULANATO" virem tokens independentes.
   const normAlvo = (s) => norm(s).replace(/[-+/|]+/g, " ").replace(/\s+/g, " ").trim();
   const alvoDe = (p) => [p.nome, p.descricao, p.grupo, ...(p.subgrupos || []), ...(p.especificacoes || [])].map(normAlvo).join(" ");
+  // Quando o subgrupo pedido é espécie (Cão/Gato) e o produto NÃO tem subgrupo tagueado,
+  // não deixa passar às cegas: se o nome/descrição do produto citar a espécie OPOSTA (ex.:
+  // "GOLDEN GATOS..." numa busca de Cão), exclui — nunca mistura espécie, mesmo em item
+  // esquecido no cadastro. Produto cujo nome não cita nenhuma das duas (marca implicitamente
+  // de uma espécie, ex.: Chanin) passa — a IA já embute a espécie certa no texto da busca.
+  const especieOposta = (alvo, sgAlvo) => {
+    if (sgAlvo === "gato") return ESPECIE_CAO.some((s) => (" " + alvo + " ").includes(" " + s + " "));
+    if (sgAlvo === "cao") return ESPECIE_GATO.some((s) => (" " + alvo + " ").includes(" " + s + " "));
+    return false;
+  };
   // Uma palavra casa se QUALQUER um dos seus sinônimos aparecer (ex.: "gato" casa "cat"; "quilo" casa "granel").
   const casaPalavra = (alvo, w) => {
     if (SINONIMOS_EXATOS[w]) return SINONIMOS_EXATOS[w].some((s) => (" " + alvo + " ").includes(" " + s + " "));
@@ -239,11 +264,29 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
     return false;
   };
 
+  // RAÇÃO é o grupo com cadastro de subgrupo/especificação mais confiável no catálogo — ali
+  // vale a regra estrita: só entra quem TEM a tag pedida (senão cai no handoff, nunca mistura
+  // espécie nem "adivinha" por nome). Nas demais categorias (medicamento, acessório etc.), o
+  // cadastro de tags é mais incompleto — mantém o comportamento tolerante (produto sem tag não
+  // é descartado por isso, só protegido contra espécie oposta quando o subgrupo pedido é cão/gato).
+  const ehRacao = (p) => /^rac/.test(norm(p.grupo)); // "ração"→"racao" / "rações"→"racoes": só o prefixo é comum
   const filtrarPor = (palavras) => produtos.filter((p) => {
-    if (g && !casa(p.grupo, g)) return false;
-    if (sg && !casaLista(p.subgrupos, sg)) return false;
-    if (esp && !casaLista(p.especificacoes, esp)) return false;
     const alvo = alvoDe(p);
+    const racao = ehRacao(p);
+    // Ração "GRANEL ..." é item de outro fluxo (obter_info_granel, que já funciona e cobre
+    // preço/disponibilidade a granel) — nunca deve aparecer misturado numa busca normal de saca.
+    if (racao && /^granel\b/.test(norm(p.nome))) return false;
+    if (g && p.grupo && !casa(p.grupo, g)) return false;
+    if (sg) {
+      if (racao || (Array.isArray(p.subgrupos) && p.subgrupos.length)) {
+        if (!casaLista(p.subgrupos, sg)) return false;
+      } else if (especieOposta(alvo, sg)) return false;
+    }
+    if (esp) {
+      if (racao || (Array.isArray(p.especificacoes) && p.especificacoes.length)) {
+        if (!casaLista(p.especificacoes, esp)) return false;
+      }
+    }
     if (querSaca && (alvo.includes("granel") || alvo.includes("fracionad"))) return false; // "saca" exclui granel
     if (palavras.length && !palavras.every((w) => casaPalavra(alvo, w))) return false;
     return true;
