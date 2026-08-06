@@ -376,6 +376,11 @@ async function finalizar(contactId, enviarDespedida) {
 // como "vacin" casem "vacinar"/"vacinação" e "consult" case "consulta"/"consultar".
 const _RE_SERVICO = /\b(banho|tosa|consult|veterin|vacin|castrar|cirurgi|agend|horari|hor[aá]rio|endere[cç]o|funciona|fecha|abre|parcel|pagament|frete|taxi|t[aá]xi|entrega|descont|promoc|indica[cç]|diferen|recomend|comparar|versus|d[uú]vida|qual\s+[eéeh]\s+o\s+melhor|o\s+que\s+[eéeh]\s+melhor|reclama[cç]|n[aã]o\s+foi|n[aã]o\s+voltou|n[aã]o\s+devolveu|esqueceu|esqueceram|perdeu|perderam|sumiu|sumiram|veio\s+errad|veio\s+quebrad|cobr[ao]u\s+errad|verificar|ficou\s+a[ií]|ficou\s+l[aá]|ficou\s+esqu|deixou\s+(?:a[ií]|l[aá])|deixaram\s+(?:a[ií]|l[aá])|n[aã]o\s+devolver|n[aã]o\s+trouxe|n[aã]o\s+entregou|cadê|cade\b|quero\s+reclamar|quero\s+devolver|quero\s+reembolso)/i;
 
+// Pergunta se o PET está pronto/pode ser buscado (serviço presencial em andamento) — o bot NUNCA
+// tem visibilidade real disso (não sabe se o banho/tosa/procedimento já terminou), então nunca
+// pode confirmar nem negar. Intercepta ANTES da IA pra garantir isso mesmo se o modelo "chutar".
+const _RE_STATUS_PET = /\b(t[aá]|est[aá]|ficou|j[aá]\s+ficou|j[aá]\s+est[aá])\s+pront[oa]\b|\bpront[oa]\s+(pra|para)\s+(buscar|ir|voltar|casa|entregar)\b|\bj[aá]\s+(posso|pode)\s+buscar\b|\bposso\s+buscar\b|\bpode\s+buscar\b|\bj[aá]\s+terminou\b|\bterminou\s+(o|a)\s+(banho|tosa)\b|\bj[aá]\s+acabou\s+(o|a)\s+(banho|tosa)\b/i;
+
 
 // Detecta pedido com itens e quantidades já definidos (ex: "1 saca de pipicat, 2 latas de patê chanin").
 // Critério: pelo menos 2 ocorrências de dígito + unidade/item, ou 1 ocorrência + vírgula/quebra separando mais itens.
@@ -680,6 +685,15 @@ async function processar(from, _textoRaw, nomeWpp) {
     return;
   }
 
+  // ── Status do pet (pronto/pode buscar?) — NUNCA confirma nem nega, sempre atendente ──────
+  if (_RE_STATUS_PET.test(texto)) {
+    await enviar(from, "Deixa eu confirmar com um atendente e já te digo! 🐾");
+    pausar(from);
+    await abrirHandoff(from, "Cliente perguntou se o pet está pronto/pode buscar — confirmar status real.");
+    _agendarSalvar();
+    return;
+  }
+
   // ── IA: decide buscar produto, responder ou encaminhar ao atendente ───────
   const resp = await responder(from, texto);
   let _textoResp = (resp.texto || "").trim();
@@ -695,6 +709,13 @@ async function processar(from, _textoRaw, nomeWpp) {
     await abrirHandoff(from, "Produto não encontrado no catálogo — atendente confirma disponibilidade.");
     _agendarSalvar();
     return;
+  }
+  // Rede de segurança: IA encaminhou ao atendente E encontrou produtos no mesmo turno — os
+  // cards NÃO serão enviados (o atendente assume a partir daqui, ver abaixo), mas se o texto só
+  // fala dos produtos ("achei essas opções...") sem mencionar atendente, o cliente fica com a
+  // promessa e silêncio total depois. Completa a mensagem pra deixar claro que alguém vai continuar.
+  if (resp.encaminhar && resp.produtos && resp.produtos.length && !/atendente/i.test(_textoResp)) {
+    _textoResp = (_textoResp ? _textoResp + "\n\n" : "") + "🙋 Vou confirmar os detalhes com um atendente e já te retorno com as opções certas!";
   }
   await enviar(from, _textoResp);
   // Rede de segurança: IA disse "vou chamar um atendente" no texto mas não chamou a função →

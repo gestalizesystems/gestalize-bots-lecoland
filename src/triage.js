@@ -114,7 +114,17 @@ function triar(textoBruto, contexto) {
   // Palavra-chave de serviço/FAQ (menu principal).
   for (const opcao of principais) {
     if (casaAlgumGatilho(texto, opcao.gatilhos)) {
-      return { tipo: "opcao", chave: opcao.chave, titulo: opcao.titulo, resposta: config.preencher(opcao.resposta), novoContexto: ctxPrincipal };
+      // Se o cliente está no meio de um SUB-menu (ex.: acabou de ver as opções 1-3 de
+      // Entrega/Táxi Dog) e faz uma pergunta incidental que bate por palavra-chave numa FAQ
+      // do menu principal (ex.: "aceita cartão?" → Pagamento), essa resposta NÃO deve sequestrar
+      // o contexto numérico — senão um "1" respondido a seguir resolve pro menu principal em vez
+      // do sub-menu que ele realmente estava vendo. Só reseta pro principal quando não há
+      // sub-menu ativo (comportamento original, preservado).
+      const manterSubmenu = contexto && contexto.sub;
+      return {
+        tipo: "opcao", chave: opcao.chave, titulo: opcao.titulo, resposta: config.preencher(opcao.resposta),
+        ...(manterSubmenu ? {} : { novoContexto: ctxPrincipal }),
+      };
     }
   }
 
