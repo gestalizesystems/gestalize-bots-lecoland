@@ -387,13 +387,14 @@ async function executarFuncao(nome, args, contactId, contexto) {
     if (!/\b(granel|fracionad|quilo|quilos|racao|racoes|alimento|comida)\b/i.test(norm(contexto || ""))) {
       return { ok: false, naoEhGranel: true, instrucao: "Essa pergunta não parece ser sobre ração a granel (não menciona ração/granel/quilo/fracionado). NÃO chame obter_info_granel. Se o cliente citou o nome de um produto/marca específico (ex.: 'Simparic', 'NexGard'), BUSQUE ESSE NOME DIRETAMENTE com buscar_produtos({texto:'<nome>'}) — não confunda peso do PET (dosagem) com tamanho de saca." };
     }
-    // Tamanho específico em kg (ex.: "10kg", "15 quilos") — SEMPRE é saca (fechada), nunca
-    // granel, mesmo sem marca (exceção: "1kg"/"1 quilo" sozinho, que também é usado pra pedir
-    // granel — ver casaPalavra/buscarProdutos). A IA às vezes ignora isso e chama granel do
-    // mesmo jeito, então essa rede de segurança não confia no palpite: barra a função e manda
-    // buscar no catálogo por tamanho.
+    // Tamanho de SACA de verdade (7, 10, 15, 20, 25kg... — os tamanhos comerciais fechados do
+    // catálogo, nenhum abaixo de 7kg) — nunca granel, mesmo sem marca. Abaixo de 7kg (1-6kg) é
+    // ambíguo: pode ser uma quantidade pedida a granel, então não força nada aqui (cai nas
+    // regras normais/pergunta de espécie abaixo). A IA às vezes chama granel mesmo com um
+    // tamanho de saca na mensagem, então essa rede de segurança não confia no palpite: barra a
+    // função e manda buscar no catálogo por tamanho.
     const mKg = /\b(\d{1,3}(?:[.,]\d+)?)\s*(?:kg|kilos?|quilos?)\b/i.exec(contexto || "");
-    if (mKg && parseFloat(mKg[1].replace(",", ".")) > 1) {
+    if (mKg && parseFloat(mKg[1].replace(",", ".")) >= 7) {
       return { ok: false, ehSaca: true, instrucao: `O cliente mencionou um tamanho específico (${mKg[0]}) — isso é SACA (fechada), NUNCA granel. NÃO chame obter_info_granel. CHAME buscar_produtos com a espécie + esse tamanho no texto (ex.: 'gato ${mKg[0]}') para mostrar as opções de saca desse tamanho.` };
     }
     // Se o cliente nunca disse cão/gato em nenhum ponto da conversa, a espécie que a IA passou
@@ -512,7 +513,7 @@ function montarContexto(cliente) {
     "- RAÇÃO PARA AVES (calopsita, periquito, papagaio, canário, etc.): NUNCA use obter_info_granel para aves. Busque SEMPRE com buscar_produtos({ texto: 'granel <espécie>' }) — ex.: 'granel calopsita', 'granel papagaio'. Não pergunte cão ou gato.",
     "- ESPÉCIE (NUNCA MISTURE): se o cliente pediu para GATO, só ofereça produtos de GATO; se pediu para CÃO, só de CÃO.",
     "- RAÇÃO — SACA OU GRANEL: NUNCA pergunte saca/granel para areia, petisco, medicamento ou acessório — só para RAÇÃO.",
-    "- TAMANHO EM KG = SACA: se o cliente pedir tamanho específico (ex.: '15kg'), é saca — NUNCA use obter_info_granel nesse caso, mesmo sem marca. Com marca: busque '<marca> <tamanho>' (ex.: buscar_produtos({texto: 'chanin 25kg'})). Sem marca: busque '<espécie> <tamanho>' (ex.: buscar_produtos({texto: 'gato 10kg'})). NUNCA acrescente filhote/adulto/castrado/mix se o cliente não especificou — a busca retorna todas as variantes disponíveis nesse tamanho para o cliente escolher. Se retornar 0, busque só com a marca (ou só a espécie, sem marca) para ver tamanhos disponíveis e informe.",
+    "- TAMANHO EM KG = SACA (a partir de 7kg): se o cliente pedir um tamanho de saca comercial (7, 10, 15, 20, 25kg ou similar — sempre ≥7kg), é saca — NUNCA use obter_info_granel nesse caso, mesmo sem marca. Com marca: busque '<marca> <tamanho>' (ex.: buscar_produtos({texto: 'chanin 25kg'})). Sem marca: busque '<espécie> <tamanho>' (ex.: buscar_produtos({texto: 'gato 10kg'})). NUNCA acrescente filhote/adulto/castrado/mix se o cliente não especificou — a busca retorna todas as variantes disponíveis nesse tamanho para o cliente escolher. Se retornar 0, busque só com a marca (ou só a espécie, sem marca) para ver tamanhos disponíveis e informe. Tamanhos MENORES que 7kg (1kg, 2kg, 3kg...) são ambíguos — podem ser uma quantidade pedida a granel; siga as regras de granel/saca normalmente pra esses casos.",
     "- MARCA PEDIDA — NUNCA SUBSTITUA: mostre SOMENTE produtos da marca pedida. Se buscar_produtos não retornar a marca específica (0 resultados), CHAME encaminhar_para_atendente com motivo 'Cliente quer [marca+tamanho] — verificar disponibilidade.' NÃO diga 'não temos' e NÃO ofereça substitutos por conta própria — o atendente confirma se o produto existe no estoque real.",
     "- MAIS BARATO / MAIS EM CONTA: CHAME buscar_produtos com ordenarPor='preco' e indique o de menor preço.",
     "- ROUPA CIRÚRGICA: pergunte o PESO do pet e busque 'roupa cirurgica' + peso. NÃO confunda com bolsa/caixa de transporte.",
