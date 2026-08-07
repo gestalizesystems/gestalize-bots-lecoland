@@ -57,11 +57,12 @@ async function enviarProdutos(from, produtos) {
   let ultimoErro = "";
   for (let i = 0; i < lista.length; i++) {
     const p = lista[i];
-    // Pequena pausa ENTRE os envios (não antes do 1º) — manda até 5 mensagens em rajada sem
-    // isso, o que é uma causa clássica de esbarrar no limite de taxa por segundo da Cloud API
-    // do WhatsApp e derrubar os envios seguintes justo depois do texto de introdução já ter
-    // sido entregue (o cliente vê "achei essas opções" e nada mais).
-    if (i > 0) await _dormir(350);
+    // Pausa ENTRE os envios (não antes do 1º) — manda até 5 mensagens em rajada sem isso, o
+    // que é uma causa clássica de esbarrar no limite de taxa por segundo da Cloud API do
+    // WhatsApp e derrubar os envios seguintes justo depois do texto de introdução já ter sido
+    // entregue (o cliente vê "achei essas opções" e nada mais). 2s — só aqui, no disparo das
+    // opções de produto do catálogo; nenhum outro envio do bot usa essa pausa.
+    if (i > 0) await _dormir(2000);
     const preco = String(p.preco || "").trim();
     const precoFmt = preco && preco !== "(sob consulta)"
       ? (!/r\$/i.test(preco) && /^[\d.,\s]+$/.test(preco) ? "R$ " + preco : preco)
@@ -491,7 +492,11 @@ async function processar(from, _textoRaw, nomeWpp) {
       // verdade (ex.: "chega antes das 2 horas" não é nota 2, "2 pacotes de ração" não é nota 2
       // — falta a pontuação logo depois do número) nem de transcrição de áudio.
       const mCurta = t.length <= 12 ? /^(?:nota\s*:?\s*)?(10|[0-9])\s*[!.]?$/i.exec(t) : null;
-      const mComComentario = !mCurta ? /^\**\s*(10|[0-9])\s*[-,:.]\s*(.+)$/is.exec(t) : null;
+      // Separador aceita pontuação OU quebra de linha — cliente às vezes manda a nota e o
+      // elogio como DUAS mensagens do WhatsApp seguidas ("10" / "Como sempre!!!❤️"), que o
+      // debounce junta com \n antes de chegar aqui. Só espaço sozinho NÃO conta como separador
+      // (senão "2 pacotes de ração por favor" viraria nota 2).
+      const mComComentario = !mCurta ? /^\**\s*(10|[0-9])\s*(?:[-,:.]|\r?\n)\s*(.+)$/is.exec(t) : null;
       const m = mCurta || mComComentario;
       if (m) {
         aguardandoNps.delete(from);
