@@ -705,7 +705,7 @@ async function processar(from, _textoRaw, nomeWpp) {
     }
     // Bot fez pergunta ou é menu de serviço que abre conversa → próxima msg usa IA com contexto
     if (r.resposta.includes("?") || (r.tipo === "opcao" && /banho|tosa|consult|veterin|loja/i.test(r.titulo || ""))) {
-      proximaMsgParaIA.set(from, true);
+      proximaMsgParaIA.add(from);
     }
     agendarInatividade(from);
     return;
@@ -777,7 +777,7 @@ async function processar(from, _textoRaw, nomeWpp) {
     await abrirHandoff(from, resp.motivo || "A IA encaminhou para um atendente.");
   } else {
     // IA respondeu → próxima mensagem começa com contexto da IA (melhora acerto)
-    proximaMsgParaIA.set(from, true);
+    proximaMsgParaIA.add(from);
     agendarInatividade(from);
   }
   // Quando encaminhando ao atendente, produtos acumulados no loop de function calling
