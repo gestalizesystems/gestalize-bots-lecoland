@@ -54,6 +54,16 @@ function comentar(id, comentario) {
   if (r) { r.comentario = String(comentario || "").trim().slice(0, 500); persistir(); }
 }
 
+// Remove uma resposta (ex.: nota registrada por engano — bot confundiu outra mensagem com a
+// resposta da pesquisa). Devolve true se removeu algo.
+function remover(id) {
+  const antes = dados.respostas.length;
+  dados.respostas = dados.respostas.filter((x) => x.id !== id);
+  const removeu = dados.respostas.length < antes;
+  if (removeu) persistir();
+  return removeu;
+}
+
 // Resumo agregado (a partir de uma data, em ms). NPS = %promotores − %detratores.
 function resumo(desdeMs) {
   const lista = dados.respostas.filter((r) => !desdeMs || r.data >= desdeMs);
@@ -71,4 +81,4 @@ function listar(desdeMs) {
   return dados.respostas.filter((r) => !desdeMs || r.data >= desdeMs).slice().reverse();
 }
 
-module.exports = { podePerguntar, marcarPerguntado, registrar, comentar, resumo, listar };
+module.exports = { podePerguntar, marcarPerguntado, registrar, comentar, remover, resumo, listar };

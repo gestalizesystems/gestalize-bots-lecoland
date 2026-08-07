@@ -34,6 +34,8 @@ async function processarAudio(from, mediaId, nomeWpp) {
     }
   } catch (e) {
     console.error("Falha ao processar áudio:", e.message);
+    // Mesma rede de segurança do enfileirar() de texto — ver tratarFalhaCritica em conversa.js.
+    try { await conversa.tratarFalhaCritica(from, e); } catch (e2) { console.error("Falha na rede de segurança de erro crítico:", e2.message); }
   }
 }
 
@@ -84,7 +86,12 @@ function jaProcessada(id) {
 const filasContato = new Map(); // contactId -> Promise (cauda da fila daquele contato)
 function enfileirar(from, tarefa) {
   const anterior = filasContato.get(from) || Promise.resolve();
-  const atual = anterior.then(tarefa).catch((e) => console.error("Erro ao processar mensagem:", e.message));
+  const atual = anterior.then(tarefa).catch(async (e) => {
+    console.error("Erro ao processar mensagem:", e.message);
+    // Sem isso, uma exceção não prevista deixava o cliente em silêncio total pra sempre —
+    // ver comentário de tratarFalhaCritica em conversa.js.
+    try { await conversa.tratarFalhaCritica(from, e); } catch (e2) { console.error("Falha na rede de segurança de erro crítico:", e2.message); }
+  });
   filasContato.set(from, atual);
   atual.finally(() => { if (filasContato.get(from) === atual) filasContato.delete(from); });
 }
@@ -630,6 +637,17 @@ function iniciarAdmin(porta) {
       return { id: r.id, telefone: r.telefone, nome: (cli && cli.nome) || "", nota: r.nota, comentario: r.comentario || "", data: r.data };
     });
     res.json({ ok: true, resumo: nps.resumo(desde), respostas });
+  });
+  // Remove uma resposta de NPS (ex.: o bot confundiu outra mensagem do cliente com a nota).
+  app.post("/api/nps/remover", (req, res) => {
+    try {
+      const id = req.body && req.body.id;
+      if (!id) throw new Error("id obrigatório.");
+      const removeu = nps.remover(id);
+      res.json({ ok: true, removeu });
+    } catch (e) {
+      res.status(400).json({ ok: false, erro: e.message });
+    }
   });
 
   // ---- Atendimentos (fila de handoff com resumo da IA) ----

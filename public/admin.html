@@ -1731,8 +1731,18 @@
             <div class="pdesc">${c.comentario ? "💬 " + esc(c.comentario) : '<span style="color:var(--suave)">(sem comentário)</span>'}</div>
             <div class="pcod" style="font-size:12px;color:var(--suave)">${fmtDataHora(c.data)}</div>
           </div>
+          <div class="pacoes">
+            <button class="iconbtn del" title="Excluir nota (ex.: bot confundiu outra mensagem com a resposta)" onclick="excluirNps('${esc(c.id)}',this)">🗑️</button>
+          </div>
         </div>`).join("");
       el("npsPager").innerHTML = montarPager(npsPagina, totalPags, total, "satIrPagina", "avaliações");
+    }
+    async function excluirNps(id, btn) {
+      if (!confirm("Excluir essa nota de satisfação? Use quando o bot confundiu outra mensagem do cliente com a resposta da pesquisa.")) return;
+      try {
+        await fetch("/api/nps/remover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+        await renderNps();
+      } catch (e) { alert("Erro ao excluir: " + e.message); }
     }
 
     // ===== Atendimentos (todas as conversas ativas) =====

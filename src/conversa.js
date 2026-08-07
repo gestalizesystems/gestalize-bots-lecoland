@@ -34,6 +34,19 @@ const PUBLIC_URL = (process.env.PUBLIC_URL || "https://bots.gestalizesystems.com
 // Aviso enviado UMA VEZ junto com a saudação do novo cliente (nunca repetido).
 const AVISO_SISTEMA = "🔔 Estamos com um novo sistema de atendimento por aqui, ainda em fase de *testes*! Se tiver alguma sugestão, pode deixar no final da conversa. 🐾";
 
+const _dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Roda `fn` até `tentativas` vezes, com um pequeno atraso entre elas — cobre blips
+// passageiros (rate limit momentâneo, timeout de rede) que costumam vingar na 2ª tentativa.
+async function _comRetry(fn, tentativas = 2, atrasoMs = 700) {
+  let ultimoErro;
+  for (let t = 0; t < tentativas; t++) {
+    try { return await fn(); }
+    catch (e) { ultimoErro = e; if (t < tentativas - 1) await _dormir(atrasoMs); }
+  }
+  throw ultimoErro;
+}
+
 // Envia até 5 produtos achados como foto + nome + preço (formato de catálogo).
 // Se TODOS os envios falharem (instabilidade da Cloud API, mídia rejeitada etc.), o cliente
 // não pode ficar só com a promessa ("achei essas opções") e nada depois — avisa e chama
@@ -41,7 +54,14 @@ const AVISO_SISTEMA = "🔔 Estamos com um novo sistema de atendimento por aqui,
 async function enviarProdutos(from, produtos) {
   const lista = (produtos || []).slice(0, 5);
   let falharam = 0;
-  for (const p of lista) {
+  let ultimoErro = "";
+  for (let i = 0; i < lista.length; i++) {
+    const p = lista[i];
+    // Pequena pausa ENTRE os envios (não antes do 1º) — manda até 5 mensagens em rajada sem
+    // isso, o que é uma causa clássica de esbarrar no limite de taxa por segundo da Cloud API
+    // do WhatsApp e derrubar os envios seguintes justo depois do texto de introdução já ter
+    // sido entregue (o cliente vê "achei essas opções" e nada mais).
+    if (i > 0) await _dormir(350);
     const preco = String(p.preco || "").trim();
     const precoFmt = preco && preco !== "(sob consulta)"
       ? (!/r\$/i.test(preco) && /^[\d.,\s]+$/.test(preco) ? "R$ " + preco : preco)
@@ -51,26 +71,33 @@ async function enviarProdutos(from, produtos) {
       : p.imagem && /^https?:\/\//i.test(p.imagem) ? p.imagem
       : "";
     try {
-      if (linkImagem) await enviarImagem(from, linkImagem, legenda);
-      else await enviar(from, legenda);
+      // 2 tentativas na chamada principal — resolve a maioria dos blips passageiros sem
+      // precisar cair pro fallback (que, na imagem, perde a foto e vira só texto).
+      if (linkImagem) await _comRetry(() => enviarImagem(from, linkImagem, legenda));
+      else await _comRetry(() => enviar(from, legenda));
     } catch (e) {
+      ultimoErro = e.message;
       console.error(`Falha ao enviar produto "${p.nome}":`, e.message);
       // Só tenta de novo como texto se a 1ª tentativa foi por IMAGEM — repetir a mesma
       // chamada de texto que acabou de falhar não teria efeito e mascararia o erro real.
       if (!linkImagem) { falharam++; continue; }
       try {
-        await enviar(from, legenda);
+        await _comRetry(() => enviar(from, legenda));
       } catch (e2) {
+        ultimoErro = e2.message;
         console.error(`Falha no fallback de texto pro produto "${p.nome}":`, e2.message);
         falharam++;
       }
     }
   }
   if (lista.length && falharam === lista.length) {
-    try { await enviar(from, "Tive um problema ao carregar as opções aqui 🙈 Um atendente já te ajuda!"); }
+    // Última mensagem antes do handoff — a mais importante de todas — também ganha retry.
+    try { await _comRetry(() => enviar(from, "Tive um problema ao carregar as opções aqui 🙈 Um atendente já te ajuda!")); }
     catch (e) { console.error("Falha ao enviar aviso de recuperação:", e.message); }
     pausar(from);
-    await abrirHandoff(from, "Falha ao enviar produtos ao cliente (instabilidade no envio).");
+    // Motivo inclui o erro real (status/corpo da Cloud API) — dá pra ver na tela de
+    // Atendimentos o que de fato quebrou, sem precisar ir direto no log do servidor.
+    await abrirHandoff(from, `Falha ao enviar produtos ao cliente (instabilidade no envio)${ultimoErro ? ": " + ultimoErro : ""}.`);
   }
 }
 
@@ -87,6 +114,10 @@ const menuContexto = new Map();        // contactId -> opções do menu atual
 const jaSaudou = new Set();            // contatos que já receberam o fluxo de boas-vindas
 const aguardandoNome = new Map();      // contactId -> { textoOriginal, rTriagem }
 const aguardandoNps = new Map(); // contactId → timestamp em que o NPS foi enviado (persiste em sessoes.json)
+// Janela de validade da pergunta de NPS — depois disso, a próxima mensagem do cliente NÃO é
+// mais interpretada como nota (evita, ex.: cliente mandar um áudio no dia seguinte e o bot
+// achar que é resposta da pesquisa de satisfação de ontem).
+const _LIMITE_NPS_MS = 2 * 60 * 60 * 1000;
 const aguardandoNpsComentario = new Map();
 const aguardandoGranelEspecie = new Set(); // aguardando o cliente dizer "cão" ou "gato" para granel
 const historicoConversa = new Map();
@@ -107,8 +138,7 @@ const proximaMsgParaIA = new Set();        // próxima msg desse contato vai dir
     for (const [id, v] of Object.entries(snap.menuContexto || {})) if (ativos.has(id)) menuContexto.set(id, v);
     for (const [id, v] of Object.entries(snap.historicoConversa || {})) if (ativos.has(id)) historicoConversa.set(id, v);
     for (const [id, ts] of Object.entries(snap.ultimaMsgTs || {})) if (ativos.has(id)) ultimaMsgTs.set(id, ts);
-    // NPS: restaura entradas dos últimos 120 min (independente de ultimaMsgTs — finalizar apaga o timestamp)
-    const _LIMITE_NPS_MS = 2 * 60 * 60 * 1000;
+    // NPS: restaura entradas dentro da janela de validade (independente de ultimaMsgTs — finalizar apaga o timestamp)
     for (const [id, ts] of Object.entries(snap.aguardandoNps || {})) {
       if (agora - ts < _LIMITE_NPS_MS) aguardandoNps.set(id, ts);
     }
@@ -448,19 +478,37 @@ async function processar(from, _textoRaw, nomeWpp) {
 
   // ── NPS: cliente manda nota ─────────────────────────────────────────────
   if (aguardandoNps.has(from)) {
-    aguardandoNps.delete(from);
-    ultimaMsgTs.delete(from); // qualquer resposta ao NPS nunca reabre em atendimentos
-    const m = String(texto).match(/\b(10|[0-9])\b/);
-    if (m) {
-      const { nota } = nps.registrar(from, Number(m[1]));
-      if (nota <= 6) {
-        await enviar(from, "Poxa, sentimos muito pela experiência! 😔 Em breve um atendente vai entrar em contato. 🐾");
-      } else {
-        await enviar(from, `Obrigada pela nota ${nota}! 💛 Significa muito pra gente. 🐾`);
-        await enviarConviteRedes(from);
+    const enviadoEm = aguardandoNps.get(from);
+    if (Date.now() - enviadoEm > _LIMITE_NPS_MS) {
+      // Janela expirou (ex.: cliente só respondeu no dia seguinte) — não é mais resposta da
+      // pesquisa. Não retorna: a mensagem segue pro fluxo normal de atendimento abaixo.
+      aguardandoNps.delete(from);
+    } else {
+      const t = String(texto || "").trim();
+      // Aceita dois formatos: (1) resposta CURTA e OBJETIVA — "8", "nota 9", "10!" — ou
+      // (2) nota LOGO NO INÍCIO seguida de pontuação e um comentário — "10, sempre bom preço",
+      // "9 - ótimo atendimento". NUNCA extrai um número de dentro de uma frase/pergunta de
+      // verdade (ex.: "chega antes das 2 horas" não é nota 2, "2 pacotes de ração" não é nota 2
+      // — falta a pontuação logo depois do número) nem de transcrição de áudio.
+      const mCurta = t.length <= 12 ? /^(?:nota\s*:?\s*)?(10|[0-9])\s*[!.]?$/i.exec(t) : null;
+      const mComComentario = !mCurta ? /^\**\s*(10|[0-9])\s*[-,:.]\s*(.+)$/is.exec(t) : null;
+      const m = mCurta || mComComentario;
+      if (m) {
+        aguardandoNps.delete(from);
+        ultimaMsgTs.delete(from); // qualquer resposta ao NPS nunca reabre em atendimentos
+        const { id, nota } = nps.registrar(from, Number(m[1]));
+        if (mComComentario && mComComentario[2]) nps.comentar(id, mComComentario[2].trim());
+        if (nota <= 6) {
+          await enviar(from, "Poxa, sentimos muito pela experiência! 😔 Em breve um atendente vai entrar em contato. 🐾");
+        } else {
+          await enviar(from, `Obrigada pela nota ${nota}! 💛 Significa muito pra gente. 🐾`);
+          await enviarConviteRedes(from);
+        }
+        return;
       }
+      // Não parece uma nota (dentro da janela) — mantém aguardando e deixa a mensagem seguir
+      // o fluxo normal abaixo (pode ser uma pergunta de verdade, não a resposta da pesquisa).
     }
-    return; // absorve qualquer resposta ao NPS (número ou não) sem reprocessar
   }
 
   // ── NPS comentário (fluxo legado — mantido para conversas em andamento) ──
@@ -772,4 +820,25 @@ function conversasAtivas() {
 
 function estaPausado(contactId) { return pausados.has(contactId); }
 
-module.exports = { configurar, processar, pausar, retomar, concluirAtendimento, registrarSessaoAtendente, ehMsgBot, conversasAtivas, abrirHandoff, estaPausado };
+// Rede de segurança de ÚLTIMA instância: chamada por quem invoca processar() (fila de
+// mensagens, transcrição de áudio etc.) quando ele lança uma exceção não tratada em NENHUM
+// ponto interno (bug, timeout de API, instabilidade externa...). Sem isso, o cliente já pode
+// ter recebido um "achei essas opções..." (ou qualquer outro texto) e depois fica em silêncio
+// total pra sempre — o erro só aparecia no log do servidor, que ninguém da loja vê. Garante que
+// SEMPRE existe uma resposta e um atendente é chamado, não importa onde exatamente quebrou.
+async function tratarFalhaCritica(from, erro) {
+  console.error(`Falha crítica ao processar mensagem de ${from}:`, (erro && erro.stack) || erro);
+  try {
+    await enviar(from, "Ops, tive um probleminha aqui 🙈 Já chamei um atendente pra te ajudar!");
+  } catch (e) {
+    console.error("Falha ao enviar aviso de falha crítica:", e.message);
+  }
+  try {
+    pausar(from);
+    await abrirHandoff(from, "Falha técnica durante o atendimento automático — conferir a conversa.");
+  } catch (e) {
+    console.error("Falha ao abrir handoff de falha crítica:", e.message);
+  }
+}
+
+module.exports = { configurar, processar, pausar, retomar, concluirAtendimento, registrarSessaoAtendente, ehMsgBot, conversasAtivas, abrirHandoff, estaPausado, tratarFalhaCritica };
