@@ -209,6 +209,8 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
   const cat = config.get().catalogo || {};
   const produtos = (cat.produtos || []).filter((p) => p && p.ativo !== false);
   const g = norm(grupo), sg = norm(subgrupo), esp = norm(especificacao), tx = norm(texto);
+  const casa = (valor, alvo) => valor && (norm(valor).includes(alvo) || alvo.includes(norm(valor)));
+  const casaLista = (lista, alvo) => Array.isArray(lista) && lista.some((x) => casa(x, alvo));
   // Nem todo produto do catálogo tem grupo/subgrupo/especificação tagueados (cadastro
   // manual item a item, então alguns ficam pra trás). Filtrar de forma rígida puniria
   // exatamente esses produtos sem tag com um falso "não temos" (ex.: "golden gato castrado"
@@ -216,9 +218,13 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
   // existindo e batendo perfeitamente pelo nome). Por isso o filtro abaixo (em filtrarPor) só
   // é aplicado produto a produto, exigindo a tag SÓ de quem a tem preenchida — quem não tem
   // simplesmente não é descartado por isso, e continua valendo pela busca por texto/nome.
-  const grupoEmUso = produtos.some((p) => p.grupo);
-  const subgruposEmUso = produtos.some((p) => Array.isArray(p.subgrupos) && p.subgrupos.length);
-  const especEmUso = produtos.some((p) => Array.isArray(p.especificacoes) && p.especificacoes.length);
+  // IMPORTANTE: "em uso" aqui exige que o VALOR PEDIDO bata em pelo menos um produto tagueado
+  // — não basta o catálogo usar a tag em OUTRA categoria (ex.: ração tagueada não pode liberar
+  // um grupo="Areia" vazio como se fosse critério real, senão a busca sem texto vira
+  // vacuosamente verdadeira e devolve o catálogo inteiro, sem relação com o que foi pedido).
+  const grupoEmUso = !!g && produtos.some((p) => p.grupo && casa(p.grupo, g));
+  const subgruposEmUso = !!sg && produtos.some((p) => casaLista(p.subgrupos, sg));
+  const especEmUso = !!esp && produtos.some((p) => casaLista(p.especificacoes, esp));
   let palavrasTx = tx.split(/\s+/).filter((w) => w && w.length >= 3 && !STOPWORDS.has(w)); // ≥3 chars evita "vi"/"pé" casarem por substring
   // "saca / saco / fechada / pacote" = ração ensacada → exclui granel. É modificador, sai da busca por texto.
   const querSaca = palavrasTx.some((w) => SACA.has(w));
@@ -226,9 +232,7 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
   // Sem nenhum critério que o catálogo de fato usa → não retorna tudo (filtrarPor([]) é
   // vacuosamente verdadeiro). Um filtro que NENHUM produto do catálogo usa não conta como
   // critério (senão zeraria a busca sozinho, sem chance de cair no fallback por texto).
-  if (!(g && grupoEmUso) && !(sg && subgruposEmUso) && !(esp && especEmUso) && !palavrasTx.length) return { total: 0, produtos: [] };
-  const casa = (valor, alvo) => valor && (norm(valor).includes(alvo) || alvo.includes(norm(valor)));
-  const casaLista = (lista, alvo) => Array.isArray(lista) && lista.some((x) => casa(x, alvo));
+  if (!grupoEmUso && !subgruposEmUso && !especEmUso && !palavrasTx.length) return { total: 0, produtos: [] };
   // Alvo da busca por texto: nome + descrição + tags (grupo/subgrupos/especificações).
   // Separadores (- + / |) são substituídos por espaço para que palavras como "AMOXICILINA" em
   // "AGEMOXI CL 250MG - AMOXICILINA +CLAVULANATO" virem tokens independentes.
@@ -258,9 +262,20 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
       if (num === "1" && /^1\s*(k|kg|kilo|quilo)?$/.test(w)) return alvo.includes("granel") || alvo.includes("fracionad");
       return false;
     }
-    if (alvo.includes(w)) return true;
-    // Fallback: compara sem espaços — resolve "pipicat" vs "pipi cat" / "pipi-cat"
-    if (!w.includes(" ")) return alvo.replace(/\s+/g, "").includes(w);
+    // Palavra INTEIRA, não substring solta — "dor" não pode casar "adestrador"/"condicionador",
+    // "blu" não pode casar "blusa", "american" não pode casar "americano" (peitoral). Isso já
+    // causou produto aleatório sendo oferecido de verdade pro cliente mais de uma vez.
+    if ((" " + alvo + " ").includes(" " + w + " ")) return true;
+    // Fallback: resolve "pipicat" (cliente digitou junto) vs "PIPI CAT"/"PIPI-CAT" (produto
+    // cadastrado com espaço/hífen no meio). Junta só PARES DE PALAVRAS ADJACENTES do produto —
+    // nunca a string toda (isso reabriria o mesmo problema de casar pedaço de palavra à toa,
+    // ex.: "american" "vazando" pra dentro de "peitoral americano" por causa da concatenação).
+    if (!w.includes(" ")) {
+      const tokens = alvo.split(" ").filter(Boolean);
+      for (let i = 0; i < tokens.length - 1; i++) {
+        if (tokens[i] + tokens[i + 1] === w) return true;
+      }
+    }
     return false;
   };
 
