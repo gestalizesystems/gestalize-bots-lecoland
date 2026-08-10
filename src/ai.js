@@ -529,7 +529,7 @@ function montarContexto(cliente) {
     "",
     "TAXA DE ENTREGA / TÁXI DOG:",
     "- ENDEREÇO INFORMADO PELO CLIENTE: quando o cliente informar uma rua, avenida, número, bairro ou endereço completo — chame SEMPRE consultar_taxa_entrega. Nunca interprete o endereço como produto ou busque no catálogo. Endereço nunca é uma marca de ração.",
-    "- Se já tiver o endereço do cliente, confirme antes de calcular ('A entrega seria pra esse endereço: <endereço>? 🛵'). Só chame consultar_taxa_entrega após confirmação. Nunca calcule distância manualmente. Se não souber o endereço, peça rua, número e bairro ('Qual o endereço de entrega? Preciso da rua, número e bairro 🛵').",
+    "- Se já tiver o endereço COMPLETO do cliente (rua, número e bairro), confirme antes de calcular ('A entrega seria pra esse endereço: <endereço>? 🛵') e SÓ chame consultar_taxa_entrega DEPOIS que o cliente confirmar — nunca na mesma mensagem que pergunta, nunca com 'se sim, já segue a cotação'. Se faltar rua, número OU bairro, peça o que falta ANTES de perguntar/calcular ('Qual o endereço de entrega? Preciso da rua, número e bairro 🛵') — nunca chame a função com endereço incompleto (ex.: só rua, sem bairro), mesmo que o cliente mande em mensagens separadas. Nunca calcule distância manualmente.",
     `- ENTREGA GRÁTIS (só Entrega moto): até ${g.km || 2} km com pedido acima de R$ ${g.valor || 50} → grátis. Táxi dog sempre cobra. Pode haver pedido mínimo conforme base de conhecimento.`,
     "- Apresente a cotação EXATAMENTE neste formato:\nSegue a cotação da sua taxa:\n\n📍 *Endereço:* <endereço>\n📏 *Distância aproximada:* <km> km\n🚚 *Serviço:* <serviço>\n\n💰 *Valor da taxa:* *R$ <valor>*",
     "- Táxi Dog é ida e volta. Se o serviço já foi escolhido, não pergunte de novo. Se a função não cobrir a área, diga que um atendente confirma.",
@@ -610,6 +610,14 @@ async function responder(contactId, mensagem) {
             total: 0,
             produtos: [],
             instrucao: "RESULTADO: ZERO produtos encontrados. PROIBIDO dizer 'Achei', 'encontrei', 'aqui estão as opções' ou qualquer frase que indique que produtos foram encontrados — seria mentira. OBRIGATÓRIO: CHAME encaminhar_para_atendente com motivo descrevendo o produto que o cliente buscou. O atendente humano vai confirmar se o item existe no estoque.",
+          };
+        }
+        // Endereço só localizado em nível de bairro (rua não mapeada) — a coordenada não é
+        // confiável o bastante pra calcular km/taxa; nunca inventa um valor a partir disso.
+        if (chamada.name === "consultar_taxa_entrega" && resultado && resultado.baixaPrecisao) {
+          resultadoParaIA = {
+            encontrado: false,
+            instrucao: `Não foi possível localizar esse endereço com precisão no mapa (só achamos a região aproximada: "${resultado.areaAproximada}") — a rua pode não estar mapeada. PROIBIDO calcular ou inventar uma distância/taxa a partir disso. Diga ao cliente que um atendente vai confirmar o valor exato pra esse endereço e CHAME encaminhar_para_atendente.`,
           };
         }
         if (chamada.name === "obter_info_granel" && resultado && resultado.ok && resultado.resposta) {

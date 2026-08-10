@@ -29,7 +29,16 @@ async function geocode(endereco, focus) {
   const f = j.features && j.features[0];
   if (!f) return null;
   const [lon, lat] = f.geometry.coordinates;
-  return { lat, lon, label: f.properties.label, confidence: f.properties.confidence };
+  return { lat, lon, label: f.properties.label, confidence: f.properties.confidence, layer: f.properties.layer };
+}
+
+// Camadas precisas o bastante pra confiar na coordenada como o endereço em si (rua/número/local).
+// Camadas mais grosseiras (bairro, cidade, região...) só localizam uma ÁREA — usar essa
+// coordenada como se fosse o endereço exato dá uma distância/taxa sem garantia nenhuma de
+// precisão (ex.: rua sem cobertura no mapa vira silenciosamente "o bairro vizinho errado").
+const LAYERS_PRECISAS = new Set(["address", "street", "venue", "point"]);
+function ehPreciso(g) {
+  return !!g && LAYERS_PRECISAS.has(g.layer) && (g.confidence == null || g.confidence >= 0.7);
 }
 
 // Coordenadas da loja (ponto de partida). Usa lat/lon do config se houver;
@@ -63,6 +72,11 @@ async function consultarTaxaPorEndereco(endereco) {
     const origem = await getOrigem();
     const destino = await geocode(endereco, origem);
     if (!destino) return { encontrado: false };
+    // Achou alguma coisa, mas só em nível de bairro/cidade (rua não mapeada) — não dá pra
+    // calcular uma taxa confiável a partir disso. Não inventa: pede confirmação humana.
+    if (!ehPreciso(destino)) {
+      return { encontrado: false, baixaPrecisao: true, areaAproximada: destino.label };
+    }
     const km = await distanciaKm(origem, destino);
     if (km == null || km > MAX_RAIO_KM) return { encontrado: false }; // fora da área / endereço suspeito
     return {
