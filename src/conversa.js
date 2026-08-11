@@ -601,8 +601,22 @@ async function processar(from, _textoRaw, nomeWpp) {
 
   // ── Pedido pronto: tem prioridade sobre triage e IA ─────────────────────
   if (_ehPedidoPronto(texto)) {
-    const msgPedido = config.preencher(dados.mensagens.atendente || "Já vou chamar um atendente! 🐾");
-    await enviar(from, msgPedido);
+    // Isso costuma ser a PRIMEIRA mensagem do cliente (chega já com a lista pronta) — sem
+    // tratar isso aqui, ele nunca recebe a saudação/aviso do sistema (fica pulado pra sempre
+    // pro histórico do bot, já que jaSaudou nunca era marcado neste ramo).
+    const primeiroContato = !jaSaudou.has(from);
+    if (primeiroContato) jaSaudou.add(from);
+    const cli = clientes.get(from);
+    const deveAviso = primeiroContato && (!cli || !cli.avisoEnviado);
+    const saudacaoTexto = primeiroContato
+      ? config.preencher(dados.mensagens.saudacao || "Olá! 🐾 Seja muito bem-vindo(a) à {nome}!") + (deveAviso ? "\n\n" + AVISO_SISTEMA : "") + "\n\n"
+      : "";
+    const msgPedido = saudacaoTexto + "Já chamei um atendente pra tirar seu pedido! 🐾";
+    // Retry (mesma rede de segurança do envio de produtos) — sem isso, uma falha passageira da
+    // Cloud API aqui deixava o cliente em silêncio total, sem nem a mensagem de recuperação.
+    try { await _comRetry(() => enviar(from, msgPedido)); }
+    catch (e) { console.error("Falha ao avisar cliente sobre pedido pronto:", e.message); }
+    if (deveAviso) clientes.salvar(from, { avisoEnviado: true });
     pausar(from);
     await abrirHandoff(from, "Cliente enviou pedido pronto com itens e quantidades.");
     return;
