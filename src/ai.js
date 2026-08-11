@@ -252,7 +252,11 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
   const casaPalavra = (alvo, w) => {
     if (SINONIMOS_EXATOS[w]) return SINONIMOS_EXATOS[w].some((s) => (" " + alvo + " ").includes(" " + s + " "));
     if (SINONIMOS[w]) return SINONIMOS[w].some((s) => alvo.includes(s));
-    if (/^\d/.test(w)) {
+    // Só entra na lógica de tamanho em KG quando a palavra realmente é isso (ou um número puro,
+    // sem unidade) — outra unidade explícita (mg, ml, g, cm de dosagem/medida de remédio) NÃO é
+    // "kg" disfarçado. Sem essa checagem, "50mg" (dosagem) batia em "50KG" (faixa de peso de
+    // antiparasitário) por engano — ex.: "agemoxi 50mg" devolvia NEXGARD.
+    if (/^\d/.test(w) && !/^\d+([.,]\d+)?\s*(mg|ml|cm|mm|g)\b/i.test(w)) {
       // Quantidade (ex.: "7kg", "10kg"): casa o tamanho ESCRITO no nome, com decimal OPCIONAL e
       // como token inteiro. Ex.: "7kg" casa "7,5KG"; "10kg" casa "10KG" e "10.1KG"; e nunca pega
       // "1kg" dentro de "10.1kg". Além disso, "1kg/1quilo" também significa ração a GRANEL.
@@ -285,22 +289,31 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
   // cadastro de tags é mais incompleto — mantém o comportamento tolerante (produto sem tag não
   // é descartado por isso, só protegido contra espécie oposta quando o subgrupo pedido é cão/gato).
   const ehRacao = (p) => /^rac/.test(norm(p.grupo)); // "ração"→"racao" / "rações"→"racoes": só o prefixo é comum
+  // A tolerância "produto sem tag não é descartado" só é segura quando existe TEXTO livre
+  // fazendo o trabalho de casar o produto certo — sem texto, ela vira uma porta aberta: filtro
+  // de categoria/espécie "pedido de graça" para TODO produto sem tag do catálogo inteiro
+  // (medicamento, ave à venda, hamster...), devolvendo lixo tipo "ALERGOVET"/"ANIMAL SIRIO" pra
+  // uma busca de ração pra pet idoso. Sem texto, produto sem tag é EXCLUÍDO, não liberado.
+  const temTexto = palavrasTx.length > 0;
   const filtrarPor = (palavras) => produtos.filter((p) => {
     const alvo = alvoDe(p);
     const racao = ehRacao(p);
     // Ração "GRANEL ..." é item de outro fluxo (obter_info_granel, que já funciona e cobre
     // preço/disponibilidade a granel) — nunca deve aparecer misturado numa busca normal de saca.
     if (racao && /^granel\b/.test(norm(p.nome))) return false;
-    if (g && p.grupo && !casa(p.grupo, g)) return false;
+    if (g) {
+      if (p.grupo) { if (!casa(p.grupo, g)) return false; }
+      else if (!temTexto) return false;
+    }
     if (sg) {
       if (racao || (Array.isArray(p.subgrupos) && p.subgrupos.length)) {
         if (!casaLista(p.subgrupos, sg)) return false;
-      } else if (especieOposta(alvo, sg)) return false;
+      } else if (!temTexto || especieOposta(alvo, sg)) return false;
     }
     if (esp) {
       if (racao || (Array.isArray(p.especificacoes) && p.especificacoes.length)) {
         if (!casaLista(p.especificacoes, esp)) return false;
-      }
+      } else if (!temTexto) return false;
     }
     if (querSaca && (alvo.includes("granel") || alvo.includes("fracionad"))) return false; // "saca" exclui granel
     if (palavras.length && !palavras.every((w) => casaPalavra(alvo, w))) return false;
@@ -391,7 +404,16 @@ async function executarFuncao(nome, args, contactId, contexto) {
     return { ok: true };
   }
   if (nome === "buscar_produtos") {
-    return buscarProdutos(args || {});
+    const args2 = args || {};
+    // Antiparasitário por faixa de peso (Simparic, NexGard, Bravecto, Credelio, Revolution):
+    // sem o peso do pet, mostrar as 5-6 faixas de uma vez é informação desnecessária pro
+    // cliente ter que escolher sozinho. Se o cliente JÁ disse o peso (em qualquer mensagem —
+    // ex.: "Simparic pra 20kg"), busca direto; senão, pede o peso primeiro.
+    const MARCA_POR_PESO = /\b(simparic|nexgard|bravecto|credelio|revolution)\b/i;
+    if (MARCA_POR_PESO.test(args2.texto || "") && !/\d+([.,]\d+)?\s*kg\b/i.test(contexto || "")) {
+      return { ok: false, precisaPerguntarPeso: true, instrucao: "O cliente perguntou sobre esse antiparasitário mas NÃO disse o peso do pet em nenhum momento. NÃO chame buscar_produtos de novo agora — pergunte 'Qual o peso do seu pet? 🐾' e espere a resposta antes de buscar/mostrar as opções." };
+    }
+    return buscarProdutos(args2);
   }
   if (nome === "obter_info_granel") {
     // Rede de segurança mais básica: só existe "granel" pra RAÇÃO. Se a conversa nem menciona
@@ -531,11 +553,11 @@ function montarContexto(cliente) {
     "- RAÇÃO — SACA OU GRANEL: NUNCA pergunte saca/granel para areia, petisco, medicamento ou acessório — só para RAÇÃO.",
     "- TAMANHO EM KG = SACA (a partir de 7kg): se o cliente pedir um tamanho de saca comercial (7, 10, 15, 20, 25kg ou similar — sempre ≥7kg), é saca — NUNCA use obter_info_granel nesse caso, mesmo sem marca. Com marca: busque '<marca> <tamanho>' (ex.: buscar_produtos({texto: 'chanin 25kg'})). Sem marca: busque '<espécie> <tamanho>' (ex.: buscar_produtos({texto: 'gato 10kg'})). NUNCA acrescente filhote/adulto/castrado/mix se o cliente não especificou — a busca retorna todas as variantes disponíveis nesse tamanho para o cliente escolher. Se retornar 0, busque só com a marca (ou só a espécie, sem marca) para ver tamanhos disponíveis e informe. Tamanhos MENORES que 7kg (1kg, 2kg, 3kg...) são ambíguos — podem ser uma quantidade pedida a granel; siga as regras de granel/saca normalmente pra esses casos.",
     "- NUNCA SUBSTITUA POR CONTA PRÓPRIA (regra geral — vale pra QUALQUER produto/marca/necessidade, não só ração): mostre SOMENTE produtos que sejam CLARAMENTE o que o cliente pediu (mesma marca, ou claramente a mesma finalidade/categoria do que ele descreveu). buscar_produtos às vezes devolve produtos de categoria totalmente diferente quando não acha o item exato (ex.: cliente pede 'remédio pra dor de ouvido' e a busca devolve xampu/condicionador/brinquedo; cliente pede 'vermífugo Blu' e a busca devolve 'blusa' — bateu só por causa das letras, não tem nada a ver). Se os produtos retornados NÃO forem claramente o que foi pedido, trate como se fosse 0 resultados: NÃO mostre esses produtos, NÃO diga 'não temos X, mas temos Y', e CHAME encaminhar_para_atendente com motivo descrevendo o que o cliente pediu — o atendente confirma disponibilidade ou sugere um substituto de verdade. Só ofereça algo diferente do pedido quando: (a) for a MESMA marca em outra variante/tamanho, ou (b) estiver na lista SUBSTITUIÇÕES APROVADAS abaixo.",
-    "- SUBSTITUIÇÕES APROVADAS (única exceção à regra acima — lista mantida pelo dono do negócio):\n  • NUXCELL → sempre sugira PROMUN DEFENSE no lugar (buscar_produtos({texto:'promun defense <espécie>'})), avisando que é o substituto indicado.\n  • BENEFLORA → sempre sugira, no lugar, os probióticos PROBIÓTICO VETNIL, FLORA FIX e LACTOBAC (busque cada um: buscar_produtos({texto:'probiotico vetnil'}), buscar_produtos({texto:'flora fix'}), buscar_produtos({texto:'lactobac <espécie>'})) — mostre as opções que existirem, avisando que são os substitutos indicados.\n  • CISTIMICIN → sempre sugira, no lugar, CISPET ou CYST AID PET (busque: buscar_produtos({texto:'cispet'}) e buscar_produtos({texto:'cyst aid pet'})) — mostre as opções que existirem, avisando que são os substitutos indicados.",
+    "- SUBSTITUIÇÕES APROVADAS (única exceção à regra acima — lista mantida pelo dono do negócio):\n  • NUXCELL → sempre sugira PROMUN DEFENSE no lugar (buscar_produtos({texto:'promun defense <espécie>'})), avisando que é o substituto indicado.\n  • BENEFLORA → sempre sugira, no lugar, os probióticos PROBIÓTICO VETNIL, FLORA FIX e LACTOBAC (busque cada um: buscar_produtos({texto:'probiotico vetnil'}), buscar_produtos({texto:'flora fix'}), buscar_produtos({texto:'lactobac <espécie>'})) — mostre as opções que existirem, avisando que são os substitutos indicados.\n  • CISTIMICIN → sempre sugira, no lugar, CISPET ou CYST AID PET (busque: buscar_produtos({texto:'cispet'}) e buscar_produtos({texto:'cyst aid pet'})) — mostre as opções que existirem, avisando que são os substitutos indicados.\n  • FALEXYL 75 → sempre sugira PETSPORIN 75MG no lugar (buscar_produtos({texto:'petsporin 75mg'})), avisando que é o substituto indicado.\n  • PROMUN DOG EM PÓ → sempre sugira MUNNOMAX PÓ no lugar (buscar_produtos({texto:'munnomax po'})), avisando que é o substituto indicado.\n  • SILMOX 50MG → sempre sugira AGEMOXI 50MG no lugar (buscar_produtos({texto:'agemoxi 50mg'})), avisando que é o substituto indicado.",
     "- MAIS BARATO / MAIS EM CONTA: CHAME buscar_produtos com ordenarPor='preco' e indique o de menor preço.",
     "- ROUPA CIRÚRGICA: pergunte o PESO do pet e busque 'roupa cirurgica' + peso. NÃO confunda com bolsa/caixa de transporte.",
     "- VERMÍFUGO / ANTIPULGAS / ANTIPARASITÁRIO: são PRODUTOS do catálogo — NUNCA encaminhe para atendente só porque o cliente quer vermifugar ou tratar pulgas/carrapatos. Se já souber a espécie pelo contexto, BUSQUE IMEDIATAMENTE usando texto com espécie + produto: buscar_produtos({texto: 'verme gato'}) para gato ou buscar_produtos({texto: 'verme cao'}) para cão/cachorro. NUNCA use o parâmetro subgrupo para espécie — use sempre no texto. Só pergunte a espécie se ela realmente não estiver na conversa.",
-    "- ANTIPARASITÁRIO POR FAIXA DE PESO (Simparic, NexGard, Bravecto, Credelio, Revolution e similares): esses produtos são vendidos em FAIXAS de peso do pet (ex.: '20-40KG', '(40,1 A 60KG)', '2,6A7,5KG'), não em tamanhos exatos — NUNCA inclua o peso/kg no texto da busca (buscar_produtos({texto:'simparic 40kg'}) pode não bater com uma faixa tipo '40,1 A 60KG' e te fazer perder a opção certa!). Os nomes cadastrados TAMBÉM não têm a palavra cão/gato — NUNCA inclua a espécie no texto da busca também (buscar_produtos({texto:'revolution gato'}) zera mesmo o produto existindo). Busque SÓ pelo nome (ex.: buscar_produtos({texto:'simparic'}), buscar_produtos({texto:'revolution'})) — isso retorna TODAS as faixas cadastradas — e você mesma(o) identifica e informa a faixa cujo intervalo cobre o peso que o cliente disse (ex.: pet de 45kg → a faixa que vai de 40,1 a 60kg), sem precisar filtrar por espécie na busca. Se o peso informado não se encaixar em nenhuma faixa retornada, CHAME encaminhar_para_atendente.",
+    "- ANTIPARASITÁRIO POR FAIXA DE PESO (Simparic, NexGard, Bravecto, Credelio, Revolution e similares): esses produtos são vendidos em FAIXAS de peso do pet (ex.: '20-40KG', '(40,1 A 60KG)', '2,6A7,5KG'), não em tamanhos exatos. SE O CLIENTE AINDA NÃO DISSE O PESO do pet (ex.: 'tem bravecto?'), PERGUNTE PRIMEIRO 'Qual o peso do seu pet? 🐾' e AGUARDE a resposta — NÃO chame buscar_produtos nem mostre as faixas todas de uma vez, pra não jogar informação desnecessária pro cliente escolher sozinho. Se o cliente JÁ disse o peso na mesma mensagem (ex.: 'Simparic pra 20kg', 'bravecto pro meu cão de 8kg'), pule a pergunta e vá direto: NUNCA inclua o peso/kg no texto da busca (buscar_produtos({texto:'simparic 40kg'}) pode não bater com uma faixa tipo '40,1 A 60KG' e te fazer perder a opção certa!). Os nomes cadastrados TAMBÉM não têm a palavra cão/gato — NUNCA inclua a espécie no texto da busca também (buscar_produtos({texto:'revolution gato'}) zera mesmo o produto existindo). Busque SÓ pelo nome (ex.: buscar_produtos({texto:'simparic'}), buscar_produtos({texto:'revolution'})) — isso retorna TODAS as faixas cadastradas — e você mesma(o) identifica e apresenta SÓ a faixa cujo intervalo cobre o peso que o cliente disse (ex.: pet de 45kg → a faixa que vai de 40,1 a 60kg), sem precisar filtrar por espécie na busca e sem mostrar as demais faixas. Se o peso informado não se encaixar em nenhuma faixa retornada, CHAME encaminhar_para_atendente.",
     "- Quando buscar_produtos retornar produtos QUE REALMENTE SÃO o que o cliente pediu, dê UMA ÚNICA frase de introdução curta (ex.: 'Achei essas opções pra você 🐾'). NUNCA liste nomes, preços ou detalhes dos produtos no texto — os cards com foto e preço são enviados automaticamente pelo sistema. Qualquer lista de produtos no texto será ignorada. NUNCA use frases como 'não temos X, mas tenho Y' pra apresentar um produto de categoria diferente — ver regra 'NUNCA SUBSTITUA POR CONTA PRÓPRIA'.",
     "- Se buscar_produtos retornar 0 resultados: NUNCA escreva 'Achei', 'encontrei', 'aqui estão as opções' ou qualquer frase que sugira que produtos foram encontrados — seria uma mentira que confunde o cliente. SEMPRE CHAME encaminhar_para_atendente — o atendente confirma se o produto existe de verdade no estoque.",
     "- CONFIRMAÇÃO DE COMPRA: quando o cliente responder 'quero', 'esse', 'esse mesmo', 'esse aí', 'sim', 'pode ser', 'vou levar', 'fechado', 'pode mandar', 'tá bom', 'ok', 'quero esse', 'quero comprar', 'manda' — ou qualquer variação de confirmação — LOGO APÓS o bot ter apresentado produtos (verifique o histórico): NÃO busque produtos novamente. CHAME IMEDIATAMENTE encaminhar_para_atendente com motivo 'Cliente confirmou interesse no produto — finalizar venda.'",
