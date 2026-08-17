@@ -343,7 +343,10 @@ function limparInatividade(contactId) {
 function pausar(contactId) {
   pausados.set(contactId, { ultimaMsg: Date.now() });
   proximaMsgParaIA.delete(contactId);
-  agendarInatividade(contactId);
+  // NÃO agenda o timer de inatividade aqui: pausado = atendimento humano em andamento.
+  // O reengajamento automático ("Ainda por aí?") é só pro bot conversando sozinho —
+  // enquanto está com o atendente, quem decide quando voltar é o atendente (retomar manual).
+  limparInatividade(contactId);
 }
 function registrarSessaoAtendente(contactId) {
   pausar(contactId);
