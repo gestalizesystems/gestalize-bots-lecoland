@@ -41,6 +41,42 @@ function ehPreciso(g) {
   return !!g && LAYERS_PRECISAS.has(g.layer) && (g.confidence == null || g.confidence >= 0.7);
 }
 
+// Remove acentos/pontuação e deixa minúsculo — pra comparar bairro sem depender de grafia exata.
+function normTxt(s) {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Extrai o bairro que o cliente informou — assume o formato "rua, número, bairro"
+// (é o formato que o prompt pede pra IA confirmar/enviar). Sem vírgula não dá pra
+// isolar o bairro com segurança, então não valida nesse caso.
+function extrairBairroInformado(endereco) {
+  const partes = String(endereco || "").split(",").map((p) => p.trim()).filter(Boolean);
+  if (partes.length < 2) return null;
+  return partes[partes.length - 1];
+}
+
+const _BAIRRO_STOPWORDS = new Set(["parque", "jardim", "conjunto", "residencial", "cidade", "vila", "loteamento"]);
+
+// O geocodificador às vezes casa a rua só pelo texto e devolve um bairro diferente
+// do que o cliente informou (ruas de mesmo nome em bairros vizinhos) — mesmo com
+// confiança "alta". Se o bairro devolvido não bate nem por aproximação com o que o
+// cliente disse, não dá pra confiar na coordenada pra calcular a taxa.
+function bairroConfere(bairroInformado, label) {
+  if (!bairroInformado) return true; // não isolamos um bairro no texto → não valida
+  const alvo = normTxt(bairroInformado);
+  if (!alvo) return true;
+  const labelNorm = normTxt(label);
+  if (labelNorm.includes(alvo)) return true;
+  const palavras = alvo.split(" ").filter((w) => w.length > 3 && !_BAIRRO_STOPWORDS.has(w));
+  return palavras.length > 0 && palavras.some((w) => labelNorm.includes(w));
+}
+
 // Coordenadas da loja (ponto de partida). Usa lat/lon do config se houver;
 // senão geocodifica o endereço de partida e guarda em cache.
 async function getOrigem() {
@@ -75,6 +111,12 @@ async function consultarTaxaPorEndereco(endereco) {
     // Achou alguma coisa, mas só em nível de bairro/cidade (rua não mapeada) — não dá pra
     // calcular uma taxa confiável a partir disso. Não inventa: pede confirmação humana.
     if (!ehPreciso(destino)) {
+      return { encontrado: false, baixaPrecisao: true, areaAproximada: destino.label };
+    }
+    // Rua encontrada com "confiança alta", mas em bairro diferente do que o cliente
+    // informou (colisão de nome de rua entre bairros vizinhos) — mesmo risco de taxa
+    // errada que a baixa precisão acima, então trata igual: não inventa, pede confirmação.
+    if (!bairroConfere(extrairBairroInformado(endereco), destino.label)) {
       return { encontrado: false, baixaPrecisao: true, areaAproximada: destino.label };
     }
     const km = await distanciaKm(origem, destino);

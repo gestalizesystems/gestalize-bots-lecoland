@@ -156,6 +156,16 @@ const SINONIMOS = {
   adultos: ["adulto", "adultos", "adult", " ad "],
   senior: ["senior", "idoso", "idosa", "mature"],
   idoso: ["senior", "idoso", "idosa", "mature"],
+  // Porte (tamanho da raça) — nomes de produto costumam abreviar ("RACAS PEQ", "GDE", "MED").
+  // Sem isso, "premier adulto pequeno" não achava "GRANEL PREMIER AD RACAS PEQ" (só existe a
+  // abreviação no nome), caindo pro relaxamento e trazendo variantes de porte erradas.
+  pequeno: ["pequeno", "pequena", "pequenos", "pequenas", "peq", "mini", "toy"],
+  pequena: ["pequeno", "pequena", "pequenos", "pequenas", "peq", "mini", "toy"],
+  mini: ["pequeno", "pequena", "peq", "mini", "toy"],
+  grande: ["grande", "grandes", "gde", "grd", "giant", "gigante"],
+  gigante: ["grande", "grandes", "gde", "grd", "giant", "gigante"],
+  medio: ["medio", "media", "medios", "medias", "med", "medium"],
+  media: ["medio", "media", "medios", "medias", "med", "medium"],
   frango: ["frango", "chicken"],
   chicken: ["frango", "chicken"],
   carne: ["carne", "beef"],
@@ -248,6 +258,16 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
     if (sgAlvo === "cao") return ESPECIE_GATO.some((s) => (" " + alvo + " ").includes(" " + s + " "));
     return false;
   };
+  // Estágio de vida (adulto × filhote) — mesma lógica de "nunca mistura" da espécie: se o
+  // cliente pediu explicitamente "adulto", produto de FILHOTE nunca pode aparecer (e vice-versa),
+  // mesmo que o relaxamento abaixo precise afrouxar outras palavras pra achar alguma coisa. Sem
+  // essa trava, "premier adulto pequeno" caía de volta em "premier filhote pequeno" só porque não
+  // existe adulto exatamente daquele porte — e a IA oferecia a idade errada como se fosse igual.
+  const FILHOTE_TERMOS = ["filhote", "filhotes", "filhotinho", "puppy", "kitten", "junior"];
+  const ADULTO_TERMOS = ["adulto", "adultos", "adult", "ad"];
+  const temTermoPalavra = (alvo, termos) => termos.some((t) => (" " + alvo + " ").includes(" " + t + " "));
+  const pedeAdulto = palavrasTx.some((w) => w === "adulto" || w === "adultos");
+  const pedeFilhote = palavrasTx.some((w) => w === "filhote" || w === "filhotes");
   // Uma palavra casa se QUALQUER um dos seus sinônimos aparecer (ex.: "gato" casa "cat"; "quilo" casa "granel").
   const casaPalavra = (alvo, w) => {
     if (SINONIMOS_EXATOS[w]) return SINONIMOS_EXATOS[w].some((s) => (" " + alvo + " ").includes(" " + s + " "));
@@ -316,14 +336,28 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
       } else if (!temTexto) return false;
     }
     if (querSaca && (alvo.includes("granel") || alvo.includes("fracionad"))) return false; // "saca" exclui granel
+    // Estágio de vida oposto ao pedido nunca passa — nem por relaxamento (ver comentário acima
+    // de pedeAdulto/pedeFilhote). Checado aqui, fora do array `palavras`, porque o relaxamento
+    // pode remover "adulto"/"filhote" da lista ativa tentando achar QUALQUER match — isso não
+    // pode reabrir a porta pro estágio errado.
+    if (pedeAdulto && temTermoPalavra(alvo, FILHOTE_TERMOS) && !temTermoPalavra(alvo, ADULTO_TERMOS)) return false;
+    if (pedeFilhote && temTermoPalavra(alvo, ADULTO_TERMOS) && !temTermoPalavra(alvo, FILHOTE_TERMOS)) return false;
     if (palavras.length && !palavras.every((w) => casaPalavra(alvo, w))) return false;
     return true;
   });
 
-  // ÂNCORAS (espécie/granel) são obrigatórias e nunca dropadas → nunca mistura cão com gato,
-  // e "a quilo" só traz granel. As demais palavras ('outras') podem ser relaxadas.
-  const ancoras = palavrasTx.filter((w) => ANCORAS.has(w));
-  let outras = palavrasTx.filter((w) => !ANCORAS.has(w));
+  // Tamanho/peso explícito (ex.: "10kg", "25kg") — mesmo critério do digit-branch de
+  // casaPalavra (exclui dosagem em mg/ml/cm/g, que não é tamanho de saca).
+  const ehTamanhoNumerico = (w) => /^\d/.test(w) && !/^\d+([.,]\d+)?\s*(mg|ml|cm|mm|g)\b/i.test(w);
+  // ÂNCORAS (espécie/granel/tamanho) são obrigatórias e nunca dropadas → nunca mistura cão com
+  // gato, "a quilo" só traz granel, e um tamanho pedido (ex.: "10kg") nunca é relaxado pra trazer
+  // outro produto qualquer que só bate pela marca — sem o tamanho certo, era exatamente assim que
+  // uma busca de "dog chow 10kg" (saca que não existe) caía de volta no item a GRANEL (preço por
+  // quilo) só porque "dog"/"chow" batiam, fazendo a IA apresentar o preço do quilo como se fosse
+  // o preço de uma saca fechada de 10kg. Sem a saca certa, é melhor devolver 0 (e a IA busca de
+  // novo só pela marca/espécie pra informar os tamanhos que existem de verdade).
+  const ancoras = palavrasTx.filter((w) => ANCORAS.has(w) || ehTamanhoNumerico(w));
+  let outras = palavrasTx.filter((w) => !ANCORAS.has(w) && !ehTamanhoNumerico(w));
 
   let achados = filtrarPor([...ancoras, ...outras]);
   if (!achados.length && outras.length) {
@@ -551,7 +585,8 @@ function montarContexto(cliente) {
     "- RAÇÃO PARA AVES (calopsita, periquito, papagaio, canário, etc.): NUNCA use obter_info_granel para aves. Busque SEMPRE com buscar_produtos({ texto: 'granel <espécie>' }) — ex.: 'granel calopsita', 'granel papagaio'. Não pergunte cão ou gato.",
     "- ESPÉCIE (NUNCA MISTURE): se o cliente pediu para GATO, só ofereça produtos de GATO; se pediu para CÃO, só de CÃO.",
     "- RAÇÃO — SACA OU GRANEL: NUNCA pergunte saca/granel para areia, petisco, medicamento ou acessório — só para RAÇÃO.",
-    "- TAMANHO EM KG = SACA (a partir de 7kg): se o cliente pedir um tamanho de saca comercial (7, 10, 15, 20, 25kg ou similar — sempre ≥7kg), é saca — NUNCA use obter_info_granel nesse caso, mesmo sem marca. Com marca: busque '<marca> <tamanho>' (ex.: buscar_produtos({texto: 'chanin 25kg'})). Sem marca: busque '<espécie> <tamanho>' (ex.: buscar_produtos({texto: 'gato 10kg'})). NUNCA acrescente filhote/adulto/castrado/mix se o cliente não especificou — a busca retorna todas as variantes disponíveis nesse tamanho para o cliente escolher. Se retornar 0, busque só com a marca (ou só a espécie, sem marca) para ver tamanhos disponíveis e informe. Tamanhos MENORES que 7kg (1kg, 2kg, 3kg...) são ambíguos — podem ser uma quantidade pedida a granel; siga as regras de granel/saca normalmente pra esses casos.",
+    "- TAMANHO EM KG = SACA (a partir de 7kg): se o cliente pedir um tamanho de saca comercial (7, 10, 15, 20, 25kg ou similar — sempre ≥7kg), é saca — NUNCA use obter_info_granel nesse caso, mesmo sem marca. Com marca: busque '<marca> <tamanho>' (ex.: buscar_produtos({texto: 'chanin 25kg'})). Sem marca: busque '<espécie> <tamanho>' (ex.: buscar_produtos({texto: 'gato 10kg'})). NUNCA acrescente filhote/adulto/castrado/mix se o cliente não especificou — a busca retorna todas as variantes disponíveis nesse tamanho para o cliente escolher. Se retornar 0, busque só com a marca (ou só a espécie, sem marca) para ver os tamanhos que EXISTEM de verdade e informe (ex.: 'Não temos de 10kg, mas temos de 20kg por R$ X') — NUNCA use o preço de um produto a GRANEL pra responder sobre um tamanho de saca que não existe. Tamanhos MENORES que 7kg (1kg, 2kg, 3kg...) são ambíguos — podem ser uma quantidade pedida a granel; siga as regras de granel/saca normalmente pra esses casos.",
+    "- GRANEL (preço por KG) NUNCA é o preço de uma SACA FECHADA de tamanho específico — são unidades diferentes. Se o cliente perguntou 'saco de Xkg', 'fechado', 'saca' — mesmo DEPOIS de você já ter mostrado um produto a granel — isso é um pedido NOVO de saca: CHAME buscar_produtos de novo com a marca/espécie + esse tamanho (NUNCA reaproveite o preço por quilo do granel como se fosse o preço da saca). Se não existir saca desse tamanho, diga que não tem e informe os tamanhos de saca que existem de verdade (ou chame encaminhar_para_atendente se não souber nenhum).",
     "- NUNCA SUBSTITUA POR CONTA PRÓPRIA (regra geral — vale pra QUALQUER produto/marca/necessidade, não só ração): mostre SOMENTE produtos que sejam CLARAMENTE o que o cliente pediu (mesma marca, ou claramente a mesma finalidade/categoria do que ele descreveu). buscar_produtos às vezes devolve produtos de categoria totalmente diferente quando não acha o item exato (ex.: cliente pede 'remédio pra dor de ouvido' e a busca devolve xampu/condicionador/brinquedo; cliente pede 'vermífugo Blu' e a busca devolve 'blusa' — bateu só por causa das letras, não tem nada a ver). Se os produtos retornados NÃO forem claramente o que foi pedido, trate como se fosse 0 resultados: NÃO mostre esses produtos, NÃO diga 'não temos X, mas temos Y', e CHAME encaminhar_para_atendente com motivo descrevendo o que o cliente pediu — o atendente confirma disponibilidade ou sugere um substituto de verdade. Só ofereça algo diferente do pedido quando: (a) for a MESMA marca em outra variante/tamanho, ou (b) estiver na lista SUBSTITUIÇÕES APROVADAS abaixo.",
     "- SUBSTITUIÇÕES APROVADAS (única exceção à regra acima — lista mantida pelo dono do negócio):\n  • NUXCELL → sempre sugira PROMUN DEFENSE no lugar (buscar_produtos({texto:'promun defense <espécie>'})), avisando que é o substituto indicado.\n  • BENEFLORA → sempre sugira, no lugar, os probióticos PROBIÓTICO VETNIL, FLORA FIX e LACTOBAC (busque cada um: buscar_produtos({texto:'probiotico vetnil'}), buscar_produtos({texto:'flora fix'}), buscar_produtos({texto:'lactobac <espécie>'})) — mostre as opções que existirem, avisando que são os substitutos indicados.\n  • CISTIMICIN → sempre sugira, no lugar, CISPET ou CYST AID PET (busque: buscar_produtos({texto:'cispet'}) e buscar_produtos({texto:'cyst aid pet'})) — mostre as opções que existirem, avisando que são os substitutos indicados.\n  • FALEXYL 75 → sempre sugira PETSPORIN 75MG no lugar (buscar_produtos({texto:'petsporin 75mg'})), avisando que é o substituto indicado.\n  • PROMUN DOG EM PÓ → sempre sugira MUNNOMAX PÓ no lugar (buscar_produtos({texto:'munnomax po'})), avisando que é o substituto indicado.\n  • SILMOX 50MG → sempre sugira AGEMOXI 50MG no lugar (buscar_produtos({texto:'agemoxi 50mg'})), avisando que é o substituto indicado.",
     "- MAIS BARATO / MAIS EM CONTA: CHAME buscar_produtos com ordenarPor='preco' e indique o de menor preço.",
@@ -568,6 +603,7 @@ function montarContexto(cliente) {
     "TAXA DE ENTREGA / TÁXI DOG:",
     "- ENDEREÇO INFORMADO PELO CLIENTE: quando o cliente informar uma rua, avenida, número, bairro ou endereço completo — chame SEMPRE consultar_taxa_entrega. Nunca interprete o endereço como produto ou busque no catálogo. Endereço nunca é uma marca de ração.",
     "- Se já tiver o endereço COMPLETO do cliente (rua, número e bairro), confirme antes de calcular ('A entrega seria pra esse endereço: <endereço>? 🛵') e SÓ chame consultar_taxa_entrega DEPOIS que o cliente confirmar — nunca na mesma mensagem que pergunta, nunca com 'se sim, já segue a cotação'. Se faltar rua, número OU bairro, peça o que falta ANTES de perguntar/calcular ('Qual o endereço de entrega? Preciso da rua, número e bairro 🛵') — nunca chame a função com endereço incompleto (ex.: só rua, sem bairro), mesmo que o cliente mande em mensagens separadas. Nunca calcule distância manualmente.",
+    "- ENDEREÇO — UM ÚNICO BAIRRO: use SEMPRE só o ÚLTIMO bairro que o cliente confirmou como correto. Se o cliente mencionar mais de um bairro/ponto de referência em mensagens diferentes (ex.: disse 'Jangurussu' antes e depois 'perto do Parque Betânia' ou 'sentido Messejana'), NUNCA junte todos num endereço só — isso confunde a cotação. Pergunte qual bairro é o certo se não estiver claro, e passe pra função exatamente o endereço 'rua, número, bairro' com um ÚNICO bairro.",
     `- ENTREGA GRÁTIS (só Entrega moto): até ${g.km || 2} km com pedido acima de R$ ${g.valor || 50} → grátis. Táxi dog sempre cobra. Pode haver pedido mínimo conforme base de conhecimento.`,
     "- Apresente a cotação EXATAMENTE neste formato:\nSegue a cotação da sua taxa:\n\n📍 *Endereço:* <endereço>\n📏 *Distância aproximada:* <km> km\n🚚 *Serviço:* <serviço>\n\n💰 *Valor da taxa:* *R$ <valor>*",
     "- Táxi Dog é ida e volta. Se o serviço já foi escolhido, não pergunte de novo. Se a função não cobrir a área, diga que um atendente confirma.",

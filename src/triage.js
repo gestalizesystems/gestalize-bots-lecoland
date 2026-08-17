@@ -100,7 +100,15 @@ function triar(textoBruto, contexto) {
       if (contexto && contexto.sub) resp += "\n\n↩️ Digite *0* para voltar ao menu.";
       return { tipo: "opcao", chave: opcao.chave, titulo: opcao.titulo, resposta: resp };
     }
-    return { tipo: "menu", resposta: menuPrincipal(), novoContexto: ctxPrincipal };
+    // Número não bate com nenhuma opção do menu/sub-menu ATUAL — não é seleção de menu
+    // (ex.: cliente digitou o número da casa no meio da coleta de endereço). Só assume
+    // "quis o menu principal" quando NÃO há nenhum contexto de menu ativo (ex.: primeira
+    // mensagem do cliente antes de qualquer saudação). Com um contexto ativo, reabrir o
+    // menu principal do zero derruba a conversa em andamento — deixa cair pras próximas
+    // regras (palavra-chave/IA) tratando como texto livre.
+    if (!contexto) {
+      return { tipo: "menu", resposta: menuPrincipal(), novoContexto: ctxPrincipal };
+    }
   }
 
   // Palavra-chave de um SUB-MENU → abre o sub-menu e lembra suas opções + o texto.
