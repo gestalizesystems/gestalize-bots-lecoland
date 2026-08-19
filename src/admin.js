@@ -100,19 +100,26 @@ const _debounceTexto = new Map(); // contactId -> { timer, partes, nomeWpp }
 const DEBOUNCE_MS = 2500;
 // Contatos que receberam imagem/documento recentemente: suprime texto já enfileirado.
 const _midiaPendente = new Set();
-function _agendarTexto(from, textoCompleto, nomeWpp) {
-  const buf = _debounceTexto.get(from) || { partes: [], nomeWpp };
+// `ctxAd` (nota "cliente veio de um anúncio sobre X") NUNCA entra junto no texto que a
+// triagem por palavra-chave analisa — texto publicitário costuma citar "entrega", "buscar"
+// etc. e sequestrava a conversa pro menu errado sem o cliente ter dito nada daquilo. Fica
+// guardado à parte e só é anexado (com o marcador \x1E) DEPOIS de todas as mensagens
+// juntadas, pra a IA usar como contexto — nunca no meio do texto do cliente.
+function _agendarTexto(from, textoCompleto, nomeWpp, ctxAd) {
+  const buf = _debounceTexto.get(from) || { partes: [], nomeWpp, ctxAd: "" };
   buf.partes.push(textoCompleto);
   if (!buf.nomeWpp) buf.nomeWpp = nomeWpp;
+  if (ctxAd && !buf.ctxAd) buf.ctxAd = ctxAd; // só a primeira msg costuma vir com referral
   if (buf.timer) clearTimeout(buf.timer);
   const partes = buf.partes;
   const nome = buf.nomeWpp;
+  const anuncio = buf.ctxAd;
   buf.timer = setTimeout(() => {
     _debounceTexto.delete(from);
     enfileirar(from, () => {
       // Se imagem/documento chegou depois do timer disparar, descarta o texto.
       if (_midiaPendente.has(from)) { _midiaPendente.delete(from); return; }
-      return conversa.processar(from, partes.join("\n"), nome);
+      return conversa.processar(from, partes.join("\n") + (anuncio ? "\x1E" + anuncio : ""), nome);
     });
   }, DEBOUNCE_MS);
   _debounceTexto.set(from, buf);
@@ -122,7 +129,7 @@ function _flushTexto(from) {
   if (!buf) return;
   clearTimeout(buf.timer);
   _debounceTexto.delete(from);
-  enfileirar(from, () => conversa.processar(from, buf.partes.join("\n"), buf.nomeWpp));
+  enfileirar(from, () => conversa.processar(from, buf.partes.join("\n") + (buf.ctxAd ? "\x1E" + buf.ctxAd : ""), buf.nomeWpp));
 }
 // Descarta texto em buffer. Se o timer já disparou, sinaliza via _midiaPendente para
 // que a tarefa enfileirada seja ignorada quando rodar (resolve race condition texto+mídia).
@@ -351,7 +358,7 @@ function iniciarAdmin(porta) {
             if (msg.type === "text" && msg.text) {
               const _corpo = msg.text.body || "";
               // \x1F = marcador interno: cliente respondeu/citou uma msg anterior do bot
-              _agendarTexto(from, ctxAd + (msg.context ? "\x1F" + _corpo : _corpo), nomeWpp);
+              _agendarTexto(from, msg.context ? "\x1F" + _corpo : _corpo, nomeWpp, ctxAd);
             } else if (msg.type === "image" && msg.image && msg.image.id) {
               _cancelarTexto(from); // texto enviado junto com imagem é descartado — imagem vai ao atendente
               enfileirar(from, () => processarImagem(from, msg.image.id, (ctxAd + (msg.image.caption || "")).trim(), nomeWpp));

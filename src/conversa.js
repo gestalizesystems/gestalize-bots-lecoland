@@ -454,9 +454,18 @@ function _ehPedidoPronto(texto) {
 
 // Processa uma mensagem recebida do cliente.
 async function processar(from, _textoRaw, nomeWpp) {
+  const _bruto = typeof _textoRaw === "string" ? _textoRaw : "";
+  // \x1E separa uma nota de contexto de anúncio (Instagram/Facebook) do texto real do cliente
+  // — ela vem SEMPRE no final (ver _agendarTexto em admin.js) e serve só pra INFORMAR a IA
+  // (ex.: "cliente veio de um anúncio sobre a linha Fargo"). NUNCA participa da triagem por
+  // palavra-chave: texto publicitário ("entrega grátis", "buscar no site"...) sequestrava a
+  // conversa pro menu errado mesmo sem o cliente ter dito nada daquilo.
+  const _posAnuncio = _bruto.indexOf("\x1E");
+  const anuncioInfo = _posAnuncio >= 0 ? _bruto.slice(_posAnuncio + 1) : "";
+  const _semAnuncio = _posAnuncio >= 0 ? _bruto.slice(0, _posAnuncio) : _bruto;
   // \x1F = marcador interno de "citação" (cliente respondeu a uma mensagem anterior do bot)
-  const ehCitacao = typeof _textoRaw === "string" && _textoRaw.startsWith("\x1F");
-  const texto = ehCitacao ? _textoRaw.slice(1) : (_textoRaw || "");
+  const ehCitacao = _semAnuncio.startsWith("\x1F");
+  const texto = ehCitacao ? _semAnuncio.slice(1) : _semAnuncio;
 
   // Inicializa preBot na primeira mensagem após as credenciais estarem disponíveis.
   if (!preBotIniciado) garantirPreBot();
@@ -776,7 +785,9 @@ async function processar(from, _textoRaw, nomeWpp) {
   }
 
   // ── IA: decide buscar produto, responder ou encaminhar ao atendente ───────
-  const resp = await responder(from, texto);
+  // A nota do anúncio (se houver) só entra aqui, pra IA reconhecer o produto/serviço do
+  // anúncio — nunca foi usada acima na triagem por palavra-chave.
+  const resp = await responder(from, anuncioInfo ? (anuncioInfo + texto) : texto);
   let _textoResp = (resp.texto || "").trim();
   // Se há cards de produtos para enviar, garante que o texto seja só a intro (sem lista duplicada)
   if (resp.produtos && resp.produtos.length) {
