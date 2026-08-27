@@ -96,8 +96,11 @@ function enfileirar(from, tarefa) {
   atual.finally(() => { if (filasContato.get(from) === atual) filasContato.delete(from); });
 }
 // Debounce de texto: junta mensagens em rajada antes de processar (evita respostas intermediárias).
+// Subido de 2,5s pra 4s — cliente corrigindo erro de digitação em mensagens separadas
+// ("Vcs tem todos" / "Spctra" / "Nexgad spectra") levava mais que 2,5s entre uma e outra e o
+// bot respondia à primeira mensagem sozinha, sem o contexto das correções que vinham a seguir.
 const _debounceTexto = new Map(); // contactId -> { timer, partes, nomeWpp }
-const DEBOUNCE_MS = 2500;
+const DEBOUNCE_MS = 4000;
 // Contatos que receberam imagem/documento recentemente: suprime texto já enfileirado.
 const _midiaPendente = new Set();
 // `ctxAd` (nota "cliente veio de um anúncio sobre X") NUNCA entra junto no texto que a

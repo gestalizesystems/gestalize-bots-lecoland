@@ -195,6 +195,17 @@ const SINONIMOS_EXATOS = {
   // produto aleatório sem nenhuma relação com castração.
   castrado: ["castrado", "castrada", "castrados", "cast", "neutered", "sterili"],
   castrada: ["castrado", "castrada", "cast", "neutered", "sterili"],
+  // Textura de areia — gênero/plural variam entre o que o cliente digita e o nome cadastrado
+  // (ex.: cliente pede "fargo FINA", produto cadastrado é "FARGO GRAOS FINOS"). Sem isso, "fina"
+  // não batia em "finos" por serem palavras diferentes (match de palavra inteira, não substring)
+  // — a busca perdia o produto certo e caía no relaxamento, que podia até dropar a MARCA (por
+  // aparecer em muitos produtos) e sobrar só "fina", batendo em areia de outra marca qualquer.
+  fino: ["fino", "fina", "finos", "finas"],
+  fina: ["fino", "fina", "finos", "finas"],
+  grosso: ["grosso", "grossa", "grossos", "grossas"],
+  grossa: ["grosso", "grossa", "grossos", "grossas"],
+  grao: ["grao", "graos"],
+  graos: ["grao", "graos"],
 };
 
 // Palavras GENÉRICAS de categoria (não identificam a marca/item) — dropadas PRIMEIRO no relaxamento,
@@ -420,6 +431,25 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
 // recente) — palavra inteira, mesmo critério de SINONIMOS_EXATOS. Usado como rede de segurança
 // determinística: nunca deixa a IA "assumir" a espécie por conta própria quando o cliente nunca
 // disse (ela às vezes ignora a instrução do prompt de perguntar antes).
+// Extrai a faixa numérica (min–max) de peso de um nome/especificação de antiparasitário —
+// os formatos cadastrados variam bastante: "10-20 UNIDADE", "120MG UNIDADE (40,1 A 60KG)",
+// "2,6-5KG UNIDADE", "20MG 1CP (5,1 A 10KG)". Pega o primeiro par "núm (- ou A) núm" do texto —
+// como só é usado dentro do fluxo já restrito a essas marcas, não corre risco de pegar outro
+// número (ex.: "120MG" sozinho não tem "-"/"a" logo depois, então nunca vira faixa por engano).
+function faixaDePeso(texto) {
+  const m = /(\d+(?:[.,]\d+)?)\s*(?:-|a)\s*(\d+(?:[.,]\d+)?)\s*(?:kg)?\b/i.exec(norm(texto));
+  if (!m) return null;
+  const min = parseFloat(m[1].replace(",", "."));
+  const max = parseFloat(m[2].replace(",", "."));
+  if (isNaN(min) || isNaN(max)) return null;
+  return { min, max };
+}
+function pesoNaFaixa(produto, peso) {
+  const f = faixaDePeso([produto.nome, ...(produto.especificacoes || [])].join(" "));
+  if (!f) return null; // sem faixa reconhecível no nome — não filtra por isso (nem inclui nem exclui)
+  return peso >= f.min && peso <= f.max;
+}
+
 function mencionaEspecie(texto) {
   // Troca pontuação por espaço antes de testar borda de palavra — sem isso, "gato," (vírgula
   // colada, comum em texto digitado por cliente) não bateria com " gato " por causa da vírgula.
@@ -448,10 +478,29 @@ async function executarFuncao(nome, args, contactId, contexto) {
     // cliente ter que escolher sozinho. Se o cliente JÁ disse o peso (em qualquer mensagem —
     // ex.: "Simparic pra 20kg"), busca direto; senão, pede o peso primeiro.
     const MARCA_POR_PESO = /\b(simparic|nexgard|bravecto|credelio|revolution|banni)\b/i;
-    if (MARCA_POR_PESO.test(args2.texto || "") && !/\d+([.,]\d+)?\s*kg\b/i.test(contexto || "")) {
+    const _mPesoPet = /(\d+(?:[.,]\d+)?)\s*kg\b/i.exec(contexto || "");
+    if (MARCA_POR_PESO.test(args2.texto || "") && !_mPesoPet) {
       return { ok: false, precisaPerguntarPeso: true, instrucao: "O cliente perguntou sobre esse antiparasitário mas NÃO disse o peso do pet em nenhum momento. NÃO chame buscar_produtos de novo agora — pergunte 'Qual o peso do seu pet? 🐾' e espere a resposta antes de buscar/mostrar as opções." };
     }
-    return buscarProdutos(args2);
+    const resultado = buscarProdutos(args2);
+    // Antiparasitário por faixa de peso: buscar_produtos({texto:'simparic'}) sempre devolve
+    // TODAS as faixas cadastradas da marca — sem isso, o cliente recebia os 5-6 cards de peso
+    // de uma vez (a IA só "dizia" no texto qual faixa servia, mas os cards iam TODOS mesmo
+    // assim, já que quem decide quais produtos são enviados é essa função, não o texto da IA).
+    // Já sabendo o peso (checado acima), filtra aqui, deterministicamente, pra só a faixa que
+    // realmente cobre esse peso ser enviada.
+    if (MARCA_POR_PESO.test(args2.texto || "") && _mPesoPet && resultado.produtos && resultado.produtos.length) {
+      const peso = parseFloat(_mPesoPet[1].replace(",", "."));
+      const naFaixa = resultado.produtos.filter((p) => pesoNaFaixa(p, peso) === true);
+      if (naFaixa.length) {
+        resultado.produtos = naFaixa;
+        resultado.total = naFaixa.length;
+      }
+      // Se nenhuma faixa reconhecida cobre o peso, mantém a lista original (evita zerar por um
+      // formato de nome que o regex não reconheceu) — a IA ainda tem a instrução de identificar
+      // a faixa certa no texto, e o pior caso aqui é igual ao comportamento anterior.
+    }
+    return resultado;
   }
   if (nome === "obter_info_granel") {
     // Rede de segurança mais básica: só existe "granel" pra RAÇÃO. Se a conversa nem menciona
@@ -535,8 +584,8 @@ function montarContexto(cliente) {
     "- ENDEREÇO: sempre que informar o endereço da loja, INCLUA o link do Google Maps acima (o endereço sozinho pode levar o cliente ao lugar errado). Não use um estabelecimento vizinho como ponto de referência.",
     "",
     equipe.resumoParaIA()
-      ? "NOSSA EQUIPE (reconheça quando o cliente perguntar por uma pessoa pelo nome ou por uma função, ex.: 'a Dra. Ana está?', 'tem veterinário?'):\n" + equipe.resumoParaIA()
-        + "\nSe o colaborador existe, confirme que faz parte da equipe e, se o cliente quiser falar/agendar com ele, use encaminhar_para_atendente. Se a pessoa NÃO estiver na lista, diga gentilmente que não temos esse nome na equipe."
+      ? "NOSSA EQUIPE — só reconheça um nome como funcionário(a) quando o cliente CLARAMENTE perguntar sobre uma pessoa que TRABALHA aqui (ex.: 'a Dra. Ana está?', 'tem veterinário?', 'quem vai me atender?'). NUNCA quando o nome aparecer no contexto dos PETS do cliente (ex.: 'vou levar a Belinha e a Gigi pro banho' — Belinha e Gigi são nomes de PETS, não de funcionários, mesmo que 'Gigi' pareça um nome de pessoa). Lista real da equipe:\n" + equipe.resumoParaIA()
+        + "\nANTES de dizer que alguém 'faz parte da equipe', confira se o nome bate EXATAMENTE com algum da lista acima — NUNCA invente nem assuma que um nome existe na equipe só porque soa familiar ou porque o cliente mencionou. Se o nome não estiver EXATAMENTE nessa lista, diga gentilmente que não temos esse nome na equipe. Se existir e o cliente quiser falar/agendar com ele, use encaminhar_para_atendente."
       : "",
     "",
     "SERVIÇOS E INFORMAÇÕES:",
@@ -556,7 +605,8 @@ function montarContexto(cliente) {
     "- PET: quando o assunto for banho/tosa/consulta/vacina e não souber o pet, pergunte nome e raça e CHAME salvar_pet. Se o cliente citar um pet pelo nome, assuma que é o pet dele — nunca questione. Se já souber o pet, use o nome dele.",
     "- SERVIÇO PRESENCIAL EM ANDAMENTO (pet na loja): quando o cliente indicar que trouxe o pet ou perguntar sobre o status dele ('quando fica pronto?', 'posso buscar?', 'deixei o cachorro aí', 'tá pronto?', 'já terminou?'), você NÃO tem visibilidade real disso — NUNCA diga que está pronto nem que não está, nunca invente ou suponha o status. SEMPRE encaminhe para atendente sem confirmar nem negar.",
     "- Responda APENAS com base nas informações acima. Não invente preços, serviços ou taxas. Em caso clínico/emergência, oriente a ligar para o telefone da loja.",
-    "- BANHO E TOSA: nunca diga que não precisa agendar (pode lotar, fecha às 17h). Pergunte se é só banho ou banho+tosa; se tosa, peça descrição. Só depois CHAME encaminhar_para_atendente — o atendente confirma vaga e horário. Capture nome/raça do pet antes (salvar_pet).",
+    "- BANHO E TOSA: nunca diga que não precisa agendar (pode lotar, recebemos pets até às 16h dependendo do volume do dia). Pergunte se é só banho ou banho+tosa; se tosa, peça descrição. Só depois CHAME encaminhar_para_atendente — o atendente confirma vaga e horário. Capture nome/raça do pet antes (salvar_pet).",
+    "- 'QUANTOS/MUITOS PETS TEM' (pergunta de volume, não de venda): se o cliente perguntar algo como 'tem muitos pets?', 'quantos pets tem?' no contexto de banho/agendamento (ex.: perguntou ou vai perguntar sobre banho/tosa na mesma conversa) — isso é sobre o MOVIMENTO/FILA da loja hoje, NÃO é pergunta se vendemos animais. NUNCA responda com a lista de animais que vendemos (calopsita/periquito/hamster) nesse caso. Diga que o atendimento é por ordem de chegada e o volume varia, e pergunte/capture os dados do pet do cliente pra banho normalmente.",
     "- PREÇO DE BANHO/TOSA: informe conforme base de conhecimento; se depender de avaliação presencial, diga isso e não invente valor.",
     "- CONSULTAS/CONSULTÓRIO: se por ordem de chegada, não peça dia/horário. Informe valores conforme base de conhecimento; sem informação → atendente.",
     "- VACINAS: informe DIRETAMENTE os preços e tipos de vacinas disponíveis conforme a base de conhecimento — NÃO chame encaminhar_para_atendente só para informar preço. Só encaminhe se o cliente quiser AGENDAR/MARCAR a aplicação (aí o atendente confirma horário).",
@@ -593,6 +643,7 @@ function montarContexto(cliente) {
     "- TAMANHO EM KG = SACA (a partir de 7kg): se o cliente pedir um tamanho de saca comercial (7, 10, 15, 20, 25kg ou similar — sempre ≥7kg), é saca — NUNCA use obter_info_granel nesse caso, mesmo sem marca. Com marca: busque '<marca> <tamanho>' (ex.: buscar_produtos({texto: 'chanin 25kg'})). Sem marca: busque '<espécie> <tamanho>' (ex.: buscar_produtos({texto: 'gato 10kg'})). NUNCA acrescente filhote/adulto/castrado/mix se o cliente não especificou — a busca retorna todas as variantes disponíveis nesse tamanho para o cliente escolher. Se retornar 0, busque só com a marca (ou só a espécie, sem marca) para ver os tamanhos que EXISTEM de verdade e informe (ex.: 'Não temos de 10kg, mas temos de 20kg por R$ X') — NUNCA use o preço de um produto a GRANEL pra responder sobre um tamanho de saca que não existe. Tamanhos MENORES que 7kg (1kg, 2kg, 3kg...) são ambíguos — podem ser uma quantidade pedida a granel; siga as regras de granel/saca normalmente pra esses casos.",
     "- GRANEL (preço por KG) NUNCA é o preço de uma SACA FECHADA de tamanho específico — são unidades diferentes. Se o cliente perguntou 'saco de Xkg', 'fechado', 'saca' — mesmo DEPOIS de você já ter mostrado um produto a granel — isso é um pedido NOVO de saca: CHAME buscar_produtos de novo com a marca/espécie + esse tamanho (NUNCA reaproveite o preço por quilo do granel como se fosse o preço da saca). Se não existir saca desse tamanho, diga que não tem e informe os tamanhos de saca que existem de verdade (ou chame encaminhar_para_atendente se não souber nenhum).",
     "- NUNCA SUBSTITUA POR CONTA PRÓPRIA (regra geral — vale pra QUALQUER produto/marca/necessidade, não só ração): mostre SOMENTE produtos que sejam CLARAMENTE o que o cliente pediu (mesma marca, ou claramente a mesma finalidade/categoria do que ele descreveu). buscar_produtos às vezes devolve produtos de categoria totalmente diferente quando não acha o item exato (ex.: cliente pede 'remédio pra dor de ouvido' e a busca devolve xampu/condicionador/brinquedo; cliente pede 'vermífugo Blu' e a busca devolve 'blusa' — bateu só por causa das letras, não tem nada a ver). Se os produtos retornados NÃO forem claramente o que foi pedido, trate como se fosse 0 resultados: NÃO mostre esses produtos, NÃO diga 'não temos X, mas temos Y', e CHAME encaminhar_para_atendente com motivo descrevendo o que o cliente pediu — o atendente confirma disponibilidade ou sugere um substituto de verdade. Só ofereça algo diferente do pedido quando: (a) for a MESMA marca em outra variante/tamanho, ou (b) estiver na lista SUBSTITUIÇÕES APROVADAS abaixo.",
+    "- NUNCA INVENTE MARCA/FABRICANTE: nunca diga que um produto 'é da marca X', 'é a mesma coisa que X' ou 'é parecido com X' a menos que isso venha claramente do nome/descrição do produto retornado pela busca. Se o cliente perguntar se um produto é parecido/da mesma marca que outro e você não tiver certeza pelos dados retornados, diga que não tem certeza e ofereça chamar um atendente para confirmar — nunca afirme uma equivalência de marca que você não pode confirmar.",
     "- SUBSTITUIÇÕES APROVADAS (única exceção à regra acima — lista mantida pelo dono do negócio):\n  • NUXCELL → sempre sugira PROMUN DEFENSE no lugar (buscar_produtos({texto:'promun defense <espécie>'})), avisando que é o substituto indicado.\n  • BENEFLORA → sempre sugira, no lugar, os probióticos PROBIÓTICO VETNIL, FLORA FIX e LACTOBAC (busque cada um: buscar_produtos({texto:'probiotico vetnil'}), buscar_produtos({texto:'flora fix'}), buscar_produtos({texto:'lactobac <espécie>'})) — mostre as opções que existirem, avisando que são os substitutos indicados.\n  • CISTIMICIN → sempre sugira, no lugar, CISPET ou CYST AID PET (busque: buscar_produtos({texto:'cispet'}) e buscar_produtos({texto:'cyst aid pet'})) — mostre as opções que existirem, avisando que são os substitutos indicados.\n  • FALEXYL 75 → sempre sugira PETSPORIN 75MG no lugar (buscar_produtos({texto:'petsporin 75mg'})), avisando que é o substituto indicado.\n  • PROMUN DOG EM PÓ → sempre sugira MUNNOMAX PÓ no lugar (buscar_produtos({texto:'munnomax po'})), avisando que é o substituto indicado.\n  • SILMOX 50MG → sempre sugira AGEMOXI 50MG no lugar (buscar_produtos({texto:'agemoxi 50mg'})), avisando que é o substituto indicado.",
     "- MAIS BARATO / MAIS EM CONTA: CHAME buscar_produtos com ordenarPor='preco' e indique o de menor preço.",
     "- ROUPA CIRÚRGICA: pergunte o PESO do pet e busque 'roupa cirurgica' + peso. NÃO confunda com bolsa/caixa de transporte.",

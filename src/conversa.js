@@ -647,7 +647,7 @@ async function processar(from, _textoRaw, nomeWpp) {
 
   // ── Triagem ──────────────────────────────────────────────────────────────
   const ctx = menuContexto.get(from) || null;
-  const r = triar(texto, ctx);
+  const r = triar(texto, ctx, { jaConversou: jaSaudou.has(from) });
   if ("novoContexto" in r) {
     if (r.novoContexto) menuContexto.set(from, r.novoContexto);
     else menuContexto.delete(from);
@@ -822,6 +822,12 @@ async function processar(from, _textoRaw, nomeWpp) {
   } else {
     // IA respondeu → próxima mensagem começa com contexto da IA (melhora acerto)
     proximaMsgParaIA.add(from);
+    // Limpa o menu numerado (se houver) — a partir daqui quem conduz é a IA, com perguntas
+    // livres (ex.: "qual o peso do seu pet?"). Sem isso, um menuContexto antigo (do menu
+    // principal, lá do início da conversa) ficava "grudado", e uma resposta livre em número
+    // (ex.: cliente responde "4" pro peso do pet) era resolvida contra ESSE menu velho em vez
+    // de ser tratada como resposta da pergunta que a IA acabou de fazer.
+    menuContexto.delete(from);
     agendarInatividade(from);
   }
   // Quando encaminhando ao atendente, produtos acumulados no loop de function calling

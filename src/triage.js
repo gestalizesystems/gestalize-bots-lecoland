@@ -62,7 +62,10 @@ function menuTexto(menu) {
 // Retorna { tipo, resposta, [novoContexto] } ou { tipo: "ia" } quando não há match.
 // `contexto` = lista de opções do menu atual do cliente (para resolver o número escolhido).
 // `novoContexto` (quando presente) = lista de opções a lembrar para esse cliente.
-function triar(textoBruto, contexto) {
+// `opts.jaConversou` = true quando essa NÃO é a primeira mensagem do cliente na sessão (já foi
+// saudado antes) — usado só pra decidir se um número solto sem contexto pode "adivinhar" o menu
+// principal (ver comentário no bloco de número abaixo).
+function triar(textoBruto, contexto, opts) {
   const dados = config.get();
   const texto = normalizar(textoBruto);
   const principais = config.intents();
@@ -92,21 +95,27 @@ function triar(textoBruto, contexto) {
 
   // Número → responde a opção do MENU ATUAL (sub-menu) ou, se não houver, do principal.
   if (/^\d+$/.test(texto)) {
-    const lista = contexto && contexto.opcoes && contexto.opcoes.length ? contexto.opcoes : principais;
+    const emConversa = !!(opts && opts.jaConversou);
+    // Sem contexto ativo: só usa a lista do menu principal como "adivinhação" quando é
+    // literalmente a primeira mensagem do cliente (emConversa=false) — nesse caso um número
+    // solto provavelmente É uma tentativa de acessar o menu direto. No meio de uma conversa já
+    // em andamento (ex.: a IA acabou de perguntar "qual o peso do seu pet?" e limpou o menu),
+    // um número solto é resposta a ESSA pergunta, não seleção de menu — não usa `principais`.
+    const lista = contexto && contexto.opcoes && contexto.opcoes.length ? contexto.opcoes : (emConversa ? [] : principais);
     const indice = parseInt(texto, 10) - 1;
-    if (indice >= 0 && indice < lista.length) {
+    if (lista.length && indice >= 0 && indice < lista.length) {
       const opcao = lista[indice];
       let resp = config.preencher(opcao.resposta);
       if (contexto && contexto.sub) resp += "\n\n↩️ Digite *0* para voltar ao menu.";
       return { tipo: "opcao", chave: opcao.chave, titulo: opcao.titulo, resposta: resp };
     }
     // Número não bate com nenhuma opção do menu/sub-menu ATUAL — não é seleção de menu
-    // (ex.: cliente digitou o número da casa no meio da coleta de endereço). Só assume
-    // "quis o menu principal" quando NÃO há nenhum contexto de menu ativo (ex.: primeira
-    // mensagem do cliente antes de qualquer saudação). Com um contexto ativo, reabrir o
-    // menu principal do zero derruba a conversa em andamento — deixa cair pras próximas
-    // regras (palavra-chave/IA) tratando como texto livre.
-    if (!contexto) {
+    // (ex.: cliente digitou o número da casa no meio da coleta de endereço, ou respondeu o
+    // peso do pet). Só assume "quis o menu principal" quando NÃO há nenhum contexto de menu
+    // ativo E é a primeira mensagem da sessão. Fora isso, reabrir o menu principal do zero
+    // derruba a conversa em andamento — deixa cair pras próximas regras (palavra-chave/IA)
+    // tratando como texto livre.
+    if (!contexto && !emConversa) {
       return { tipo: "menu", resposta: menuPrincipal(), novoContexto: ctxPrincipal };
     }
   }
