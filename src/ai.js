@@ -570,10 +570,25 @@ function montarContexto(cliente) {
     .map((o) => `- ${o.titulo}: ${o.resposta.replace(/\n+/g, " ").replace(/\*/g, "")}`)
     .join("\n") + (extras ? "\n" + extras : "");
 
+  // Data real (não é conhecimento do modelo — sem isso ele já chutou errado, ex.: dizer "hoje
+  // é domingo" numa quinta-feira). Só a DATA (sem hora) — de propósito: horário exato quem
+  // decide é o código (foraDoHorario, em conversa.js, já bloqueia mensagem fora do expediente
+  // antes da IA rodar); incluir a hora aqui mudaria esse texto a cada minuto/mensagem e
+  // quebraria o cache de contexto do Gemini (o prefixo do prompt é igual pra todo cliente de
+  // propósito, ver comentário de linhasCliente mais abaixo — só a data muda, 1x por dia).
+  const _fmtAgora = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Fortaleza", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric",
+  }).formatToParts(new Date());
+  const _p = (t) => (_fmtAgora.find((x) => x.type === t) || {}).value || "";
+  const agoraTexto = `HOJE (data real — use isso pra "hoje"/"amanhã"/dia da semana, NUNCA invente ou assuma outro dia): ${_p("weekday")}, ${_p("day")}/${_p("month")}/${_p("year")}.`;
+
   return [
     `Você é o atendente virtual da ${n.nome}, um(a) ${n.tipo}.`,
+    "Seu nome é Leleco. Se o cliente perguntar seu nome (ex.: 'qual seu nome?', 'quem é você?', 'com quem eu falo?'), responda 'Leleco' — NUNCA invente ou use outro nome pra você mesmo.",
     "Seu papel é responder dúvidas de clientes pelo WhatsApp de forma simpática, curta e objetiva (no máximo ~4 linhas).",
     "Use português brasileiro informal, com tom SIMPÁTICO e BRINCALHÃO (leve, descontraído) — mas com CUIDADO pra nunca insultar, forçar intimidade nem constranger o cliente. No máximo um emoji por mensagem.",
+    agoraTexto,
+    "VOCÊ NÃO SABE A HORA EXATA agora (só a data, acima) — NUNCA diga ou dê a entender que horas são, nem calcule 'quanto tempo falta' pra algo (ex.: 'ainda dá tempo de levar pro banho hoje?', 'já fechou?', 'o veterinário ainda está aí?'). Pra esse tipo de pergunta, informe APENAS os horários de funcionamento/banho/veterinário que estão nas informações do negócio abaixo (NUNCA invente ou arredonde um horário que não esteja escrito ali) e diga que um atendente confirma se ainda dá tempo hoje.",
     "",
     "INFORMAÇÕES DO NEGÓCIO:",
     `Endereço: ${n.endereco}`,
@@ -771,11 +786,23 @@ async function responder(contactId, mensagem) {
     };
   }
 
+  // Gemini terminou o turno sem gerar texto nenhum — geralmente sinal de que ele "se perdeu"
+  // no meio de várias chamadas de função (ex.: cliente mandou uma LISTA com vários
+  // medicamentos de uma vez). Nesse caso os `produtos` acumulados ao longo do turno vieram de
+  // buscas que a própria IA não conseguiu costurar numa resposta coerente — não têm garantia
+  // nenhuma de relação com o que o cliente pediu. Descarta: melhor pedir pra repetir do que
+  // mandar cards errados sem nenhuma explicação (foi exatamente o que aconteceu: texto de
+  // "não entendi" + uma lista de produtos de hidratação sem nada a ver com a receita enviada).
+  const semTextoDoModelo = !(resp.text || "").trim();
   const texto =
     (resp.text || "").trim() ||
     (encaminhar
       ? "Vou te encaminhar para um atendente, só um instante! 🙋"
       : "Desculpe, não entendi. Pode reformular? Ou digite *atendente* para falar com uma pessoa.");
+  if (semTextoDoModelo && !encaminhar) {
+    produtos.length = 0;
+    respostaGranel = "";
+  }
 
   // Persiste só a mensagem do cliente e a resposta final (texto), mantendo o histórico limpo.
   historico.push({ role: "user", parts: [{ text: mensagem }] });
