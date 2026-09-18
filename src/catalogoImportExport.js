@@ -5,8 +5,9 @@
 //     (nome, código, grupo, subgrupos e especificações NUNCA mudam);
 //   - código do catálogo que NÃO aparece na lista importada → produto é DESATIVADO;
 //   - código que estava desativado e voltou a aparecer na lista → é REATIVADO;
-//   - código da lista que não existe em nenhum produto do catálogo → não cria nada,
-//     só é reportado pro admin decidir se cadastra manualmente.
+//   - código da lista que não existe em nenhum produto do catálogo → CADASTRA um produto
+//     novo (nome, código e preço da própria lista; sem grupo/subgrupo/especificação — o
+//     admin completa depois se quiser) e é reportado pro admin revisar.
 //
 // EXPORTAR: gera um PDF com código/nome/preço de TODOS os produtos (ativos e inativos,
 // sinalizando a situação de cada um), no mesmo estilo da lista que o fornecedor manda.
@@ -35,8 +36,9 @@ async function extrairDoPdf(buffer) {
   return itens;
 }
 
-// Extrai [{codigo, preco}] de uma planilha Excel. Reconhece cabeçalho "código"/"preço" (ou
-// "valor") em qualquer ordem/coluna; sem cabeçalho reconhecível, assume A=código, B=nome, C=preço.
+// Extrai [{codigo, nome, preco}] de uma planilha Excel. Reconhece cabeçalho "código"/"nome"
+// (ou "produto"/"descrição")/"preço" (ou "valor") em qualquer ordem/coluna; sem cabeçalho
+// reconhecível, assume A=código, B=nome, C=preço.
 function extrairDoExcel(buffer) {
   const wb = XLSX.read(buffer, { type: "buffer" });
   const planilha = wb.Sheets[wb.SheetNames[0]];
@@ -45,15 +47,17 @@ function extrairDoExcel(buffer) {
   if (!linhas.length) return [];
   const cab = (linhas[0] || []).map(normTxt);
   let iCodigo = cab.findIndex((c) => c.includes("cod"));
+  let iNome = cab.findIndex((c) => c.includes("nome") || c.includes("produto") || c.includes("descric"));
   let iPreco = cab.findIndex((c) => c.includes("preco") || c.includes("valor"));
   let inicio = 1;
-  if (iCodigo === -1 || iPreco === -1) { iCodigo = 0; iPreco = 2; inicio = 0; } // sem cabeçalho reconhecível
+  if (iCodigo === -1 || iPreco === -1) { iCodigo = 0; iNome = 1; iPreco = 2; inicio = 0; } // sem cabeçalho reconhecível
   const itens = [];
   for (let i = inicio; i < linhas.length; i++) {
     const l = linhas[i] || [];
     const codigo = String(l[iCodigo] || "").trim().replace(/\.0$/, ""); // Excel às vezes vira "123.0"
+    const nome = iNome > -1 ? String(l[iNome] || "").trim() : "";
     const preco = String(l[iPreco] || "").trim();
-    if (codigo && preco) itens.push({ codigo, preco });
+    if (codigo && preco) itens.push({ codigo, nome, preco });
   }
   return itens;
 }
@@ -62,7 +66,10 @@ function extrairDoExcel(buffer) {
 // subgrupos e especificações de cada produto ficam exatamente como já estavam cadastrados.
 function aplicarImportacao(itens) {
   const mapa = new Map();
-  for (const it of itens || []) if (it && it.codigo) mapa.set(String(it.codigo).trim(), String(it.preco || "").trim());
+  for (const it of itens || []) {
+    if (!it || !it.codigo) continue;
+    mapa.set(String(it.codigo).trim(), { nome: String(it.nome || "").trim(), preco: String(it.preco || "").trim() });
+  }
 
   const c = config.get();
   if (!c.catalogo || typeof c.catalogo !== "object") c.catalogo = { grupos: [], subgrupos: [], especificacoes: [], produtos: [] };
@@ -75,7 +82,7 @@ function aplicarImportacao(itens) {
     const cod = String(p.codigo || "").trim();
     if (cod && mapa.has(cod)) {
       usados.add(cod);
-      const novoPreco = mapa.get(cod);
+      const novoPreco = mapa.get(cod).preco;
       let mudou = false;
       if (novoPreco && novoPreco !== String(p.preco || "").trim()) { p.preco = novoPreco; mudou = true; }
       if (p.ativo === false) { p.ativo = true; reativados++; mudou = true; }
@@ -87,12 +94,31 @@ function aplicarImportacao(itens) {
   }
   const naoEncontrados = [...mapa.keys()].filter((cod) => !usados.has(cod));
 
+  // Código da lista que não bate com nenhum produto cadastrado → é um produto NOVO do
+  // fornecedor: cadastra com nome/código/preço da própria lista (sem taxonomia — o admin
+  // completa grupo/subgrupo/especificação depois se quiser).
+  let cadastrados = 0;
+  const nomesCadastrados = [];
+  naoEncontrados.forEach((cod, i) => {
+    const it = mapa.get(cod);
+    const nome = it.nome || `Produto ${cod}`;
+    produtos.push({
+      id: "p" + Date.now().toString(36) + i.toString(36) + Math.random().toString(36).slice(2, 5),
+      nome,
+      codigo: cod,
+      preco: it.preco || "",
+      ativo: true,
+    });
+    cadastrados++;
+    nomesCadastrados.push(nome);
+  });
+
   config.salvar(c);
   return {
     totalImportado: mapa.size,
     atualizados, reativados, desativados, semMudanca,
-    naoEncontrados: naoEncontrados.length,
-    codigosNaoEncontrados: naoEncontrados.slice(0, 100),
+    cadastrados,
+    produtosCadastrados: nomesCadastrados.slice(0, 100),
   };
 }
 

@@ -208,6 +208,16 @@ const FECHO_PALAVRAS = ["nao", "no", "obrigado", "obrigada", "obg", "vlw", "vale
 function normaliza(t) {
   return (t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 }
+
+// Converte os dígitos capturados numa resposta de NPS pra nota 0-10, ou null se não for
+// uma nota válida. Aceita zero(s) à esquerda ("01" → 1, "00" → 0) e "10" com zeros extras
+// no lugar de dígitos decimais — jeito comum de escrever "dez" com ênfase ("100", "1000",
+// "100000") — sem virar falso positivo pra números aleatórios fora da faixa (ex.: "50", "23").
+function normalizarNotaNps(digitos) {
+  if (/^0*10+$/.test(digitos)) return 10;
+  const n = parseInt(digitos, 10);
+  return Number.isFinite(n) && n >= 0 && n <= 10 ? n : null;
+}
 function ehFecho(t) {
   const n = normaliza(t);
   if (!n || n.length > 28) return false;
@@ -370,7 +380,7 @@ async function aoSilenciar(contactId) {
   pausados.delete(contactId);
   if (equipe.ehFuncionario(contactId)) return; // não reengaja funcionário
   try {
-    await enviar(contactId, "Ainda por aí? 😊 Se precisar de mais alguma coisa, é só me chamar!");
+    await enviar(contactId, "Posso te ajudar em algo mais? 😊");
     aguardandoFecho.set(contactId, { timer: setTimeout(() => finalizar(contactId, true), SEM_RESPOSTA_MS) });
   } catch (e) {
     console.error("Falha ao reengajar:", e.message);
@@ -514,17 +524,19 @@ async function processar(from, _textoRaw, nomeWpp) {
       // "9 - ótimo atendimento". NUNCA extrai um número de dentro de uma frase/pergunta de
       // verdade (ex.: "chega antes das 2 horas" não é nota 2, "2 pacotes de ração" não é nota 2
       // — falta a pontuação logo depois do número) nem de transcrição de áudio.
-      const mCurta = t.length <= 12 ? /^(?:nota\s*:?\s*)?(10|[0-9])\s*[!.]?$/i.exec(t) : null;
+      const mCurta = t.length <= 12 ? /^(?:nota\s*:?\s*)?(\d{1,7})\s*[!.]?$/i.exec(t) : null;
+      const notaCurta = mCurta ? normalizarNotaNps(mCurta[1]) : null;
       // Separador aceita pontuação OU quebra de linha — cliente às vezes manda a nota e o
       // elogio como DUAS mensagens do WhatsApp seguidas ("10" / "Como sempre!!!❤️"), que o
       // debounce junta com \n antes de chegar aqui. Só espaço sozinho NÃO conta como separador
       // (senão "2 pacotes de ração por favor" viraria nota 2).
-      const mComComentario = !mCurta ? /^\**\s*(10|[0-9])\s*(?:[-,:.]|\r?\n)\s*(.+)$/is.exec(t) : null;
-      const m = mCurta || mComComentario;
-      if (m) {
+      const mComComentario = notaCurta == null ? /^\**\s*(\d{1,7})\s*(?:[-,:.]|\r?\n)\s*(.+)$/is.exec(t) : null;
+      const notaComComentario = mComComentario ? normalizarNotaNps(mComComentario[1]) : null;
+      const notaDigitada = notaCurta != null ? notaCurta : notaComComentario;
+      if (notaDigitada != null) {
         aguardandoNps.delete(from);
         ultimaMsgTs.delete(from); // qualquer resposta ao NPS nunca reabre em atendimentos
-        const { id, nota } = nps.registrar(from, Number(m[1]));
+        const { id, nota } = nps.registrar(from, notaDigitada);
         if (mComComentario && mComComentario[2]) nps.comentar(id, mComComentario[2].trim());
         if (nota <= 6) {
           await enviar(from, "Poxa, sentimos muito pela experiência! 😔 Em breve um atendente vai entrar em contato. 🐾");
@@ -710,8 +722,10 @@ async function processar(from, _textoRaw, nomeWpp) {
     return;
   }
 
-  // Saudação em conversa já iniciada — menu foi enviado no início, não repete
+  // Saudação em conversa já iniciada — não repete o menu inteiro, mas SEMPRE responde algo
+  // (ficar em silêncio faz o cliente achar que o bot travou/não recebeu a mensagem).
   if (r.saudacao) {
+    await enviar(from, "Oi! 🐾 Posso te ajudar em algo mais?");
     agendarInatividade(from);
     return;
   }

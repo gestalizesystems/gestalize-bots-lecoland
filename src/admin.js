@@ -43,6 +43,9 @@ async function processarAudio(from, mediaId, nomeWpp) {
 async function processarDocumento(from, mediaId, mimeType, nomeWpp) {
   if (conversa.estaPausado(from)) return; // já em atendimento humano ou handoff em andamento
   try {
+    // Registra o contato na lista de clientes mesmo que a 1ª mensagem dele seja um documento
+    // (esse fluxo não passa por conversa.processar, que é quem normalmente cadastra o cliente).
+    clientes.salvar(from, {});
     await wa.enviarTexto(from, "📄 Recebi seu documento! Vou chamar um de nossos atendentes para te ajudar. 🐾");
     conversa.pausar(from);
     await conversa.abrirHandoff(from, "Cliente enviou um documento/receita.");
@@ -55,6 +58,9 @@ async function processarDocumento(from, mediaId, mimeType, nomeWpp) {
 async function processarImagem(from, mediaId, caption, nomeWpp) {
   if (conversa.estaPausado(from)) return; // já em atendimento humano ou handoff em andamento
   try {
+    // Registra o contato na lista de clientes mesmo que a 1ª mensagem dele seja uma foto
+    // (esse fluxo não passa por conversa.processar, que é quem normalmente cadastra o cliente).
+    clientes.salvar(from, {});
     await wa.enviarTexto(from, "📷 Recebi sua foto! Vou chamar um de nossos atendentes para te ajudar. 🐾");
     conversa.pausar(from);
     await conversa.abrirHandoff(from, "Cliente enviou uma imagem/foto.");

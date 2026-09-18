@@ -14,7 +14,11 @@ let dados = carregar();
 // Configuração inicial neutra (sem dados de nenhum negócio) — usada quando não há semente.
 function configPadrao() {
   return {
-    negocio: { nome: "Meu Negócio", tipo: "Pet Shop", endereco: "", mapsLink: "", telefone: "", horarioSemana: "", horarioSabado: "", horarioDomingo: "", pagamento: "", instagram: "", googleReview: "" },
+    negocio: {
+      nome: "Meu Negócio", tipo: "Pet Shop", endereco: "", mapsLink: "", telefone: "",
+      horarioSemana: "", horarioSabado: "", horarioDomingo: "", pagamento: "", instagram: "", googleReview: "",
+      filial: { ativo: false, nome: "Filial", endereco: "", mapsLink: "", telefone: "", horario: "" },
+    },
     mensagens: { saudacaoIntro: "Olá! Seja bem-vindo(a).", saudacaoChamada: "Como posso ajudar?", saudacaoNome: "Olá! Antes de começar, como posso te chamar?", saudacaoRodape: "", atendente: "Vou te encaminhar para um atendente.", ausencia: "No momento estamos fora do horário de atendimento." },
     servicos: [], faqRapido: [],
     entrega: { ativo: false, origem: {}, taxas: [], gratis: { km: "2", valor: "50" } },
@@ -66,6 +70,10 @@ function migrar(d) {
     }
     d._gatilhosLimpos = true; mudou = true;
   }
+  if (d.negocio && !d.negocio.filial) {
+    d.negocio.filial = { ativo: false, nome: "Filial", endereco: "", mapsLink: "", telefone: "", horario: "" };
+    mudou = true;
+  }
   return mudou;
 }
 
@@ -94,7 +102,12 @@ function preencher(texto) {
     .replace(/{horarioSabado}/g, n.horarioSabado)
     .replace(/{horarioDomingo}/g, n.horarioDomingo)
     .replace(/{maps}/g, n.mapsLink || "")
-    .replace(/{pagamento}/g, n.pagamento);
+    .replace(/{pagamento}/g, n.pagamento)
+    .replace(/{filialNome}/g, (n.filial && n.filial.nome) || "")
+    .replace(/{filialEndereco}/g, (n.filial && n.filial.endereco) || "")
+    .replace(/{filialTelefone}/g, (n.filial && n.filial.telefone) || "")
+    .replace(/{filialMaps}/g, (n.filial && n.filial.mapsLink) || "")
+    .replace(/{filialHorario}/g, (n.filial && n.filial.horario) || "");
 }
 
 // Monta o texto da resposta de entrega: agrupa as taxas por serviço e lista

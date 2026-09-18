@@ -598,9 +598,20 @@ function montarContexto(cliente) {
     `Pagamento: ${n.pagamento}`,
     "- ENDEREÇO: sempre que informar o endereço da loja, INCLUA o link do Google Maps acima (o endereço sozinho pode levar o cliente ao lugar errado). Não use um estabelecimento vizinho como ponto de referência.",
     "",
+    n.filial && n.filial.ativo
+      ? "FILIAL (outra unidade — SEMPRE que o cliente perguntar sobre 'a outra loja', 'filial', 'outra unidade' ou outro endereço/telefone diferente do principal, responda com os dados abaixo, NUNCA diga que não sabe):\n"
+        + `Nome: ${n.filial.nome || "Filial"}\n`
+        + `Endereço: ${n.filial.endereco}\n`
+        + (n.filial.mapsLink ? `Link do Google Maps da filial: ${n.filial.mapsLink}\n` : "")
+        + `Telefone/WhatsApp da filial: ${n.filial.telefone}\n`
+        + (n.filial.horario ? `Horário da filial: ${n.filial.horario}\n` : "")
+        + "- FILIAL — REGRA: ao informar a filial, SEMPRE mande o telefone/WhatsApp dela E o endereço JUNTO com o link do Google Maps acima (nunca só o endereço em texto, sem o link). NUNCA confunda com o telefone/endereço/link da loja principal acima. Se o link do Google Maps da filial não estiver preenchido aqui, NÃO invente um link — informe endereço e telefone e diga que confirma a localização exata com um atendente."
+      : "",
+    "",
     equipe.resumoParaIA()
       ? "NOSSA EQUIPE — só reconheça um nome como funcionário(a) quando o cliente CLARAMENTE perguntar sobre uma pessoa que TRABALHA aqui (ex.: 'a Dra. Ana está?', 'tem veterinário?', 'quem vai me atender?'). NUNCA quando o nome aparecer no contexto dos PETS do cliente (ex.: 'vou levar a Belinha e a Gigi pro banho' — Belinha e Gigi são nomes de PETS, não de funcionários, mesmo que 'Gigi' pareça um nome de pessoa). Lista real da equipe:\n" + equipe.resumoParaIA()
         + "\nANTES de dizer que alguém 'faz parte da equipe', confira se o nome bate EXATAMENTE com algum da lista acima — NUNCA invente nem assuma que um nome existe na equipe só porque soa familiar ou porque o cliente mencionou. Se o nome não estiver EXATAMENTE nessa lista, diga gentilmente que não temos esse nome na equipe. Se existir e o cliente quiser falar/agendar com ele, use encaminhar_para_atendente."
+        + "\nHORÁRIO DE UM FUNCIONÁRIO ESPECÍFICO (ex.: 'a Dra. X está hoje?', 'que horas o Dr. Y atende?'): NUNCA assuma que o horário geral do serviço (ex.: horário do veterinário/da loja) vale igual para essa pessoa — cada funcionário pode ter um horário diferente ou variável. SÓ informe dia/horário de um funcionário se isso estiver escrito EXPLICITAMENTE nas observações dele na lista acima. Se não estiver escrito, NUNCA invente nem arredonde — diga que não tem certeza do horário exato dessa pessoa hoje e ofereça confirmar com um atendente (encaminhar_para_atendente)."
       : "",
     "",
     "SERVIÇOS E INFORMAÇÕES:",

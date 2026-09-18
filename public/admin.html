@@ -531,6 +531,19 @@
             <div><label>⭐ Link de avaliação no Google</label><input type="text" id="n_googleReview" placeholder="https://g.page/r/.../review" /></div>
           </div>
           <p class="dica" style="margin-top:-4px">📸⭐ Esses dois links o bot envia ao cliente junto com a pesquisa de satisfação (no máx. 1x a cada 30 dias).</p>
+
+          <label style="margin-top:18px;display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="n_filial_ativo" style="width:auto;" /> 🏬 Temos uma filial
+          </label>
+          <p class="dica">Quando marcado, o bot sempre informa o telefone e o link do mapa da filial pro cliente que perguntar sobre a outra loja.</p>
+          <div class="grid-2">
+            <div><label>Nome da filial</label><input type="text" id="n_filial_nome" placeholder="Filial" /></div>
+            <div><label>Endereço da filial</label><input type="text" id="n_filial_endereco" /></div>
+            <div><label>Link do Google Maps da filial</label><input type="text" id="n_filial_mapsLink" placeholder="https://maps.app.goo.gl/..." /></div>
+            <div><label>Telefone/WhatsApp da filial</label><input type="text" id="n_filial_telefone" oninput="mascaraTel(this)" placeholder="(85) 99999-9999" /></div>
+            <div><label>Horário da filial</label><input type="text" id="n_filial_horario" placeholder="Segunda a sexta, das 7h30 às 17h30" /></div>
+          </div>
+
           <label style="margin-top:18px;">🧠 Sobre o negócio (para a IA responder melhor)</label>
           <p class="dica">Tudo que você escrever aqui o bot usa para responder perguntas livres (políticas, filial, vacinas, regras, diferenciais...). Quanto mais detalhado, melhor.</p>
           <textarea id="n_infoIA" style="min-height:220px;"></textarea>
@@ -1121,6 +1134,9 @@
       logoAtual = n.logo || ""; setLogo(logoAtual);
       ["nome","tipo","endereco","mapsLink","telefone","horarioSemana","horarioSabado","horarioDomingo","pagamento","instagram","googleReview"]
         .forEach(k => el("n_" + k).value = n[k] || "");
+      const filial = n.filial || {};
+      el("n_filial_ativo").checked = filial.ativo === true;
+      ["nome","endereco","mapsLink","telefone","horario"].forEach(k => el("n_filial_" + k).value = filial[k] || "");
       el("n_infoIA").value = cfg.infoIA || "";
       ["saudacaoIntro","saudacaoChamada","saudacaoNome","saudacaoRodape","atendente","ausencia"].forEach(k => el("m_" + k).value = m[k] || "");
       if (!el("m_ausencia").value) el("m_ausencia").value = "🌙 Olá! No momento estamos fora do horário de atendimento. Assim que abrirmos, te respondemos por aqui. 🐾";
@@ -1170,6 +1186,8 @@
       ["nome","tipo","endereco","mapsLink","telefone","horarioSemana","horarioSabado","horarioDomingo","pagamento","instagram","googleReview"]
         .forEach(k => novo.negocio[k] = el("n_" + k).value.trim());
       novo.negocio.logo = logoAtual;
+      novo.negocio.filial = { ativo: el("n_filial_ativo").checked };
+      ["nome","endereco","mapsLink","telefone","horario"].forEach(k => novo.negocio.filial[k] = el("n_filial_" + k).value.trim());
       ["saudacaoIntro","saudacaoChamada","saudacaoNome","saudacaoRodape","atendente","ausencia"].forEach(k => novo.mensagens[k] = el("m_" + k).value);
       novo.expediente = {
         ativo: el("exp_ativo").checked,
@@ -1528,7 +1546,7 @@
           el("catIeStatus").innerHTML = caixa("#166534", "#f0fdf4", "#86efac", `
             ✅ Importação concluída — ${d.totalImportado} produtos na lista.
             <br>💰 ${d.atualizados} atualizado(s) · ♻️ ${d.reativados} reativado(s) · 🚫 ${d.desativados} desativado(s) (não estavam na lista)${d.semMudanca ? " · " + d.semMudanca + " sem mudança" : ""}
-            ${d.naoEncontrados ? `<br>⚠️ ${d.naoEncontrados} código(s) da lista não existem no catálogo (não foram criados): ${d.codigosNaoEncontrados.slice(0, 15).map(esc).join(", ")}${d.naoEncontrados > 15 ? "…" : ""}` : ""}
+            ${d.cadastrados ? `<br>🆕 ${d.cadastrados} produto(s) novo(s) cadastrado(s) (confira grupo/subgrupo depois): ${d.produtosCadastrados.slice(0, 15).map(esc).join(", ")}${d.cadastrados > 15 ? "…" : ""}` : ""}
           `);
           const cfgNovo = await (await fetch("/api/config")).json();
           cfg = cfgNovo;
