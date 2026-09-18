@@ -605,6 +605,7 @@ function montarContexto(cliente) {
         + (n.filial.mapsLink ? `Link do Google Maps da filial: ${n.filial.mapsLink}\n` : "")
         + `Telefone/WhatsApp da filial: ${n.filial.telefone}\n`
         + (n.filial.horario ? `Horário da filial: ${n.filial.horario}\n` : "")
+        + (n.filial.referencia ? `Ponto de referência da filial: ${n.filial.referencia}\n` : "")
         + "- FILIAL — REGRA: ao informar a filial, SEMPRE mande o telefone/WhatsApp dela E o endereço JUNTO com o link do Google Maps acima (nunca só o endereço em texto, sem o link). NUNCA confunda com o telefone/endereço/link da loja principal acima. Se o link do Google Maps da filial não estiver preenchido aqui, NÃO invente um link — informe endereço e telefone e diga que confirma a localização exata com um atendente."
       : "",
     "",

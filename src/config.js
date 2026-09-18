@@ -17,7 +17,7 @@ function configPadrao() {
     negocio: {
       nome: "Meu Negócio", tipo: "Pet Shop", endereco: "", mapsLink: "", telefone: "",
       horarioSemana: "", horarioSabado: "", horarioDomingo: "", pagamento: "", instagram: "", googleReview: "",
-      filial: { ativo: false, nome: "Filial", endereco: "", mapsLink: "", telefone: "", horario: "" },
+      filial: { ativo: false, nome: "Filial", endereco: "", mapsLink: "", telefone: "", horario: "", referencia: "" },
     },
     mensagens: { saudacaoIntro: "Olá! Seja bem-vindo(a).", saudacaoChamada: "Como posso ajudar?", saudacaoNome: "Olá! Antes de começar, como posso te chamar?", saudacaoRodape: "", atendente: "Vou te encaminhar para um atendente.", ausencia: "No momento estamos fora do horário de atendimento." },
     servicos: [], faqRapido: [],
@@ -71,7 +71,11 @@ function migrar(d) {
     d._gatilhosLimpos = true; mudou = true;
   }
   if (d.negocio && !d.negocio.filial) {
-    d.negocio.filial = { ativo: false, nome: "Filial", endereco: "", mapsLink: "", telefone: "", horario: "" };
+    d.negocio.filial = { ativo: false, nome: "Filial", endereco: "", mapsLink: "", telefone: "", horario: "", referencia: "" };
+    mudou = true;
+  }
+  if (d.negocio && d.negocio.filial && d.negocio.filial.referencia === undefined) {
+    d.negocio.filial.referencia = "";
     mudou = true;
   }
   return mudou;
@@ -107,7 +111,8 @@ function preencher(texto) {
     .replace(/{filialEndereco}/g, (n.filial && n.filial.endereco) || "")
     .replace(/{filialTelefone}/g, (n.filial && n.filial.telefone) || "")
     .replace(/{filialMaps}/g, (n.filial && n.filial.mapsLink) || "")
-    .replace(/{filialHorario}/g, (n.filial && n.filial.horario) || "");
+    .replace(/{filialHorario}/g, (n.filial && n.filial.horario) || "")
+    .replace(/{filialReferencia}/g, (n.filial && n.filial.referencia) || "");
 }
 
 // Monta o texto da resposta de entrega: agrupa as taxas por serviço e lista

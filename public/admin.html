@@ -542,6 +542,7 @@
             <div><label>Link do Google Maps da filial</label><input type="text" id="n_filial_mapsLink" placeholder="https://maps.app.goo.gl/..." /></div>
             <div><label>Telefone/WhatsApp da filial</label><input type="text" id="n_filial_telefone" oninput="mascaraTel(this)" placeholder="(85) 99999-9999" /></div>
             <div><label>Horário da filial</label><input type="text" id="n_filial_horario" placeholder="Segunda a sexta, das 7h30 às 17h30" /></div>
+            <div><label>Ponto de referência da filial</label><input type="text" id="n_filial_referencia" placeholder="Em frente à Clínica Jacó" /></div>
           </div>
 
           <label style="margin-top:18px;">🧠 Sobre o negócio (para a IA responder melhor)</label>
@@ -1136,7 +1137,7 @@
         .forEach(k => el("n_" + k).value = n[k] || "");
       const filial = n.filial || {};
       el("n_filial_ativo").checked = filial.ativo === true;
-      ["nome","endereco","mapsLink","telefone","horario"].forEach(k => el("n_filial_" + k).value = filial[k] || "");
+      ["nome","endereco","mapsLink","telefone","horario","referencia"].forEach(k => el("n_filial_" + k).value = filial[k] || "");
       el("n_infoIA").value = cfg.infoIA || "";
       ["saudacaoIntro","saudacaoChamada","saudacaoNome","saudacaoRodape","atendente","ausencia"].forEach(k => el("m_" + k).value = m[k] || "");
       if (!el("m_ausencia").value) el("m_ausencia").value = "🌙 Olá! No momento estamos fora do horário de atendimento. Assim que abrirmos, te respondemos por aqui. 🐾";
@@ -1187,7 +1188,7 @@
         .forEach(k => novo.negocio[k] = el("n_" + k).value.trim());
       novo.negocio.logo = logoAtual;
       novo.negocio.filial = { ativo: el("n_filial_ativo").checked };
-      ["nome","endereco","mapsLink","telefone","horario"].forEach(k => novo.negocio.filial[k] = el("n_filial_" + k).value.trim());
+      ["nome","endereco","mapsLink","telefone","horario","referencia"].forEach(k => novo.negocio.filial[k] = el("n_filial_" + k).value.trim());
       ["saudacaoIntro","saudacaoChamada","saudacaoNome","saudacaoRodape","atendente","ausencia"].forEach(k => novo.mensagens[k] = el("m_" + k).value);
       novo.expediente = {
         ativo: el("exp_ativo").checked,
