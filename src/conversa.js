@@ -24,9 +24,12 @@ function _rastrearId(result) {
   try { const id = result && result.messages && result.messages[0] && result.messages[0].id; if (id) { _botMsgIds.add(id); setTimeout(() => _botMsgIds.delete(id), 120000); } } catch (_) {}
 }
 function ehMsgBot(id) { return _botMsgIds.has(id); }
-// Wrappers que contam as mensagens enviadas (métricas do dashboard).
-async function enviar(para, texto) { metricas.inc("enviada"); const r = await _enviarTexto(para, texto); _rastrearId(r); return r; }
-async function enviarImagem(para, link, legenda) { metricas.inc("enviada"); const r = await _enviarImagem(para, link, legenda); _rastrearId(r); return r; }
+// Wrappers que contam as mensagens enviadas (métricas do dashboard) e tentam de novo em
+// caso de blip passageiro de rede ("fetch failed" da Cloud API) — sem isso, UMA falha
+// transitória de rede já deixava o cliente sem a saudação/resposta, já que esse era o
+// único ponto de envio sem nenhuma tentativa extra (ver _comRetry mais abaixo).
+async function enviar(para, texto) { metricas.inc("enviada"); const r = await _comRetry(() => _enviarTexto(para, texto)); _rastrearId(r); return r; }
+async function enviarImagem(para, link, legenda) { metricas.inc("enviada"); const r = await _comRetry(() => _enviarImagem(para, link, legenda)); _rastrearId(r); return r; }
 
 // URL pública do painel (pra montar o link das fotos do catálogo no WhatsApp).
 const PUBLIC_URL = (process.env.PUBLIC_URL || "https://bots.gestalizesystems.com.br").replace(/\/$/, "");
