@@ -125,9 +125,10 @@ function _agendarTexto(from, textoCompleto, nomeWpp, ctxAd) {
   const anuncio = buf.ctxAd;
   buf.timer = setTimeout(() => {
     _debounceTexto.delete(from);
+    console.log(`[webhook] debounce disparou pra from=${from}, enfileirando processar()`);
     enfileirar(from, () => {
       // Se imagem/documento chegou depois do timer disparar, descarta o texto.
-      if (_midiaPendente.has(from)) { _midiaPendente.delete(from); return; }
+      if (_midiaPendente.has(from)) { console.log(`[webhook] from=${from} descartado (midia pendente)`); _midiaPendente.delete(from); return; }
       return conversa.processar(from, partes.join("\n") + (anuncio ? "\x1E" + anuncio : ""), nome);
     });
   }, DEBOUNCE_MS);
@@ -350,6 +351,7 @@ function iniciarAdmin(porta) {
       for (const entry of (req.body && req.body.entry) || []) {
         for (const ch of entry.changes || []) {
           const val = ch.value || {};
+          console.log(`[webhook] payload: ${(val.messages||[]).length} msg(s), ${(val.statuses||[]).length} status(es)`);
           const nomes = {};
           for (const ct of val.contacts || []) if (ct.wa_id) nomes[ct.wa_id] = ct.profile && ct.profile.name;
           for (const st of val.statuses || []) {
@@ -357,9 +359,10 @@ function iniciarAdmin(porta) {
               conversa.registrarSessaoAtendente(String(st.recipient_id));
           }
           for (const msg of val.messages || []) {
-            if (jaProcessada(msg.id)) continue; // reentrega da Meta → ignora (evita resposta dupla)
+            console.log(`[webhook] msg recebida: id=${msg.id} type=${msg.type} from=${msg.from}`);
+            if (jaProcessada(msg.id)) { console.log(`[webhook] id=${msg.id} ignorada (reentrega/duplicata)`); continue; }
             const from = msg.from;
-            if (equipe.ehFuncionario(from)) continue; // membro da equipe → bot não responde
+            if (equipe.ehFuncionario(from)) { console.log(`[webhook] from=${from} ignorado (cadastrado como equipe)`); continue; }
             const nomeWpp = nomes[from] || Object.values(nomes)[0]; // nome do perfil do WhatsApp
             const ctxAd = contextoAnuncio(msg.referral); // veio de anúncio do Instagram/Facebook?
             // Texto → debounce: aguarda 1,5s para juntar mensagens em rajada antes de processar.
