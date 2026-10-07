@@ -13,6 +13,11 @@ const equipe = require("./equipe");
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const MODELO = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+// Timeout em TODA chamada à API do Gemini — sem isso, uma conexão que trava sem responder
+// (sem erro, sem timeout) nunca libera a vaga no pool de conexões do Node pro mesmo host,
+// prendendo CADA chamada seguinte atrás da travada pra sempre (processo fica "vivo" mas para
+// de responder qualquer cliente, sem nenhum erro no log — foi causa raiz de uma indisponibilidade real).
+const GEMINI_TIMEOUT_MS = 20000;
 
 // Ferramenta exposta ao modelo.
 const TOOLS = [
@@ -730,6 +735,7 @@ async function responder(contactId, mensagem) {
     maxOutputTokens: 350,
     temperature: 0.3,
     tools: TOOLS,
+    httpOptions: { timeout: GEMINI_TIMEOUT_MS },
   };
   if (MODELO.includes("2.5")) cfg.thinkingConfig = { thinkingBudget: 0 };
 
@@ -839,6 +845,7 @@ async function resumirConversa(mensagens, motivo) {
   try {
     const cfg = { maxOutputTokens: 200, temperature: 0.2 };
     if (MODELO.includes("2.5")) cfg.thinkingConfig = { thinkingBudget: 0 };
+    cfg.httpOptions = { timeout: GEMINI_TIMEOUT_MS };
     const resp = await ai.models.generateContent({ model: MODELO, contents: [{ role: "user", parts: [{ text: prompt }] }], config: cfg });
     return (resp.text || "").trim() || (motivo || "Cliente pediu atendimento humano.");
   } catch (e) {
@@ -852,6 +859,7 @@ async function transcreverAudio(base64, mimeType) {
   try {
     const cfg = { maxOutputTokens: 600, temperature: 0 };
     if (MODELO.includes("2.5")) cfg.thinkingConfig = { thinkingBudget: 0 };
+    cfg.httpOptions = { timeout: GEMINI_TIMEOUT_MS };
     const resp = await ai.models.generateContent({
       model: MODELO,
       contents: [{ role: "user", parts: [
@@ -872,6 +880,7 @@ async function lerDocumento(base64, mimeType) {
   try {
     const cfg = { maxOutputTokens: 500, temperature: 0 };
     if (MODELO.includes("2.5")) cfg.thinkingConfig = { thinkingBudget: 0 };
+    cfg.httpOptions = { timeout: GEMINI_TIMEOUT_MS };
     const resp = await ai.models.generateContent({
       model: MODELO,
       contents: [{ role: "user", parts: [
@@ -892,6 +901,7 @@ async function identificarProdutoImagem(base64, mimeType, legenda) {
   try {
     const cfg = { maxOutputTokens: 200, temperature: 0 };
     if (MODELO.includes("2.5")) cfg.thinkingConfig = { thinkingBudget: 0 };
+    cfg.httpOptions = { timeout: GEMINI_TIMEOUT_MS };
     const partes = [
       { text: "Esta é uma foto enviada por um cliente de pet shop (provavelmente de um produto que ele viu num anúncio/publicação). Diga em poucas palavras QUAL produto e marca aparecem na imagem (ex.: 'Antipulgas NexGard', 'Ração Golden cães adultos', 'Areia Pipicat'). Responda só o nome do produto. Se não der pra identificar um produto, responda exatamente 'NENHUM'." },
       { inlineData: { mimeType: String(mimeType || "image/jpeg").split(";")[0].trim(), data: base64 } },

@@ -22,6 +22,13 @@ function configurado() {
   return !!(token && phoneId);
 }
 
+// Timeout em TODA chamada de rede daqui — sem isso, uma conexão que trava sem responder
+// (sem erro, sem timeout) nunca libera a vaga no pool de conexões do Node pro mesmo host.
+// Isso prende CADA chamada seguinte pra Cloud API atrás da travada, pra sempre — o processo
+// continua "vivo" (responde 200 no /webhook) mas para de mandar qualquer mensagem, sem
+// nenhum erro no log pra explicar. Foi a causa raiz do bot ficar mudo em produção sem rastro.
+const TIMEOUT_MS = 20000;
+
 async function enviar(payload) {
   const { token, phoneId } = cred();
   if (!token || !phoneId) throw new Error("WhatsApp Cloud API não configurado (conecte pelo painel ou defina WHATSAPP_TOKEN/WHATSAPP_PHONE_ID).");
@@ -30,6 +37,7 @@ async function enviar(payload) {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", ...payload }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
@@ -70,10 +78,10 @@ async function enviarTemplate(para, nome, idioma, componentes) {
 async function baixarMidia(mediaId) {
   const { token } = cred();
   if (!token) throw new Error("WhatsApp Cloud API não configurado.");
-  const meta = await fetch(`https://graph.facebook.com/${VERSAO}/${mediaId}`, { headers: { Authorization: `Bearer ${token}` } });
+  const meta = await fetch(`https://graph.facebook.com/${VERSAO}/${mediaId}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!meta.ok) throw new Error("Falha ao obter mídia (" + meta.status + ")");
   const info = await meta.json();
-  const bin = await fetch(info.url, { headers: { Authorization: `Bearer ${token}` } });
+  const bin = await fetch(info.url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!bin.ok) throw new Error("Falha ao baixar mídia (" + bin.status + ")");
   const buffer = Buffer.from(await bin.arrayBuffer());
   return { buffer, mimeType: info.mime_type || "audio/ogg" };
