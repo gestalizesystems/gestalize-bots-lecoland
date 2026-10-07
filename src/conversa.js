@@ -183,26 +183,6 @@ setInterval(() => {
 }, 12 * 60 * 60 * 1000);
 const inatividade = new Map();
 
-// Contatos que existiam ANTES da conexão do bot → bot fica silencioso para eles até
-// que enviem uma saudação clara (aí começa uma nova conversa normalmente).
-const preBot = new Set();
-let preBotIniciado = false;
-
-function garantirPreBot() {
-  if (preBotIniciado) return;
-  // Lazy: tenta iniciar a cada mensagem até as credenciais estarem disponíveis.
-  const waonboard = require("./waonboard");
-  const creds = waonboard.getCredenciais();
-  if (!creds || !creds.conectadoEm) return;
-  preBotIniciado = true;
-  for (const c of clientes.listar()) {
-    if (c.telefone && !c.preBotClearado) preBot.add(c.telefone);
-  }
-  if (preBot.size > 0) {
-    console.log(`[bot] ${preBot.size} contatos anteriores à conexão marcados como preBot (bot silencioso até saudação).`);
-  }
-}
-
 const PAUSA_SILENCIO_MS = 60 * 60 * 1000;
 const SEM_RESPOSTA_MS = 2 * 60 * 60 * 1000;
 
@@ -405,7 +385,6 @@ async function finalizar(contactId, enviarDespedida) {
   historicoConversa.delete(contactId);
   ultimaMsgTs.delete(contactId);
   pausados.delete(contactId);
-  preBot.delete(contactId); // conversa encerrada → sai do modo pré-bot se estiver lá
   atendimentos.resolver(contactId);
   limparHistorico(contactId);
   _agendarSalvar();
@@ -479,9 +458,6 @@ async function processar(from, _textoRaw, nomeWpp) {
   // \x1F = marcador interno de "citação" (cliente respondeu a uma mensagem anterior do bot)
   const ehCitacao = _semAnuncio.startsWith("\x1F");
   const texto = ehCitacao ? _semAnuncio.slice(1) : _semAnuncio;
-
-  // Inicializa preBot na primeira mensagem após as credenciais estarem disponíveis.
-  if (!preBotIniciado) garantirPreBot();
 
   const dados = config.get();
   if (!dados.botAtivo) return;
@@ -614,20 +590,6 @@ async function processar(from, _textoRaw, nomeWpp) {
     const f = aguardandoFecho.get(from);
     if (f && f.timer) clearTimeout(f.timer);
     aguardandoFecho.delete(from);
-  }
-
-  // ── Contatos anteriores à conexão do bot ────────────────────────────────
-  // Fica silencioso para quem já estava em atendimento humano antes do bot conectar.
-  // Quando o cliente mandar uma saudação, inicia uma conversa nova normalmente.
-  if (preBot.has(from)) {
-    const rCheck = triar(texto, null);
-    if (rCheck.saudacao) {
-      preBot.delete(from);
-      clientes.salvar(from, { preBotClearado: true });
-      // Não retorna → cai no fluxo normal abaixo
-    } else {
-      return; // silêncio — humano ainda atende
-    }
   }
 
   // ── Despedida clara ──────────────────────────────────────────────────────
@@ -863,7 +825,7 @@ function conversasAtivas() {
     ...pausados.keys(),
   ]);
   // Inclui qualquer contato que mandou mensagem nas últimas 24h,
-  // mesmo que o bot tenha ficado silencioso (preBot, fora do horário, etc.)
+  // mesmo que o bot tenha ficado silencioso (fora do horário, etc.)
   const RECENTE_MS = 24 * 60 * 60 * 1000;
   const agora = Date.now();
   for (const [id, ts] of ultimaMsgTs.entries()) {
