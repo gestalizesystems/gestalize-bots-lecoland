@@ -355,6 +355,7 @@ function iniciarAdmin(porta) {
           const nomes = {};
           for (const ct of val.contacts || []) if (ct.wa_id) nomes[ct.wa_id] = ct.profile && ct.profile.name;
           for (const st of val.statuses || []) {
+            console.log(`[webhook] status: id=${st.id} status=${st.status} recipient=${st.recipient_id}${st.errors ? " errors=" + JSON.stringify(st.errors) : ""}`);
             if (st.status === "sent" && st.recipient_id && !conversa.ehMsgBot(st.id) && !equipe.ehFuncionario(String(st.recipient_id)))
               conversa.registrarSessaoAtendente(String(st.recipient_id));
           }
