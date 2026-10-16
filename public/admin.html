@@ -1344,13 +1344,13 @@
           <div class="pct" style="color:#16a34a">${Math.round((s.qtd / max) * 100)}%</div></div>`).join("");
     }
     async function renderStatus() {
-      let st = { gemini: false, ors: false };
+      let st = { gemini: false, googleMaps: false };
       try { st = await (await fetch("/api/status")).json(); } catch (_) {}
       const temTaxas = !!(cfg.entrega && Array.isArray(cfg.entrega.taxas) && cfg.entrega.taxas.length);
       const itens = [
         { nome: "Respostas com IA (Gemini)", ok: st.gemini },
         { nome: "Menu inteligente", ok: true },
-        { nome: "Cálculo de entrega por endereço", ok: !!(st.ors && temTaxas) },
+        { nome: "Cálculo de entrega por endereço", ok: !!(st.googleMaps && temTaxas) },
       ];
       const tudoOk = itens.every(i => i.ok);
       el("dashStatus").innerHTML = `

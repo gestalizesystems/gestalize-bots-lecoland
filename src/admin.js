@@ -790,7 +790,7 @@ function iniciarAdmin(porta) {
 
   // Status da automação (só booleanos — nunca expõe as chaves).
   app.get("/api/status", (req, res) => {
-    res.json({ gemini: !!process.env.GEMINI_API_KEY, ors: !!process.env.ORS_API_KEY });
+    res.json({ gemini: !!process.env.GEMINI_API_KEY, googleMaps: !!process.env.GOOGLE_MAPS_API_KEY });
   });
 
   // Conta

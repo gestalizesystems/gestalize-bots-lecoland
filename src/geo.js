@@ -1,44 +1,51 @@
-// Cálculo de distância a partir de um endereço, usando o OpenRouteService (gratuito).
+// Cálculo de distância a partir de um endereço, usando o Google Maps Platform.
 // 1) geocodifica o endereço (texto → coordenadas)
 // 2) mede a distância de carro entre a loja e o endereço
 // 3) devolve as taxas calculadas para essa distância (cálculo determinístico no config.js)
 
 const config = require("./config");
 
-const ORS_KEY = process.env.ORS_API_KEY;
-const BASE = "https://api.openrouteservice.org";
+const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const MAX_RAIO_KM = 50; // só aceita endereços dentro desse raio da loja (evita matches errados em outra cidade)
 
 let origemCache = null; // { lat, lon, endereco } — evita geocodificar a loja toda hora
 
 function temChave() {
-  return !!ORS_KEY;
+  return !!GMAPS_KEY;
 }
 
-// Texto → coordenadas. `focus` (coords da loja) ajuda a desambiguar bairros.
+// Texto → coordenadas. `focus` (coords da loja) ajuda a desambiguar bairros/ruas de mesmo nome
+// em outra cidade — usado como viés de região (bounds), não como filtro rígido (o Geocoding API
+// do Google não tem um "raio estrito" como o ORS; a distância real é validada depois, em km).
 async function geocode(endereco, focus) {
-  let url = `${BASE}/geocode/search?api_key=${ORS_KEY}&text=${encodeURIComponent(endereco)}&boundary.country=BR&size=1`;
+  let url = `https://maps.googleapis.com/maps/api/geocode/json?key=${GMAPS_KEY}&address=${encodeURIComponent(endereco)}&region=br&components=country:BR`;
   if (focus) {
-    // Prioriza e RESTRINGE a resultados perto da loja — evita casar com lugar de mesmo nome em outra cidade.
-    url += `&focus.point.lon=${focus.lon}&focus.point.lat=${focus.lat}`;
-    url += `&boundary.circle.lon=${focus.lon}&boundary.circle.lat=${focus.lat}&boundary.circle.radius=${MAX_RAIO_KM}`;
+    // ~0.5 grau (±55km) de viés ao redor da loja — ajuda o Google a preferir o resultado certo
+    // quando existe rua/bairro de mesmo nome em outra cidade.
+    const d = 0.5;
+    url += `&bounds=${focus.lat - d},${focus.lon - d}|${focus.lat + d},${focus.lon + d}`;
   }
   const r = await fetch(url);
   if (!r.ok) throw new Error("geocode HTTP " + r.status);
   const j = await r.json();
-  const f = j.features && j.features[0];
+  if (j.status !== "OK" && j.status !== "ZERO_RESULTS") throw new Error("geocode status " + j.status + (j.error_message ? ": " + j.error_message : ""));
+  const f = j.results && j.results[0];
   if (!f) return null;
-  const [lon, lat] = f.geometry.coordinates;
-  return { lat, lon, label: f.properties.label, confidence: f.properties.confidence, layer: f.properties.layer };
+  return {
+    lat: f.geometry.location.lat,
+    lon: f.geometry.location.lng,
+    label: f.formatted_address,
+    locationType: f.geometry.location_type, // ROOFTOP | RANGE_INTERPOLATED | GEOMETRIC_CENTER | APPROXIMATE
+    types: f.types || [],
+  };
 }
 
-// Camadas precisas o bastante pra confiar na coordenada como o endereço em si (rua/número/local).
-// Camadas mais grosseiras (bairro, cidade, região...) só localizam uma ÁREA — usar essa
+// location_type ROOFTOP/RANGE_INTERPOLATED/GEOMETRIC_CENTER = casou com endereço/rua/local
+// específico. APPROXIMATE geralmente é só bairro/cidade (área grande demais) — usar essa
 // coordenada como se fosse o endereço exato dá uma distância/taxa sem garantia nenhuma de
 // precisão (ex.: rua sem cobertura no mapa vira silenciosamente "o bairro vizinho errado").
-const LAYERS_PRECISAS = new Set(["address", "street", "venue", "point"]);
 function ehPreciso(g) {
-  return !!g && LAYERS_PRECISAS.has(g.layer) && (g.confidence == null || g.confidence >= 0.7);
+  return !!g && g.locationType !== "APPROXIMATE";
 }
 
 // Remove acentos/pontuação e deixa minúsculo — pra comparar bairro sem depender de grafia exata.
@@ -65,7 +72,7 @@ const _BAIRRO_STOPWORDS = new Set(["parque", "jardim", "conjunto", "residencial"
 
 // O geocodificador às vezes casa a rua só pelo texto e devolve um bairro diferente
 // do que o cliente informou (ruas de mesmo nome em bairros vizinhos) — mesmo com
-// confiança "alta". Se o bairro devolvido não bate nem por aproximação com o que o
+// location_type preciso. Se o bairro devolvido não bate nem por aproximação com o que o
 // cliente disse, não dá pra confiar na coordenada pra calcular a taxa.
 function bairroConfere(bairroInformado, label) {
   if (!bairroInformado) return true; // não isolamos um bairro no texto → não valida
@@ -92,13 +99,14 @@ async function getOrigem() {
 
 // Distância de carro (km) entre dois pontos.
 async function distanciaKm(o, d) {
-  const url = `${BASE}/v2/directions/driving-car?api_key=${ORS_KEY}&start=${o.lon},${o.lat}&end=${d.lon},${d.lat}`;
+  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?key=${GMAPS_KEY}&units=metric&mode=driving&origins=${o.lat},${o.lon}&destinations=${d.lat},${d.lon}`;
   const r = await fetch(url);
-  if (!r.ok) throw new Error("directions HTTP " + r.status);
+  if (!r.ok) throw new Error("distancematrix HTTP " + r.status);
   const j = await r.json();
-  const dist = j.features && j.features[0] && j.features[0].properties.summary.distance;
-  if (dist == null) return null;
-  return Math.round((dist / 1000) * 10) / 10; // km com 1 casa
+  if (j.status !== "OK") throw new Error("distancematrix status " + j.status + (j.error_message ? ": " + j.error_message : ""));
+  const el = j.rows && j.rows[0] && j.rows[0].elements && j.rows[0].elements[0];
+  if (!el || el.status !== "OK" || el.distance == null) return null;
+  return Math.round((el.distance.value / 1000) * 10) / 10; // km com 1 casa
 }
 
 // Função chamada pela IA (function calling): endereço → distância + taxas.
@@ -113,7 +121,7 @@ async function consultarTaxaPorEndereco(endereco) {
     if (!ehPreciso(destino)) {
       return { encontrado: false, baixaPrecisao: true, areaAproximada: destino.label };
     }
-    // Rua encontrada com "confiança alta", mas em bairro diferente do que o cliente
+    // Rua encontrada com precisão alta, mas em bairro diferente do que o cliente
     // informou (colisão de nome de rua entre bairros vizinhos) — mesmo risco de taxa
     // errada que a baixa precisão acima, então trata igual: não inventa, pede confirmação.
     if (!bairroConfere(extrairBairroInformado(endereco), destino.label)) {
