@@ -97,16 +97,28 @@ async function getOrigem() {
   return origemCache;
 }
 
-// Distância de carro (km) entre dois pontos.
+// Distância de carro (km) entre dois pontos. Usa a Routes API (computeRouteMatrix) — a
+// Distance Matrix API clássica não é mais oferecida pra projetos novos no Google Cloud;
+// a própria Google recomenda a Routes API como substituta.
 async function distanciaKm(o, d) {
-  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?key=${GMAPS_KEY}&units=metric&mode=driving&origins=${o.lat},${o.lon}&destinations=${d.lat},${d.lon}`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error("distancematrix HTTP " + r.status);
-  const j = await r.json();
-  if (j.status !== "OK") throw new Error("distancematrix status " + j.status + (j.error_message ? ": " + j.error_message : ""));
-  const el = j.rows && j.rows[0] && j.rows[0].elements && j.rows[0].elements[0];
-  if (!el || el.status !== "OK" || el.distance == null) return null;
-  return Math.round((el.distance.value / 1000) * 10) / 10; // km com 1 casa
+  const r = await fetch("https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": GMAPS_KEY,
+      "X-Goog-FieldMask": "originIndex,destinationIndex,condition,distanceMeters,status",
+    },
+    body: JSON.stringify({
+      origins: [{ waypoint: { location: { latLng: { latitude: o.lat, longitude: o.lon } } } }],
+      destinations: [{ waypoint: { location: { latLng: { latitude: d.lat, longitude: d.lon } } } }],
+      travelMode: "DRIVE",
+    }),
+  });
+  if (!r.ok) throw new Error("computeRouteMatrix HTTP " + r.status + ": " + (await r.text().catch(() => "")).slice(0, 300));
+  const lista = await r.json();
+  const el = Array.isArray(lista) ? lista[0] : null;
+  if (!el || el.condition !== "ROUTE_EXISTS" || el.distanceMeters == null) return null;
+  return Math.round((el.distanceMeters / 1000) * 10) / 10; // km com 1 casa
 }
 
 // Função chamada pela IA (function calling): endereço → distância + taxas.
