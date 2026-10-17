@@ -106,7 +106,7 @@ This architecture enables the platform to remain scalable, maintainable and adap
 | Web framework | Express |
 | Messaging | WhatsApp Cloud API |
 | Natural language | Google Gemini |
-| Geolocation and routing | Google Maps Platform (Geocoding + Distance Matrix) |
+| Geolocation and routing | Google Maps Platform (Geocoding API + Routes API) |
 | Administration panel | Server-rendered HTML, CSS, and JavaScript |
 
 ## Platform Modules
