@@ -24,6 +24,7 @@ const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
 // Baixa o áudio recebido, transcreve com a IA e processa como se fosse texto.
 async function processarAudio(from, mediaId, nomeWpp) {
+  if (conversa.estaPausado(from)) return; // já em atendimento humano ou handoff em andamento — não transcreve nem responde
   try {
     const { buffer, mimeType } = await wa.baixarMidia(mediaId);
     const texto = await ai.transcreverAudio(buffer.toString("base64"), mimeType);

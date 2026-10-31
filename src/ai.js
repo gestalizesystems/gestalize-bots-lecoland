@@ -227,6 +227,20 @@ const SACA = new Set(["saca", "sacas", "saco", "sacos", "sacaria", "fechada", "f
 // granel/quilo garante que "a quilo" só traga produtos a granel.
 const ANIMAIS = new Set([...ESPECIE_GATO, ...ESPECIE_CAO]);
 const ANCORAS = new Set([...ANIMAIS, "granel", "quilo", "quilos", "kilo", "kg", "fracionado", "fracionada"]);
+// Palavras que identificam o TIPO/CATEGORIA do produto (não a marca/raça/sabor) — protegidas no
+// relaxamento por contagem (ver step 2 em buscarProdutos): a heurística de "dropar a palavra
+// menos seletiva" (que casa com MAIS produtos) tende a derrubar justo essas palavras primeiro,
+// porque shampoo/xampu/coleira etc. aparecem em muitos produtos do catálogo — só que, ao
+// contrário de um termo genérico de EMBALAGEM (ver GENERICOS, que é seguro dropar porque não
+// muda a categoria), dropar a palavra de TIPO faz a busca pular de categoria inteira (ex.: cliente
+// pede "shampoo pra shih tzu", a busca derruba "shampoo" por ter mais matches, sobra só "shih
+// tzu", que bate em RAÇÃO específica pra essa raça — devolve ração no lugar de shampoo).
+const TIPOS_PRODUTO = new Set([
+  "shampoo", "xampu", "sabonete", "condicionador", "hidratante", "antipulgas", "antiparasitario",
+  "coleira", "guia", "peitoral", "focinheira", "roupa", "roupinha", "casinha", "caminha", "cama",
+  "bebedouro", "comedouro", "tapete", "fralda", "brinquedo", "pomada", "perfume", "colonia",
+  "escova", "tesoura", "cortador", "removedor", "shampu",
+]);
 
 // Busca produtos ativos no catálogo por grupo / subgrupo / especificação / texto livre.
 function precoNum(p) {
@@ -409,9 +423,18 @@ function buscarProdutos({ grupo, subgrupo, especificacao, texto, ordenarPor } = 
     // 2) Ainda 0: dropa a 'outra' MENOS seletiva (casa com mais produtos), preservando a mais
     //    distintiva (a marca). Nunca dropa a última → não retorna resultado amplo/genérico.
     //    Ex.: "racao chanin" dropa "racao" e mantém "chanin".
+    //    Palavra de TIPO DE PRODUTO (ver TIPOS_PRODUTO) é protegida aqui: conta como a MENOS
+    //    provável de ser dropada (nunca por ter "muitos matches"), porque ela é quem decide a
+    //    CATEGORIA do produto — dropá-la pode fazer a busca pular de categoria inteira (ex.:
+    //    "shampoo shih tzu" perderia "shampoo" por ter mais matches no catálogo que "shih"/"tzu",
+    //    sobrando só a raça — que bate em ração específica da raça, não em shampoo nenhum).
     while (!achados.length && outras.length > 1) {
-      outras.sort((a, b) => cnt(a) - cnt(b));
-      outras.pop(); // remove a de MAIOR contagem (menos seletiva)
+      outras.sort((a, b) => {
+        const protA = TIPOS_PRODUTO.has(a), protB = TIPOS_PRODUTO.has(b);
+        if (protA !== protB) return protA ? -1 : 1; // protegida vai pro início (longe do pop)
+        return cnt(a) - cnt(b);
+      });
+      outras.pop(); // remove a de MAIOR contagem entre as não protegidas (menos seletiva)
       achados = filtrarPor([...ancoras, ...outras]);
     }
   }
@@ -675,6 +698,8 @@ function montarContexto(cliente) {
     "- PRODUTO 'SPRAY' (ou qualquer outra palavra genérica demais sozinha — 'xampu', 'sabonete', 'pomada' etc.) SEMPRE VEM COM OUTRA PALAVRA QUE IDENTIFICA O PRODUTO (ex.: 'spray de citronela', 'spray bucal', 'periovet spray', 'xampu antipulgas'): a palavra genérica ('spray', 'xampu'...) NÃO é a palavra que identifica o produto — é a palavra que o IDENTIFICA de verdade que importa (ex.: 'citronela', 'bucal', 'periovet'). NUNCA busque só pela palavra genérica sozinha (buscar_produtos({texto:'spray'}) retorna produtos de qualquer categoria que usam spray, não o que o cliente pediu). Busque primeiro com as duas palavras juntas (ex.: 'citronela spray'); se der 0, tente só a palavra que identifica o produto (ex.: 'citronela'), NUNCA só a genérica sozinha. Se mesmo assim não achar nada que bata de verdade, CHAME encaminhar_para_atendente — NÃO mostre produtos de categoria diferente só porque contêm a palavra genérica (ver regra 'NUNCA SUBSTITUA POR CONTA PRÓPRIA').",
     "- REGRA GERAL — NOME/MARCA CITADO (máxima prioridade): se o cliente mencionar QUALQUER nome de produto, marca ou item específico (ex.: 'pipicat', 'chanin', 'amoxicilina', 'bolsa de transporte', 'hepvet'), BUSQUE ESSE NOME DIRETAMENTE com buscar_produtos({ texto: '<nome>' }) usando poucas palavras. Se retornar 0 com o nome + tamanho, tente uma segunda busca só com o nome da marca (sem o tamanho) para ver se existe em outro tamanho. Só chame encaminhar_para_atendente se ambas as buscas retornarem 0. Exemplos: 'tem pipicat?' → texto 'pipicat'; 'tem amoxicilina?' → texto 'amoxicilina'; 'tem bolsa de transporte?' → texto 'bolsa transporte'. Esta regra prevalece sobre TODAS as regras de categoria abaixo — EXCETO a regra 'RAÇÃO COM MARCA — ESPÉCIE' logo adiante: se a marca de RAÇÃO citada não for exclusiva de uma espécie e o cliente não disse cão/gato (ex.: 'ração Fargo Premium', só isso), a pergunta 'É pra cão ou gato?' vem ANTES de buscar, mesmo perguntando só o preço — nunca assuma a espécie pra não trazer opção da espécie errada.",
     "- RECEITA / LISTA DE REMÉDIOS: quando chegar uma receita com vários itens, CHAME buscar_produtos para CADA item (pelo nome/princípio ativo) antes de dizer se tem ou não.",
+    "- TIPO DE PRODUTO + RAÇA DO PET JUNTOS (ex.: 'shampoo pra Shih Tzu', 'tapete higiênico pra Poodle', 'roupa pra Yorkshire'): SEMPRE inclua o TIPO DE PRODUTO (shampoo, ração, petisco, roupa, coleira...) junto com a raça na busca — NUNCA busque só pela raça sozinha. O catálogo tem produtos de VÁRIAS categorias específicos por raça (ex.: ração 'RACAS ESP CAES AD SHIH TZU'), então buscar só 'shih tzu' pode trazer ração em vez do tipo de produto que o cliente pediu. Busque primeiro com as duas palavras juntas (ex.: buscar_produtos({texto:'shampoo shih tzu'})); se der 0, busque só pelo tipo de produto SEM a raça (ex.: buscar_produtos({texto:'shampoo'})) pra ver as opções gerais — mas ANTES de mostrar esse resultado genérico, confirme com o cliente que não achou um específico pra raça e pergunte se quer ver as opções gerais de [tipo de produto] (não mostre direto produtos de OUTRA categoria, como ração, quando o cliente pediu outro tipo de produto).",
+    "- 'SACO' É SINÔNIMO DE 'SACA' (ração fechada/ensacada, NUNCA granel) — em QUALQUER contexto, não só depois de já ter mostrado granel. Se o cliente usar 'saco' (ex.: 'qual o maior saco que vocês têm', 'tem saco de 15kg?', 'vocês vendem em saco?'), trate EXATAMENTE igual a 'saca': é pedido de ração fechada, NUNCA chame obter_info_granel nesse caso — use buscar_produtos. Se o cliente perguntar o MAIOR saco/saca disponível (sem dizer um tamanho específico), busque pela marca+espécie SEM tamanho no texto (ex.: buscar_produtos({texto:'premier filhote pequeno'})) — isso retorna todos os tamanhos que existem; identifique e informe o de maior kg entre os resultados.",
     "- MARCAS SÓ DE GATO: CHANIN, KATBOM, FRISKIES, MATISSE são marcas EXCLUSIVAMENTE de ração para GATO. Se o cliente pedir por uma dessas marcas: (1) NÃO pergunte 'cão ou gato' — já sabe que é gato. (2) Na busca, use APENAS marca + variante + tamanho no parâmetro texto — NUNCA inclua a palavra 'gato' no texto da busca, pois ela pode excluir produtos cadastrados sem essa palavra no nome. Exemplos CERTOS: buscar_produtos({texto:'chanin castrado 25kg'}), buscar_produtos({texto:'chanin filhote'}). Exemplos ERRADOS: buscar_produtos({texto:'chanin gato castrado 25kg'}). (3) Pergunte apenas saca ou granel se ainda não souber.",
     "- RAÇÃO COM MARCA — ESPÉCIE: para marcas NÃO exclusivas de gato (ex.: FARGO, GOLDEN, PREMIER, GUABI e qualquer outra não listada acima), se o cliente NÃO informar a espécie (cão ou gato) — MESMO que a pergunta seja só sobre preço/valor (ex.: 'qual o preço da ração Fargo Premium?') — PERGUNTE PRIMEIRO 'É pra *cão* ou *gato*? 🐾' e aguarde a resposta antes de chamar buscar_produtos. NUNCA assuma cão por padrão. Só depois de saber a espécie pergunte saca/granel (se necessário) e busque.",
     "- RAÇÃO COM MARCA — SACA OU GRANEL: após saber a espécie (ou se a marca for exclusiva de gato), se o cliente ainda não informou saca/granel, pergunte 'Você quer em *saca* (fechada) ou a *granel* (por quilo)? 🐾'. Se SACA → buscar_produtos com texto '<marca> <espécie> [tamanho]'. Se GRANEL → o granel NÃO é um item separado no catálogo de produtos (buscar_produtos não encontra) — CHAME obter_info_granel({especie: '<espécie>'}) e procure, na lista de preços retornada, a linha que bate com a marca/variante pedida (ex.: 'Golden ... castrado'); informe só o preço dessa linha. Se a marca citada não aparecer na lista retornada, diga que não achamos essa marca a granel e pergunte se quer ver as marcas que têm (ou chame encaminhar_para_atendente se o cliente insistir só nessa marca). Se o cliente já informou tamanho em kg → é saca, busque direto.",
