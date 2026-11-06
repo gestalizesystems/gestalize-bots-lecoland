@@ -425,19 +425,22 @@ function _ehPedidoPronto(texto) {
     const pos = ocorrencias[0].index;
     const antes = t.slice(0, pos);
     const depois = t.slice(pos + ocorrencias[0][0].length);
+    // Pergunta clara (tem "?" ou palavra interrogativa) NUNCA é "pedido pronto", mesmo com
+    // vírgula antes da quantidade — ex.: "qual remédio pra carrapato, pra um pinscher de 2kg"
+    // tem vírgula natural de fala (pausa), não separador de lista de itens pra fechar pedido.
+    const ehPergunta = /\?/.test(t)
+      || /\b(quanto|quantos|quantas|qual|quais|tem|tens|voces?\s+tem|custa|custam|pre[cç]o|valor|onde|como|posso|pode)\b/.test(t);
     // Há uma lista: separador vírgula ou " e " antes OU depois do item
-    if (/,|\se\s/.test(antes) || (/,|\se\s/.test(depois) && depois.length > 10)) return true;
+    if (!ehPergunta && (/,|\se\s/.test(antes) || (/,|\se\s/.test(depois) && depois.length > 10))) return true;
     // Item único com intenção de compra clara
-    if (/\b(gostaria|quero|queria|preciso|me\s+manda|pode\s+mandar|poderia\s+(?:mandar|enviar)|manda|pe[cç]o|pedindo|por\s+favor|quero\s+pedir|gostaria\s+de\s+pedir)\b/.test(t)) return true;
+    if (!ehPergunta && /\b(gostaria|quero|queria|preciso|me\s+manda|pode\s+mandar|poderia\s+(?:mandar|enviar)|manda|pe[cç]o|pedindo|por\s+favor|quero\s+pedir|gostaria\s+de\s+pedir)\b/.test(t)) return true;
     // Item único SEM verbo de pedido, mas no formato "quantidade + produto" logo de cara
     // (ex.: "1kg Premier adulto pequeno") — é assim que muitos clientes escrevem um pedido
-    // pronto, direto, sem pedir com educação. Só conta quando NÃO é uma pergunta (sem "?" e
-    // sem palavra interrogativa tipo "quanto"/"tem"/"qual") — senão vira falso positivo com
-    // pergunta de preço ("Quanto está a ração de 10kg?"). Também exige algo de conteúdo real
-    // depois da quantidade (nome do produto), não só a quantidade sozinha (ex.: resposta de
-    // peso do pet "20kg" continua caindo fora daqui).
-    if (!antes.trim() && depois.trim().length >= 4 && !/\?/.test(t)
-      && !/\b(quanto|quantos|quantas|qual|quais|tem|tens|voces?\s+tem|custa|custam|pre[cç]o|valor|onde|como|posso|pode)\b/.test(t)) {
+    // pronto, direto, sem pedir com educação. Só conta quando NÃO é uma pergunta — senão vira
+    // falso positivo com pergunta de preço ("Quanto está a ração de 10kg?"). Também exige algo
+    // de conteúdo real depois da quantidade (nome do produto), não só a quantidade sozinha (ex.:
+    // resposta de peso do pet "20kg" continua caindo fora daqui).
+    if (!antes.trim() && depois.trim().length >= 4 && !ehPergunta) {
       return true;
     }
   }
