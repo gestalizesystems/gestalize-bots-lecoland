@@ -183,8 +183,8 @@ setInterval(() => {
 }, 12 * 60 * 60 * 1000);
 const inatividade = new Map();
 
-const PAUSA_SILENCIO_MS = 60 * 60 * 1000;
-const SEM_RESPOSTA_MS = 2 * 60 * 60 * 1000;
+const PAUSA_SILENCIO_MS = 30 * 60 * 1000;
+const SEM_RESPOSTA_MS = 40 * 60 * 1000;
 
 const FECHO_PALAVRAS = ["nao", "no", "obrigado", "obrigada", "obg", "vlw", "valeu", "era so isso", "so isso", "so isso mesmo", "era isso", "isso mesmo", "tudo certo", "ok", "blz", "beleza", "nada mais", "agradecido", "grato", "grata", "por enquanto so"];
 
