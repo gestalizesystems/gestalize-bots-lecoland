@@ -28,8 +28,23 @@ function ehMsgBot(id) { return _botMsgIds.has(id); }
 // caso de blip passageiro de rede ("fetch failed" da Cloud API) — sem isso, UMA falha
 // transitória de rede já deixava o cliente sem a saudação/resposta, já que esse era o
 // único ponto de envio sem nenhuma tentativa extra (ver _comRetry mais abaixo).
-async function enviar(para, texto) { metricas.inc("enviada"); const r = await _comRetry(() => _enviarTexto(para, texto)); _rastrearId(r); return r; }
-async function enviarImagem(para, link, legenda) { metricas.inc("enviada"); const r = await _comRetry(() => _enviarImagem(para, link, legenda)); _rastrearId(r); return r; }
+// Loga o texto de toda mensagem enviada pelo bot (truncado) — junto com os logs de "motivo"
+// já existentes (finalizar/saudação), isso permite provar EXATAMENTE o que foi enviado e por
+// quê em qualquer investigação futura, sem precisar reconstruir pelos horários dos eventos.
+async function enviar(para, texto) {
+  metricas.inc("enviada");
+  console.log(`[conversa] enviando texto para=${para}: ${String(texto || "").replace(/\n+/g, " ").slice(0, 200)}`);
+  const r = await _comRetry(() => _enviarTexto(para, texto));
+  _rastrearId(r);
+  return r;
+}
+async function enviarImagem(para, link, legenda) {
+  metricas.inc("enviada");
+  console.log(`[conversa] enviando imagem para=${para}: ${String(legenda || "").replace(/\n+/g, " ").slice(0, 200)}`);
+  const r = await _comRetry(() => _enviarImagem(para, link, legenda));
+  _rastrearId(r);
+  return r;
+}
 
 // URL pública do painel (pra montar o link das fotos do catálogo no WhatsApp).
 const PUBLIC_URL = (process.env.PUBLIC_URL || "https://bots.gestalizesystems.com.br").replace(/\/$/, "");
@@ -116,6 +131,15 @@ const ultimaMsgTs = new Map();         // contactId -> timestamp da última mens
 const aguardandoFecho = new Map();     // contactId -> { timer }
 const menuContexto = new Map();        // contactId -> opções do menu atual
 const jaSaudou = new Set();            // contatos que já receberam o fluxo de boas-vindas
+// contactId -> timestamp em que finalizar() rodou pela última vez (manual OU automático).
+// Logo após finalizar, qualquer resposta do cliente que NÃO seja uma saudação de verdade
+// (ex.: "Até!", "obrigada" sem ser pego como despedida forte, continuação do mesmo assunto)
+// cairia no ramo "primeiro contato" normal e repetiria "Oi, nome!"/menu completo — parecendo
+// pro cliente que o bot ficou "respondendo sozinho do nada" no meio de uma conversa que ele
+// nunca realmente abandonou. Dentro dessa janela, pula o preâmbulo de saudação (mas SÓ quando
+// a mensagem não é uma saudação explícita — "oi"/"bom dia" sempre abre o menu normalmente).
+const _ultimaFinalizacao = new Map();
+const GRACE_POS_FINALIZACAO_MS = 5 * 60 * 1000;
 const aguardandoNome = new Map();      // contactId -> { textoOriginal, rTriagem }
 const aguardandoNps = new Map(); // contactId → timestamp em que o NPS foi enviado (persiste em sessoes.json)
 // Janela de validade da pergunta de NPS — depois disso, a próxima mensagem do cliente NÃO é
@@ -180,6 +204,8 @@ const AUSENCIA_THROTTLE_MS = 60 * 60 * 1000;
 setInterval(() => {
   const expirou = Date.now() - AUSENCIA_THROTTLE_MS;
   for (const [id, ts] of ausenciaEnviada) if (ts < expirou) ausenciaEnviada.delete(id);
+  const expirouFinalizacao = Date.now() - GRACE_POS_FINALIZACAO_MS;
+  for (const [id, ts] of _ultimaFinalizacao) if (ts < expirouFinalizacao) _ultimaFinalizacao.delete(id);
 }, 12 * 60 * 60 * 1000);
 const inatividade = new Map();
 
@@ -204,6 +230,11 @@ function normalizarNotaNps(digitos) {
 function ehFecho(t) {
   const n = normaliza(t);
   if (!n || n.length > 28) return false;
+  // "Até!"/"Ateh" sozinho (sem "mais"/"logo"/"breve") é uma despedida curta comuníssima, mas só
+  // por correspondência EXATA da palavra inteira (com pontuação solta no final tolerada, já que
+  // normaliza() não remove "!"/"?") — nunca via .includes(), que bateria em qualquer palavra
+  // começando com essas letras (ex.: "atendimento", "atender", "atendente"), fechando à toa.
+  if (/^ateh?[!.?]*$/.test(n)) return true;
   return FECHO_PALAVRAS.some((p) => n === p || n.includes(p));
 }
 
@@ -226,6 +257,15 @@ const DESPEDIDA = ["obrigado", "obrigada", "obg", "brigado", "brigada", "vlw", "
 function ehDespedidaForte(t) {
   const n = normaliza(t);
   if (!n || n.length > 22) return false;
+  // "Até!"/"Ateh" sozinho é uma despedida curta comuníssima no WhatsApp, mas só reconhecida
+  // por correspondência EXATA da palavra inteira (pontuação solta no final tolerada, já que
+  // normaliza() não remove "!"/"?") — nunca via .includes(), que bateria em "atendimento"/
+  // "atender"/"atendente" e fecharia o atendimento à toa no meio de uma pergunta de verdade.
+  // Sem isso, "Até!" caía no fluxo de "cliente novo" (bot já tinha limpo o estado num
+  // finalizar anterior), mandava "Oi, <nome>!" de novo e reativava o timer de inatividade —
+  // o próximo "Posso te ajudar em algo mais?" automático, 30min depois, parecia o bot
+  // "voltando a falar sozinho" sem nenhuma mensagem nova da cliente.
+  if (/^ateh?[!.?]*$/.test(n)) return true;
   return DESPEDIDA.some((p) => n === p || n.includes(p));
 }
 
@@ -349,7 +389,7 @@ function retomar(contactId) {
   limparInatividade(contactId);
 }
 async function concluirAtendimento(contactId) {
-  await finalizar(contactId, false);
+  await finalizar(contactId, false, "manual-atendido");
   if (equipe.ehFuncionario(contactId)) return; // funcionário: só limpa o estado, sem enviar mensagem
   try {
     await encerrarComNps(contactId, "Atendimento finalizado, qualquer coisa é só chamar! 🐾");
@@ -363,14 +403,17 @@ async function aoSilenciar(contactId) {
   pausados.delete(contactId);
   if (equipe.ehFuncionario(contactId)) return; // não reengaja funcionário
   try {
+    console.log(`[conversa] envio: reengajamento-inatividade for=${contactId}`);
     await enviar(contactId, "Posso te ajudar em algo mais? 😊");
-    aguardandoFecho.set(contactId, { timer: setTimeout(() => finalizar(contactId, true), SEM_RESPOSTA_MS) });
+    aguardandoFecho.set(contactId, { timer: setTimeout(() => finalizar(contactId, true, "timeout-sem-resposta"), SEM_RESPOSTA_MS) });
   } catch (e) {
     console.error("Falha ao reengajar:", e.message);
   }
 }
 
-async function finalizar(contactId, enviarDespedida) {
+async function finalizar(contactId, enviarDespedida, motivo) {
+  console.log(`[conversa] finalizar: motivo=${motivo || "desconhecido"} for=${contactId}`);
+  _ultimaFinalizacao.set(contactId, Date.now());
   limparInatividade(contactId);
   const f = aguardandoFecho.get(contactId);
   if (f && f.timer) clearTimeout(f.timer);
@@ -586,7 +629,7 @@ async function processar(from, _textoRaw, nomeWpp) {
   // ── Resposta ao "Ainda por aí?" ─────────────────────────────────────────
   if (aguardandoFecho.has(from)) {
     if (ehFecho(texto)) {
-      await finalizar(from, false);
+      await finalizar(from, false, "fecho-confirmado");
       await encerrarComNps(from, "Atendimento finalizado, qualquer coisa é só chamar! 🐾");
       return;
     }
@@ -597,7 +640,7 @@ async function processar(from, _textoRaw, nomeWpp) {
 
   // ── Despedida clara ──────────────────────────────────────────────────────
   if (ehDespedidaForte(texto)) {
-    await finalizar(from, false);
+    await finalizar(from, false, "despedida-forte");
     await encerrarComNps(from, "Por nada, qualquer coisa é só chamar! 🐾");
     return;
   }
@@ -653,8 +696,21 @@ async function processar(from, _textoRaw, nomeWpp) {
 
     const nomeCliente = cli && cli.nome ? cli.nome : null;
 
-    if (r.saudacao) {
+    // Atendimento finalizado há pouco tempo (manual ou automático) e a mensagem NÃO é uma
+    // saudação explícita: é continuação do mesmo papo — o cliente nunca "foi embora" de
+    // verdade, só respondeu/comentou algo logo após o fim. Pula o preâmbulo de saudação
+    // (nunca manda "Oi, nome!" nem o menu completo aqui) pra não parecer que o bot está
+    // "respondendo sozinho do nada" no meio de uma conversa em andamento.
+    const finalizadoHaPouco = _ultimaFinalizacao.has(from)
+      && (Date.now() - _ultimaFinalizacao.get(from) < GRACE_POS_FINALIZACAO_MS);
+
+    if (finalizadoHaPouco && !r.saudacao) {
+      console.log(`[conversa] pulou saudacao (graca pos-finalizacao) for=${from}`);
+      if (deveAviso) clientes.salvar(from, { avisoEnviado: true });
+      // Não retorna — segue pra responder a mensagem normalmente abaixo
+    } else if (r.saudacao) {
       // Saudação → menu (personalizado se tiver nome, genérico se não tiver)
+      console.log(`[conversa] envio: saudacao-completa for=${from}`);
       const menu = menuPrincipal(nomeCliente);
       menuContexto.set(from, { opcoes: config.intents(), texto: menu, sub: false });
       const msgBV = config.preencher(dados.mensagens.saudacao || "Olá! 🐾 Seja muito bem-vindo(a) à {nome}!");
@@ -663,16 +719,17 @@ async function processar(from, _textoRaw, nomeWpp) {
       if (deveAviso) clientes.salvar(from, { avisoEnviado: true });
       agendarInatividade(from);
       return;
-    }
-
-    // Primeira mensagem é pergunta direta → saudação breve + cai para responder abaixo
-    if (nomeCliente) {
-      await enviar(from, `Oi, ${nomeCliente}! 🐾` + avisoTexto);
     } else {
-      const msgBV = config.preencher(dados.mensagens.saudacao || "Olá! 🐾 Seja muito bem-vindo(a) à {nome}!");
-      await enviar(from, msgBV + avisoTexto);
+      // Primeira mensagem é pergunta direta → saudação breve + cai para responder abaixo
+      console.log(`[conversa] envio: oi-nome for=${from} temNome=${!!nomeCliente}`);
+      if (nomeCliente) {
+        await enviar(from, `Oi, ${nomeCliente}! 🐾` + avisoTexto);
+      } else {
+        const msgBV = config.preencher(dados.mensagens.saudacao || "Olá! 🐾 Seja muito bem-vindo(a) à {nome}!");
+        await enviar(from, msgBV + avisoTexto);
+      }
+      if (deveAviso) clientes.salvar(from, { avisoEnviado: true });
     }
-    if (deveAviso) clientes.salvar(from, { avisoEnviado: true });
 
     if (ehPedidoRepetido(texto)) {
       pausar(from);

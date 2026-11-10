@@ -371,6 +371,7 @@ function iniciarAdmin(porta) {
             // Mídia → descarrega qualquer texto pendente e enfileira imediatamente.
             if (msg.type === "text" && msg.text) {
               const _corpo = msg.text.body || "";
+              console.log(`[webhook] texto de from=${from}: ${_corpo.replace(/\n+/g, " ").slice(0, 200)}`);
               // \x1F = marcador interno: cliente respondeu/citou uma msg anterior do bot
               _agendarTexto(from, msg.context ? "\x1F" + _corpo : _corpo, nomeWpp, ctxAd);
             } else if (msg.type === "image" && msg.image && msg.image.id) {
