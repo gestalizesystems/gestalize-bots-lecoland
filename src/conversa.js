@@ -462,17 +462,24 @@ function _ehPedidoPronto(texto) {
     "gi"
   );
   const ocorrencias = [...t.matchAll(unidades)];
-  // 2+ itens com quantidade → pedido pronto sem dúvida
-  if (ocorrencias.length >= 2) return true;
+  // Pergunta clara (tem "?" ou palavra interrogativa) NUNCA é "pedido pronto", mesmo com
+  // vírgula antes da quantidade — ex.: "qual remédio pra carrapato, pra um pinscher de 2kg"
+  // tem vírgula natural de fala (pausa), não separador de lista de itens pra fechar pedido.
+  const ehPergunta = /\?/.test(t)
+    || /\b(quanto|quantos|quantas|qual|quais|tem|tens|voces?\s+tem|custa|custam|pre[cç]o|valor|onde|como|posso|pode)\b/.test(t);
+  // Lista de só PESOS (kg/kilo/quilo/gramas), sem nenhuma unidade de EMBALAGEM/VENDA (saca,
+  // lata, pote, kit...) junto na mensagem — é resposta/pergunta sobre peso (do pet, ou pra
+  // escolher o tamanho de um produto já mostrado), NUNCA uma lista de itens pra fechar pedido.
+  // Ex.: "de 7 a 15kg e de 15 a 30kg", "10kg, 14kg, 8kg", "Um tem 10 kg, 14 kg, 8kg".
+  const temEmbalagem = /\b(saca|sacos?|fardos?|lata|latas?|pote|potes?|pacote|pacotes?|caixa|caixas?|cx|frasco|frascos?|unidade|unidades?|und?|bisnaga|bisnagas?|kit|kits?)\b/.test(t);
+  const apenasPesos = ocorrencias.length >= 1 && !temEmbalagem
+    && ocorrencias.every((o) => /(?:kg|kilo|quilos?|gramas?|g)$/i.test(o[0].trim()));
+  // 2+ itens com quantidade → pedido pronto, exceto se for pergunta ou só uma lista de pesos
+  if (ocorrencias.length >= 2) return !ehPergunta && !apenasPesos;
   if (ocorrencias.length === 1) {
     const pos = ocorrencias[0].index;
     const antes = t.slice(0, pos);
     const depois = t.slice(pos + ocorrencias[0][0].length);
-    // Pergunta clara (tem "?" ou palavra interrogativa) NUNCA é "pedido pronto", mesmo com
-    // vírgula antes da quantidade — ex.: "qual remédio pra carrapato, pra um pinscher de 2kg"
-    // tem vírgula natural de fala (pausa), não separador de lista de itens pra fechar pedido.
-    const ehPergunta = /\?/.test(t)
-      || /\b(quanto|quantos|quantas|qual|quais|tem|tens|voces?\s+tem|custa|custam|pre[cç]o|valor|onde|como|posso|pode)\b/.test(t);
     // Há uma lista: separador vírgula ou " e " antes OU depois do item
     if (!ehPergunta && (/,|\se\s/.test(antes) || (/,|\se\s/.test(depois) && depois.length > 10))) return true;
     // Item único com intenção de compra clara

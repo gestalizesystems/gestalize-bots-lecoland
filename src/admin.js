@@ -55,18 +55,32 @@ async function processarDocumento(from, mediaId, mimeType, nomeWpp) {
   }
 }
 
-// Imagem recebida → encaminha direto para atendente humano.
+// Imagem recebida → tenta identificar o produto com a IA de visão e resolver sozinho
+// (buscar no catálogo) antes de cair pro atendente. Só chama atendente se não der pra
+// identificar nada na foto, ou se o catálogo realmente não tiver o produto.
 async function processarImagem(from, mediaId, caption, nomeWpp) {
   if (conversa.estaPausado(from)) return; // já em atendimento humano ou handoff em andamento
+  // Registra o contato na lista de clientes mesmo que a 1ª mensagem dele seja uma foto
+  // (esse fluxo não passa por conversa.processar, que é quem normalmente cadastra o cliente).
+  clientes.salvar(from, {});
   try {
-    // Registra o contato na lista de clientes mesmo que a 1ª mensagem dele seja uma foto
-    // (esse fluxo não passa por conversa.processar, que é quem normalmente cadastra o cliente).
-    clientes.salvar(from, {});
-    await wa.enviarTexto(from, "📷 Recebi sua foto! Vou chamar um de nossos atendentes para te ajudar. 🐾");
-    conversa.pausar(from);
-    await conversa.abrirHandoff(from, "Cliente enviou uma imagem/foto.");
+    const { buffer, mimeType } = await wa.baixarMidia(mediaId);
+    const identificado = (await ai.identificarProdutoImagem(buffer.toString("base64"), mimeType, caption)).trim();
+    if (identificado && identificado.toUpperCase() !== "NENHUM") {
+      const texto = (caption ? caption + " — " : "") + identificado;
+      await conversa.processar(from, texto, nomeWpp);
+      return;
+    }
+    // Não deu pra identificar o produto na foto — pergunta o nome em vez de já chamar
+    // atendente (o bot resolve sozinho assim que souber o nome, sem precisar de humano).
+    await wa.enviarTexto(from, "📷 Recebi sua foto, mas não consegui identificar o produto nela! Pode me dizer o nome dele (ou da marca) que eu já te ajudo? 🐾");
   } catch (e) {
     console.error("Falha ao processar imagem:", e.message);
+    try {
+      await wa.enviarTexto(from, "📷 Recebi sua foto! Vou chamar um de nossos atendentes para te ajudar. 🐾");
+      conversa.pausar(from);
+      await conversa.abrirHandoff(from, "Cliente enviou uma imagem/foto (falha ao analisar).");
+    } catch (_) {}
   }
 }
 
